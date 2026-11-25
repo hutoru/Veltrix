@@ -10,7 +10,7 @@
 
 ## Скачать IPA на Windows
 
-1. Откройте [Build iOS IPA](https://github.com/hutoru/Veltrix/actions/workflows/build-ios.yml). Если нужна новая сборка, выберите **Run workflow → main**.
+1. Откройте [Build iOS IPA](https://github.com/hutoru/Veltrix/actions/workflows/build-ios.yml). Чтобы запустить новую сборку, выберите нужную ветку в меню **Run workflow**.
 2. В успешном запуске скачайте **Veltrix-unsigned-ipa** и распакуйте артефакт. Внутри находятся `Veltrix.ipa` и контрольная сумма SHA-256.
 3. Через PowerShell можно скачать и одновременно проверить последний успешный артефакт. Скрипт использует вход через Git Credential Manager или GitHub CLI.
 
@@ -18,7 +18,7 @@
 .\scripts\download-ipa.ps1 -Repository hutoru/Veltrix
 ```
 
-По умолчанию скрипт сохраняет файлы в `dist`. Параметр `-RunId` позволяет выбрать запуск.
+По умолчанию скрипт сохраняет в `dist` артефакт последнего успешного запуска ветки `main`. Параметр `-RunId` позволяет скачать артефакт конкретного запуска.
 
 ## Установить на iPhone
 
