@@ -199,14 +199,8 @@ struct TradeScreen: View {
                 tradeAssetRow("Asset", selection: $asset)
                 if intent.action == .swap {
                     Divider()
-                    tradeAssetRow("Receive asset", selection: $target)
-                    HStack {
-                        if let source = model.usablePrices[asset], let destination = model.usablePrices[target],
-                           let rate = try? MoneyMath.divide(source, destination) {
-                            Text(verbatim: "1 \(Asset.ticker(asset)) ≈ \(Display.number(rate)) \(Asset.ticker(target))")
-                                .font(.caption.monospacedDigit()).foregroundStyle(Color.vxMuted)
-                        }
-                        Spacer()
+                    HStack(spacing: 8) {
+                        tradeAssetRow("Receive asset", selection: $target)
                         IconButton(icon: "arrow.up.arrow.down", label: "Reverse swap") {
                             let previous = asset
                             asset = target
@@ -221,7 +215,13 @@ struct TradeScreen: View {
             .padding(.horizontal, 12)
             .background(Color.vxCard, in: RoundedRectangle(cornerRadius: 12))
 
-            if intent.action != .swap {
+            if intent.action == .swap {
+                if let source = model.usablePrices[asset], let destination = model.usablePrices[target],
+                   let rate = try? MoneyMath.divide(source, destination) {
+                    Text(verbatim: "1 \(Asset.ticker(asset)) ≈ \(Display.number(rate)) \(Asset.ticker(target))")
+                        .font(.caption.monospacedDigit()).foregroundStyle(Color.vxMuted)
+                }
+            } else {
                 HStack(spacing: 10) {
                     Picker("Execution", selection: $isLimit) {
                         Text("Market").tag(false)
@@ -281,7 +281,7 @@ struct TradeScreen: View {
                 .foregroundStyle(Color.vxMuted)
                 .accessibilityHidden(equivalent == nil)
         }
-        .frame(maxWidth: .infinity, minHeight: isTrading ? 104 : 72)
+        .frame(maxWidth: .infinity, minHeight: intent.action == .swap ? 84 : (isTrading ? 104 : 72))
     }
 
     private var amountIsCash: Bool { intent.action == .deposit || (useFiat && !isLimit) }

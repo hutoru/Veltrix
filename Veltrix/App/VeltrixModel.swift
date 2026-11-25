@@ -59,9 +59,12 @@ import SwiftUI
          notificationSink: NotificationSink? = nil) {
         self.defaults = defaults
         self.testing = testing
-        self.notificationSink = notificationSink ?? (testing ? nil : { entry, filled, amounts in
-            OperationNotifications.schedule(entry, filled: filled, amounts: amounts)
-        })
+        if testing {
+            self.notificationSink = notificationSink
+        } else {
+            let native: NotificationSink = OperationNotifications.schedule
+            self.notificationSink = notificationSink ?? native
+        }
         let client = HTTPClient()
         http = client
         provider = suppliedProvider ?? PublicMarketProvider(http: client, demoKey: testing ? nil : Self.loadDemoKey())

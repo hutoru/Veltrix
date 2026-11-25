@@ -177,6 +177,7 @@ final class VeltrixUITests: XCTestCase {
     }
 
     private func capture(_ app: XCUIApplication, name: String) {
+        Thread.sleep(forTimeInterval: 0.35)
         let screenshot = XCTAttachment(screenshot: app.screenshot())
         screenshot.name = name
         screenshot.lifetime = .keepAlways
