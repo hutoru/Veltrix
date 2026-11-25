@@ -17,6 +17,7 @@ final class VeltrixUITests: XCTestCase {
         more.tap()
         app.buttons["Deposit"].tap()
         XCTAssertTrue(app.staticTexts["trade.amount"].waitForExistence(timeout: 5))
+        capture(app, name: "Trade amount")
         app.buttons["keypad.1"].tap()
         app.buttons["keypad.0"].tap()
         app.buttons["keypad.0"].tap()
@@ -27,7 +28,7 @@ final class VeltrixUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["trade.saved"].waitForExistence(timeout: 5))
         app.buttons["Done"].tap()
         app.buttons["tab.activity"].tap()
-        XCTAssertTrue(app.staticTexts["Transactions and open orders"].waitForExistence(timeout: 5), app.debugDescription)
+        XCTAssertTrue(app.staticTexts["Virtual transactions and open orders"].waitForExistence(timeout: 5), app.debugDescription)
         XCTAssertTrue(app.descendants(matching: .any)["activity.deposit"].exists)
         capture(app, name: "Activity")
     }
@@ -49,6 +50,7 @@ final class VeltrixUITests: XCTestCase {
     func testCreateCardAndHideItsBalanceThroughSettings() {
         let app = launch()
         app.buttons["tab.profile"].tap()
+        capture(app, name: "Profile")
         app.buttons["profile.cards"].tap()
         let create = app.buttons["card.create"]
         XCTAssertTrue(create.waitForExistence(timeout: 5), app.debugDescription)
@@ -87,6 +89,18 @@ final class VeltrixUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Portfolio history"].waitForExistence(timeout: 5))
         capture(app, name: "Portfolio history")
         app.buttons["Done"].tap()
+    }
+
+    func testTradeTabOpensBuyWithCustomKeypad() {
+        let app = launch()
+        app.buttons["tab.trade"].tap()
+        app.buttons["Buy"].tap()
+        XCTAssertTrue(app.buttons["keypad.1"].waitForExistence(timeout: 5))
+        app.buttons["keypad.1"].tap()
+        app.buttons["keypad.2"].tap()
+        app.buttons["keypad.delete"].tap()
+        XCTAssertTrue(app.staticTexts["trade.amount"].label.hasPrefix("1 "))
+        XCTAssertFalse(app.keyboards.firstMatch.exists)
     }
 
     private func capture(_ app: XCUIApplication, name: String) {

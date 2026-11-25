@@ -196,9 +196,10 @@ struct TradeScreen: View {
 
     private func append(_ value: String) {
         let separator = Locale.current.decimalSeparator ?? "."
-        guard amount.count < 28, value != separator || !amount.contains(separator) else { return }
+        guard value != separator || !amount.contains(separator) else { return }
         if value == separator && amount.isEmpty { amount = "0" }
-        amount.append(value)
+        if amount == "0" && value != separator { amount = value }
+        else { amount.append(value) }
         error = nil
     }
 
@@ -212,7 +213,12 @@ struct TradeScreen: View {
             guard let price = pricingQuote, let total = try? MoneyMath.multiply(value, price) else { return }
             value = total
         }
-        guard var fraction = try? MoneyMath.divide(MoneyMath.multiply(value, Decimal(percent)), 100) else { return }
+        if percent == 100 && intent.action != .buy && !amountIsCash {
+            amount = Display.input(value)
+            error = nil
+            return
+        }
+        guard var fraction = try? MoneyMath.multiply(value, Decimal(percent) / 100) else { return }
         var rounded = Decimal()
         NSDecimalRound(&rounded, &fraction, 8, .down)
         amount = Display.input(rounded)

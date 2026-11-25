@@ -87,6 +87,23 @@ struct ProfileScreen: View {
                     }.panel(padding: 10)
                 }.buttonStyle(.plain)
             }
+            let closed = Asset.catalog.filter { coin in
+                portfolio.positions[coin.id] == nil && realizedTrades.contains { $0.asset == coin.id }
+            }
+            if !closed.isEmpty {
+                Text("Closed positions").font(.headline)
+                ForEach(closed) { coin in
+                    let profit = try? realizedTrades.filter { $0.asset == coin.id }.compactMap(\.profit).reduce(0, MoneyMath.add)
+                    NavigationLink(value: coin) {
+                        HStack {
+                            CoinIcon(asset: coin, url: model.quotes[coin.id]?.image, size: 30)
+                            Text(verbatim: coin.name)
+                            Spacer()
+                            Text(verbatim: model.money(profit)).monospacedDigit()
+                        }.panel(padding: 10)
+                    }.buttonStyle(.plain)
+                }
+            }
             if !realizedTrades.isEmpty {
                 Text("Realized trades").font(.headline)
                 ForEach(realizedTrades.reversed()) { entry in
