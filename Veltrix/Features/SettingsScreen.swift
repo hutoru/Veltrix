@@ -87,8 +87,23 @@ struct SettingsScreen: View {
                 Text("Light").tag("light")
             }
             .pickerStyle(.segmented)
-            Toggle("Hide balances", isOn: $model.hide)
-                .accessibilityIdentifier("settings.hide")
+            Button {
+                model.hide.toggle()
+                Feedback.tap()
+            } label: {
+                HStack {
+                    Text("Hide balances")
+                    Spacer()
+                    Image(systemName: model.hide ? "eye.slash.fill" : "eye")
+                        .foregroundStyle(Color.vxHighlight)
+                        .accessibilityHidden(true)
+                }
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("settings.hide")
+            .accessibilityAddTraits(model.hide ? .isSelected : [])
         }
         .panel()
     }

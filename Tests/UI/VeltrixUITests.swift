@@ -54,12 +54,16 @@ final class VeltrixUITests: XCTestCase {
         XCTAssertEqual(card.value as? String, "$0.00")
         capture(app, name: "Virtual card")
         app.buttons["tab.settings"].tap()
-        let toggle = app.switches["settings.hide"]
-        for _ in 0..<3 where !toggle.isHittable { app.swipeUp() }
-        XCTAssertTrue(toggle.waitForExistence(timeout: 5))
-        toggle.tap()
+        let privacyButton = app.buttons["settings.hide"]
+        for _ in 0..<3 where !privacyButton.isHittable || privacyButton.frame.midY > app.frame.maxY - 75 {
+            app.swipeUp()
+        }
+        XCTAssertTrue(privacyButton.waitForExistence(timeout: 5))
+        privacyButton.tap()
+        XCTAssertTrue(privacyButton.isSelected)
         app.buttons["tab.cards"].tap()
-        XCTAssertEqual(card.value as? String, "••••••")
+        let hidden = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "••••••"), object: card)
+        XCTAssertEqual(XCTWaiter.wait(for: [hidden], timeout: 5), .completed)
     }
 
     private func capture(_ app: XCUIApplication, name: String) {
