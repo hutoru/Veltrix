@@ -4,6 +4,7 @@ import UniformTypeIdentifiers
 struct SettingsScreen: View {
     @EnvironmentObject private var model: VeltrixModel
     @EnvironmentObject private var lock: AppLock
+    @Environment(\.openURL) private var openURL
     @AppStorage("profileName") private var profileName = ""
     @AppStorage("profileUsername") private var username = ""
     @State private var panel: SettingsPanel?
@@ -12,6 +13,7 @@ struct SettingsScreen: View {
     @State private var backup = BackupFile()
     @State private var incoming: Data?
     @State private var reset = false
+    @State private var notificationPermission = false
 
     var body: some View {
         List {
@@ -33,8 +35,29 @@ struct SettingsScreen: View {
                 }
             }
             Section { simulation }
+            Section("Notifications") {
+                Toggle("iOS notifications", isOn: Binding(get: { model.pushOperations }, set: updateNotifications))
+                Toggle("Hide amounts in notifications", isOn: $model.privateNotifications)
+            }
             Section { security }
             Section { backups }
+            Section("Community") {
+                Button {
+                    guard let url = URL(string: "https://t.me/veltrixlarpwallet") else { return }
+                    Feedback.tap()
+                    openURL(url)
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: "paperplane.fill").foregroundStyle(Color.vxHighlight)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(verbatim: "Veltrix News").font(.subheadline.weight(.semibold))
+                            Text("App news, updates and announcements.").font(.caption).foregroundStyle(Color.vxMuted)
+                        }
+                        Spacer()
+                        Image(systemName: "arrow.up.right").font(.caption).foregroundStyle(Color.vxMuted)
+                    }.frame(minHeight: 44).contentShape(Rectangle())
+                }.buttonStyle(.plain)
+            }
             Section {
                 NavigationLink("About VELTRIX") {
                     PageScroll {
@@ -44,7 +67,12 @@ struct SettingsScreen: View {
                 }
             } footer: {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Simulation").font(.footnote.weight(.semibold))
+                    Text(verbatim: "VELTRIX").font(.footnote.weight(.semibold)).tracking(3)
+                    Text(verbatim: "Beyond the balance.")
+                    if let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String {
+                        Text("Version \(version)")
+                    }
+                    Text(verbatim: "© 2026 VELTRIX")
                     Text("VELTRIX uses virtual funds. Trades, transfers and card payments are simulated on this device.")
                 }.foregroundStyle(Color.vxMuted)
             }
@@ -53,6 +81,12 @@ struct SettingsScreen: View {
         .scrollContentBackground(.hidden)
         .background(Color.vxBackground)
         .sheet(item: $panel) { SettingsForm(panel: $0) }
+        .alert("Notifications are disabled", isPresented: $notificationPermission) {
+            Button("Open Settings") {
+                if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
+            }
+            Button("Cancel", role: .cancel) {}
+        }
         .fileExporter(isPresented: $export, document: backup, contentType: .json, defaultFilename: "VELTRIX-Backup") { result in
             if case let .failure(error) = result { model.error = Display.error(error) }
         }
@@ -79,6 +113,18 @@ struct SettingsScreen: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("The selected portfolio’s balance, positions, orders, cards and activity will be cleared.")
+        }
+    }
+
+    private func updateNotifications(_ enabled: Bool) {
+        if enabled {
+            Task {
+                model.pushOperations = await OperationNotifications.authorize()
+                notificationPermission = !model.pushOperations
+            }
+        } else {
+            model.pushOperations = false
+            OperationNotifications.clear()
         }
     }
 

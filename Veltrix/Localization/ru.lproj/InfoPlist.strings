@@ -1,2 +1,3 @@
-"NSFaceIDUsageDescription" = "Разблокируйте личную симуляцию VELTRIX.";
+"NSFaceIDUsageDescription" = "Разблокируйте Veltrix и защитите свой портфель.";
+"NSCameraUsageDescription" = "Сканируйте QR-коды и считывайте публичные адреса в Veltrix.";
 "NSMotionUsageDescription" = "Меняйте отражения виртуальных карт при наклоне iPhone.";

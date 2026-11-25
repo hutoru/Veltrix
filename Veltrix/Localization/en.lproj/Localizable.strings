@@ -87,7 +87,7 @@
 "Market" = "Market";
 "Limit" = "Limit";
 "Limit price (USD)" = "Limit price (USD)";
-"Enter amount in USD" = "Enter amount in USD";
+"Amount unit" = "Amount unit";
 "Receive asset" = "Receive asset";
 "Simulated recipient" = "Simulated recipient";
 "Simulated sender" = "Simulated sender";

@@ -2,14 +2,15 @@ import SwiftUI
 import UIKit
 
 extension Color {
-    static let vxBackground = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(rgb: 0x09090B) : UIColor(rgb: 0xF4F2FA) })
-    static let vxText = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(rgb: 0xF5F5F7) : UIColor(rgb: 0x17171C) })
-    static let vxCard = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(rgb: 0x17171C) : .white })
-    static let vxSurface = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(rgb: 0x1C1C25) : UIColor(rgb: 0xEBE7F6) })
-    static let vxMuted = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(rgb: 0x85858F) : UIColor(rgb: 0x655E75) })
+    static let vxBackground = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(rgb: 0x080809) : UIColor(rgb: 0xF6F6F8) })
+    static let vxText = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(rgb: 0xF8F8FA) : UIColor(rgb: 0x17171C) })
+    static let vxCard = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(rgb: 0x121214) : .white })
+    static let vxSurface = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(rgb: 0x1C1C1E) : UIColor(rgb: 0xEDEDEF) })
+    static let vxMuted = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(rgb: 0x929299) : UIColor(rgb: 0x64646B) })
+    static let vxSeparator = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(rgb: 0x242426) : UIColor(rgb: 0xDEDEE2) })
     static let vxAccent = Color(uiColor: UIColor(rgb: 0x7955FF))
     static let vxHighlight = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(rgb: 0xB69FFF) : UIColor(rgb: 0x5532CE) })
-    static let vxUp = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(rgb: 0x34D058) : UIColor(rgb: 0x12773B) })
+    static let vxUp = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(rgb: 0x30D158) : UIColor(rgb: 0x12773B) })
     static let vxDown = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(rgb: 0xFF453A) : UIColor(rgb: 0xB9222C) })
 }
 
@@ -64,17 +65,18 @@ struct OrbitLines: View {
 }
 
 struct PrimaryButtonStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var tint: Color = .vxAccent
     var ink: Color = .white
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(.headline, design: .rounded))
+            .font(.headline)
             .frame(maxWidth: .infinity, minHeight: 44)
             .foregroundStyle(ink)
-            .background(tint.gradient, in: RoundedRectangle(cornerRadius: 15))
+            .background(tint, in: RoundedRectangle(cornerRadius: 12))
             .opacity(configuration.isPressed ? 0.76 : 1)
-            .scaleEffect(configuration.isPressed ? 0.98 : 1)
-            .animation(.spring(response: 0.28, dampingFraction: 0.76), value: configuration.isPressed)
+            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.98 : 1)
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: configuration.isPressed)
     }
 }
 
@@ -86,7 +88,7 @@ struct PageHeader<Trailing: View>: View {
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             VStack(alignment: .leading, spacing: 7) {
-                Text(title).font(.system(.largeTitle, design: .rounded).weight(.bold)).accessibilityAddTraits(.isHeader)
+                Text(title).font(.largeTitle.weight(.semibold)).accessibilityAddTraits(.isHeader)
                 Text(detail).font(.subheadline).foregroundStyle(Color.vxMuted)
             }
             Spacer(minLength: 0)
@@ -121,9 +123,9 @@ struct IconButton: View {
         Button(action: action) {
             Image(systemName: icon)
                 .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(Color.vxHighlight)
+                .foregroundStyle(Color.vxText)
                 .frame(width: 44, height: 44)
-                .background(Color.vxSurface, in: RoundedRectangle(cornerRadius: 14))
+                .background(Color.vxCard, in: Circle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(Text(label))
@@ -131,6 +133,7 @@ struct IconButton: View {
 }
 
 struct CountValue: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let text: String
 
     var body: some View {
@@ -142,7 +145,7 @@ struct CountValue: View {
             }
         }
         .monospacedDigit()
-        .animation(.easeOut(duration: 0.25), value: text)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.25), value: text)
     }
 }
 
@@ -202,9 +205,9 @@ struct PageScroll<Content: View>: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16, content: content)
                 .foregroundStyle(Color.vxText)
-                .padding(.horizontal, 18)
-                .padding(.top, 14)
-                .padding(.bottom, 20)
+                .padding(.horizontal, 16)
+                .padding(.top, 16)
+                .padding(.bottom, 24)
                 .frame(maxWidth: 700)
                 .frame(maxWidth: .infinity)
         }
@@ -215,6 +218,7 @@ struct PageScroll<Content: View>: View {
 
 struct NumericPad: View {
     let allowsDecimal: Bool
+    var keyHeight: CGFloat = 44
     let onInput: (String) -> Void
     let onDelete: () -> Void
     private var separator: String { Locale.current.decimalSeparator ?? "." }
@@ -232,14 +236,14 @@ struct NumericPad: View {
                             else { Text(verbatim: key) }
                         }
                         .font(.system(size: 22, weight: .medium).monospacedDigit())
-                        .frame(maxWidth: .infinity, minHeight: 44)
-                        .background(Color.vxCard, in: RoundedRectangle(cornerRadius: 12))
+                        .frame(maxWidth: .infinity, minHeight: keyHeight)
+                        .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(key == "delete" ? Text("Delete digit") : Text(verbatim: key))
                     .accessibilityIdentifier("keypad." + key)
                 } else {
-                    Color.clear.frame(height: 44)
+                    Color.clear.frame(height: keyHeight)
                 }
             }
         }

@@ -139,26 +139,3 @@ struct ProfileScreen: View {
     }
 }
 
-struct TradeHub: View {
-    @State private var trade: TradeIntent?
-
-    var body: some View {
-        PageScroll {
-            PageHeader(title: "Trade", detail: "Virtual funds") { EmptyView() }
-            ForEach(TradeAction.allCases) { action in
-                Button {
-                    Feedback.tap()
-                    trade = TradeIntent(action: action)
-                } label: {
-                    HStack(spacing: 13) {
-                        Image(systemName: action.icon).frame(width: 32).foregroundStyle(Color.vxHighlight)
-                        Text(action.title).font(.headline)
-                        Spacer()
-                        Image(systemName: "chevron.right").font(.caption).foregroundStyle(Color.vxMuted)
-                    }.frame(minHeight: 34).panel(padding: 11)
-                }.buttonStyle(.plain)
-            }
-        }
-        .fullScreenCover(item: $trade) { TradeScreen(intent: $0) }
-    }
-}

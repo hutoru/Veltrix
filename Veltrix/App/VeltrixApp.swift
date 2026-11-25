@@ -3,6 +3,7 @@ import UIKit
 
 @main @MainActor
 struct VeltrixApp: App {
+    @UIApplicationDelegateAdaptor(NotificationDelegate.self) private var notificationDelegate
     @StateObject private var model: VeltrixModel
     @StateObject private var lock: AppLock
 
@@ -54,6 +55,11 @@ struct VeltrixRoot: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var tab = Destination.portfolio
     @State private var keyboardVisible = false
+    @State private var showSplash = !ProcessInfo.processInfo.arguments.contains("--ui-testing")
+        || ProcessInfo.processInfo.arguments.contains("--capture-launch")
+    @State private var tradeMenu = false
+    @State private var trade: TradeIntent?
+    @State private var notificationEntry: Entry?
 
     var body: some View {
         Group {
@@ -70,6 +76,19 @@ struct VeltrixRoot: View {
                 content
             }
         }
+        .overlay {
+            if showSplash {
+                LaunchScreen()
+                    .transition(reduceMotion ? .identity : .opacity)
+                    .accessibilityIdentifier("launch.screen")
+                    .task {
+                        try? await Task.sleep(nanoseconds: reduceMotion ? 300_000_000 : 950_000_000)
+                        guard !Task.isCancelled else { return }
+                        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.24)) { showSplash = false }
+                    }
+            }
+        }
+        .accessibilityHidden(showSplash && phase != .active)
         .animation(reduceMotion || lock.locked ? nil : .easeOut(duration: 0.25), value: lock.locked)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.vxBackground.ignoresSafeArea())
@@ -82,14 +101,14 @@ struct VeltrixRoot: View {
         }
         .onChange(of: phase) { next in
             switch next {
-            case .active: lock.becomeActive(); if !lock.locked { model.start() }
+            case .active: lock.becomeActive(); if !lock.locked { model.start(); openPendingNotification() }
             case .background: lock.enteredBackground(); model.stop()
             default: break
             }
         }
         .onChange(of: lock.locked) { value in
             if value { model.stop() }
-            else if phase == .active { model.start() }
+            else if phase == .active { model.start(); openPendingNotification() }
         }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
             keyboardVisible = true
@@ -97,7 +116,22 @@ struct VeltrixRoot: View {
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
             keyboardVisible = false
         }
-        .onAppear { if phase == .active && !lock.locked { model.start() } }
+        .onReceive(NotificationCenter.default.publisher(for: NotificationDelegate.opened)) { _ in openPendingNotification() }
+        .onAppear { if phase == .active && !lock.locked { model.start(); openPendingNotification() } }
+        .sheet(item: $notificationEntry) { entry in
+            NavigationStack {
+                EntryScreen(entry: entry)
+                    .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { notificationEntry = nil } } }
+            }
+        }
+    }
+
+    private func openPendingNotification() {
+        guard !lock.locked, phase == .active, !model.storageError,
+              let value = UserDefaults.standard.string(forKey: "pendingOperationNotification"),
+              let id = UUID(uuidString: value) else { return }
+        UserDefaults.standard.removeObject(forKey: "pendingOperationNotification")
+        notificationEntry = model.openNotification(id)
     }
 
     private var content: some View {
@@ -106,7 +140,7 @@ struct VeltrixRoot: View {
                 switch tab {
                 case .portfolio: PortfolioScreen()
                 case .markets: MarketsScreen()
-                case .trade: TradeHub()
+                case .trade: PortfolioScreen()
                 case .activity: ActivityScreen()
                 case .profile: ProfileScreen()
                 }
@@ -127,6 +161,12 @@ struct VeltrixRoot: View {
             }
         }
         .id(tab)
+        .confirmationDialog("Trade", isPresented: $tradeMenu, titleVisibility: .visible) {
+            ForEach(TradeAction.allCases) { action in
+                Button(action.title) { trade = TradeIntent(action: action) }
+            }
+        }
+        .fullScreenCover(item: $trade) { TradeScreen(intent: $0) }
         .alert("VELTRIX", isPresented: .init(get: { model.error != nil }, set: { if !$0 { model.error = nil } })) {
             Button("OK", role: .cancel) { model.error = nil }
         } message: { Text(verbatim: model.error ?? "") }
@@ -136,6 +176,7 @@ struct VeltrixRoot: View {
         HStack(spacing: 2) {
             ForEach(Destination.allCases, id: \.self) { destination in
                 Button {
+                    if destination == .trade { Feedback.tap(); tradeMenu = true; return }
                     guard destination != tab else { return }
                     Feedback.tap()
                     withAnimation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.82)) { tab = destination }
@@ -148,7 +189,7 @@ struct VeltrixRoot: View {
                         }
                         Text(destination.name).font(.system(size: 9, weight: .semibold)).lineLimit(1).minimumScaleFactor(0.65)
                     }
-                    .foregroundStyle(tab == destination ? Color.vxHighlight : Color.vxMuted)
+                    .foregroundStyle(tab == destination ? Color.vxText : Color.vxMuted)
                     .frame(maxWidth: .infinity, minHeight: 49)
                     .overlay(alignment: .top) { if tab == destination { Capsule().fill(Color.vxAccent).frame(width: 16, height: 2) } }
                     .contentShape(Rectangle())
@@ -158,37 +199,70 @@ struct VeltrixRoot: View {
                 .accessibilityAddTraits(tab == destination ? .isSelected : [])
             }
         }
-        .padding(5)
-        .background {
-            RoundedRectangle(cornerRadius: 16).fill(Color.vxCard.opacity(0.97)).allowsHitTesting(false)
-        }
+        .padding(.top, 4)
         .frame(maxWidth: 600)
-        .padding(.horizontal, 13)
-        .padding(.bottom, 4)
+        .frame(maxWidth: .infinity)
+        .background(Color.vxBackground.ignoresSafeArea(edges: .bottom))
+        .overlay(alignment: .top) { Rectangle().fill(Color.vxSeparator).frame(height: 1).allowsHitTesting(false) }
+    }
+}
+
+private struct LaunchScreen: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var appeared = false
+
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+            VStack(spacing: 24) {
+                VeltrixMark().fill(.white).frame(width: 68, height: 68)
+                    .scaleEffect(appeared || reduceMotion ? 1 : 0.85)
+                Text(verbatim: "VELTRIX").font(.caption.weight(.semibold)).tracking(8).foregroundStyle(.white)
+            }
+            .opacity(appeared || reduceMotion ? 1 : 0)
+        }
+        .onAppear { withAnimation(reduceMotion ? nil : .easeOut(duration: 0.5)) { appeared = true } }
     }
 }
 
 private struct LockScreen: View {
     @EnvironmentObject private var lock: AppLock
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage("profileName") private var name = ""
     @State private var pin = ""
+    @State private var shake = false
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 18) {
-                VeltrixMark().fill(Color.vxHighlight).frame(width: 46, height: 46)
-                Text(verbatim: "VELTRIX").font(.caption.bold()).tracking(5)
-                Text("Welcome back").font(.largeTitle.bold())
-                if !name.isEmpty { Text(verbatim: name).font(.headline).foregroundStyle(Color.vxMuted) }
+            VStack(spacing: 16) {
+                ProfileAvatar(size: 72)
+                Text("Welcome back").font(.largeTitle.weight(.semibold))
+                Text(verbatim: name.isEmpty ? L.text("My profile") : name).font(.headline).foregroundStyle(Color.vxMuted)
                 if lock.hasPIN {
-                    Text(verbatim: pin.isEmpty ? "– – – –" : String(repeating: "● ", count: pin.count))
-                        .font(.title2.monospaced()).foregroundStyle(Color.vxHighlight)
-                        .accessibilityLabel(Text("PIN"))
+                    HStack(spacing: 12) {
+                        ForEach(0..<max(4, pin.count), id: \.self) { index in
+                            Circle().fill(index < pin.count ? Color.vxText : Color.vxSeparator).frame(width: 9, height: 9)
+                        }
+                    }
+                    .frame(height: 28)
+                    .offset(x: shake && !reduceMotion ? 8 : 0)
+                    .accessibilityElement()
+                    .accessibilityLabel(Text("PIN"))
+                    .accessibilityValue(Text(verbatim: String(pin.count)))
                     NumericPad(allowsDecimal: false, onInput: { digit in
                         if pin.count < 8 { pin.append(digit) }
                     }, onDelete: { if !pin.isEmpty { pin.removeLast() } }).disabled(lock.busy)
                     Button("Unlock") {
-                        Task { await lock.unlock(pin: pin); pin = ""; if !lock.locked { Feedback.success() } }
+                        Task {
+                            await lock.unlock(pin: pin)
+                            pin = ""
+                            if !lock.locked { Feedback.success() }
+                            else {
+                                withAnimation(reduceMotion ? nil : .easeOut(duration: 0.08)) { shake = true }
+                                try? await Task.sleep(nanoseconds: 80_000_000)
+                                withAnimation(reduceMotion ? nil : .spring(response: 0.24, dampingFraction: 0.36)) { shake = false }
+                            }
+                        }
                     }.buttonStyle(PrimaryButtonStyle()).disabled(pin.count < 4 || lock.busy)
                     if let retryAt = lock.retryAt, retryAt > Date() {
                         Text(retryAt, style: .timer).font(.footnote.monospacedDigit())

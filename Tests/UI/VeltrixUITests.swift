@@ -11,24 +11,29 @@ final class VeltrixUITests: XCTestCase {
 
     func testDepositThroughReviewAndSeeItInActivity() {
         let app = launch()
-        capture(app, name: "Portfolio")
+        capture(app, name: "Home")
         let more = app.buttons["trade.more"]
         if !more.isHittable { app.swipeUp() }
         more.tap()
         app.buttons["Deposit"].tap()
         XCTAssertTrue(app.staticTexts["trade.amount"].waitForExistence(timeout: 5))
-        capture(app, name: "Trade amount")
+        capture(app, name: "Deposit")
         app.buttons["keypad.1"].tap()
         app.buttons["keypad.0"].tap()
         app.buttons["keypad.0"].tap()
         if !app.buttons["trade.review"].isHittable { app.swipeUp() }
         app.buttons["trade.review"].tap()
-        XCTAssertTrue(app.staticTexts["Virtual funds"].exists)
+        XCTAssertTrue(app.staticTexts["Local operation"].exists)
+        capture(app, name: "Review Order")
         app.buttons["trade.confirm"].tap()
         XCTAssertTrue(app.staticTexts["trade.saved"].waitForExistence(timeout: 5))
+        capture(app, name: "Operation Saved")
         app.buttons["Done"].tap()
+        app.buttons["Notifications"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["activity.deposit"].waitForExistence(timeout: 5))
+        capture(app, name: "Notifications")
         app.buttons["tab.activity"].tap()
-        XCTAssertTrue(app.staticTexts["Virtual transactions and open orders"].waitForExistence(timeout: 5), app.debugDescription)
+        XCTAssertTrue(app.staticTexts["Transactions and open orders"].waitForExistence(timeout: 5), app.debugDescription)
         XCTAssertTrue(app.descendants(matching: .any)["activity.deposit"].exists)
         capture(app, name: "Activity")
     }
@@ -38,6 +43,7 @@ final class VeltrixUITests: XCTestCase {
         app.buttons["tab.markets"].tap()
         let search = app.textFields["markets.search"]
         XCTAssertTrue(search.waitForExistence(timeout: 5), app.debugDescription)
+        capture(app, name: "Explore")
         search.tap()
         search.typeText("Bitcoin")
         let coin = app.buttons["market.BTC"]
@@ -45,6 +51,7 @@ final class VeltrixUITests: XCTestCase {
         capture(app, name: "Market search")
         coin.tap()
         XCTAssertTrue(app.staticTexts["Price history"].waitForExistence(timeout: 5))
+        capture(app, name: "Asset Details")
     }
 
     func testCreateCardAndHideItsBalanceThroughSettings() {
@@ -56,11 +63,12 @@ final class VeltrixUITests: XCTestCase {
         XCTAssertTrue(create.waitForExistence(timeout: 5), app.debugDescription)
         create.tap()
         XCTAssertTrue(app.buttons["card.confirm"].waitForExistence(timeout: 5))
+        capture(app, name: "Card Studio")
         app.buttons["card.confirm"].tap()
         let card = app.buttons["card.face"]
         XCTAssertTrue(card.waitForExistence(timeout: 5))
         XCTAssertEqual(card.value as? String, "$0.00")
-        capture(app, name: "Virtual card")
+        capture(app, name: "Cards")
         app.navigationBars.buttons.element(boundBy: 0).tap()
         app.buttons["profile.settings"].tap()
         let privacyButton = app.buttons["settings.hide"]
@@ -92,16 +100,32 @@ final class VeltrixUITests: XCTestCase {
         app.buttons["Done"].tap()
     }
 
-    func testTradeTabOpensBuyWithCustomKeypad() {
+    func testTradingFormsShareTheCustomKeypadAndDiscloseOnReview() {
         let app = launch()
-        app.buttons["tab.trade"].tap()
-        app.buttons["Buy"].tap()
-        XCTAssertTrue(app.buttons["keypad.1"].waitForExistence(timeout: 5))
-        app.buttons["keypad.1"].tap()
-        app.buttons["keypad.2"].tap()
-        app.buttons["keypad.delete"].tap()
-        XCTAssertTrue(app.staticTexts["trade.amount"].label.hasPrefix("1 "))
-        XCTAssertFalse(app.keyboards.firstMatch.exists)
+        for (action, unit) in [("Buy", "USD"), ("Sell", "BTC"), ("Swap", "BTC")] {
+            app.buttons["tab.trade"].tap()
+            app.buttons[action].tap()
+            let amount = app.staticTexts["trade.amount"]
+            XCTAssertTrue(amount.waitForExistence(timeout: 5))
+            capture(app, name: action)
+            app.buttons["keypad.1"].tap()
+            app.buttons["keypad.2"].tap()
+            app.buttons["keypad.delete"].tap()
+            XCTAssertEqual(amount.label, "1 " + unit)
+            XCTAssertFalse(app.keyboards.firstMatch.exists)
+
+            if action == "Buy" {
+                app.buttons["Limit"].tap()
+                let price = app.textFields["Limit price (USD)"]
+                price.tap()
+                price.typeText("100")
+                if !app.buttons["trade.review"].isHittable { app.swipeUp() }
+                app.buttons["trade.review"].tap()
+                XCTAssertTrue(app.staticTexts["Local operation"].waitForExistence(timeout: 5))
+                app.buttons["Edit"].tap()
+            }
+            app.buttons["Close"].tap()
+        }
     }
 
     private func capture(_ app: XCUIApplication, name: String) {

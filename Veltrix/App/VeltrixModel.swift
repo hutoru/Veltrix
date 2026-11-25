@@ -18,6 +18,11 @@ import SwiftUI
     @Published var theme: String { didSet { defaults.set(theme, forKey: "theme") } }
     @Published private(set) var fee: Decimal { didSet { defaults.set(DisplayStored.string(fee), forKey: "fee") } }
     @Published var favorites: Set<String> { didSet { defaults.set(Array(favorites), forKey: "favorites") } }
+    @Published var pushOperations: Bool { didSet { defaults.set(pushOperations, forKey: "pushOperations") } }
+    @Published var privateNotifications: Bool { didSet { defaults.set(privateNotifications, forKey: "privateNotifications") } }
+    @Published private var notificationsCleared: Date { didSet { defaults.set(notificationsCleared, forKey: "notificationsCleared") } }
+    @Published private var notificationsReadDate: Date { didSet { defaults.set(notificationsReadDate, forKey: "notificationsReadDate") } }
+    @Published private var notificationsRead: Set<String> { didSet { defaults.set(Array(notificationsRead), forKey: "notificationsRead") } }
 
     private var store: (any LedgerStore)?
     private var provider: any MarketDataProvider
@@ -50,6 +55,11 @@ import SwiftUI
         theme = defaults.string(forKey: "theme") ?? "dark"
         fee = defaults.string(forKey: "fee").flatMap { MoneyMath.parse($0, separator: ".") } ?? Decimal(1) / 1_000
         favorites = Set(defaults.stringArray(forKey: "favorites") ?? [])
+        pushOperations = defaults.bool(forKey: "pushOperations")
+        privateNotifications = defaults.object(forKey: "privateNotifications") as? Bool ?? true
+        notificationsCleared = defaults.object(forKey: "notificationsCleared") as? Date ?? .distantPast
+        notificationsReadDate = defaults.object(forKey: "notificationsReadDate") as? Date ?? Date()
+        notificationsRead = Set(defaults.stringArray(forKey: "notificationsRead") ?? [])
         do {
             let storage = try suppliedStore ?? CoreDataLedgerStore(inMemory: testing)
             if let loaded = try storage.load() { ledger = loaded } else { try storage.save(ledger) }
@@ -63,6 +73,41 @@ import SwiftUI
     var cards: [VirtualCard] { ledger.cards.filter { $0.owner == ledger.selected } }
     var prices: [String: Decimal] { quotes.compactMapValues(\.price) }
 
+    var notificationEntries: [Entry] {
+        portfolio.entries.reversed().filter { $0.date > notificationsCleared && OperationNotifications.eligible($0) }
+    }
+
+    var hasUnreadNotifications: Bool {
+        portfolio.entries.reversed().contains { $0.date > notificationsCleared && OperationNotifications.eligible($0) && isUnread($0) }
+    }
+
+    func isUnread(_ entry: Entry) -> Bool {
+        entry.date > notificationsReadDate && !notificationsRead.contains(entry.id.uuidString)
+    }
+
+    func readNotification(_ entry: Entry) {
+        if isUnread(entry) { notificationsRead.insert(entry.id.uuidString) }
+    }
+
+    func readNotifications() {
+        notificationsReadDate = .now
+        notificationsRead = []
+    }
+
+    func clearNotifications() {
+        notificationsCleared = .now
+        readNotifications()
+        OperationNotifications.clear()
+    }
+
+    func openNotification(_ id: UUID) -> Entry? {
+        guard let owner = ledger.portfolios.first(where: { $0.entries.contains { $0.id == id } }),
+              let entry = owner.entries.first(where: { $0.id == id }) else { return nil }
+        if owner.id != ledger.selected && !execute(.selectPortfolio(owner.id)) { return nil }
+        readNotification(entry)
+        return entry
+    }
+
     var usablePrices: [String: Decimal] {
         guard inForeground else { return [:] }
         return quotes.compactMapValues { quote in
@@ -75,17 +120,24 @@ import SwiftUI
     func money(_ amount: Decimal?, privateValue: Bool = true, price: Bool = false) -> String {
         if hide && privateValue { return "••••••" }
         guard let amount, let converted = try? Fiat.convert(amount, currency: currency, rates: rates) else { return "—" }
-        let places = price && abs(converted) < 1 && converted != 0 ? max(10, digits) : digits
+        let places = price ? FinancialFormatter.pricePrecision(converted, minimum: digits) : digits
         return Display.money(converted, currency: currency, digits: places, minimum: digits)
     }
 
-    func units(_ amount: Decimal) -> String { hide ? "••••" : Display.number(amount, maximum: 16) }
+    func signedMoney(_ amount: Decimal?) -> String {
+        let text = money(amount)
+        return !hide && text != "—" && (amount ?? 0) > 0 ? "+" + text : text
+    }
+
+    func units(_ amount: Decimal) -> String {
+        hide ? "••••" : Display.number(amount, maximum: FinancialFormatter.pricePrecision(amount, minimum: 4))
+    }
 
     func execute(_ command: Command, id: UUID = UUID()) -> Bool {
         do {
             let live = usablePrices
             let next = try TradingEngine.apply(command, to: ledger, id: id, prices: live, execution: live)
-            try commit(next)
+            try commit(next, notify: true)
             Feedback.success()
             toast = L.text("Operation saved")
             toastTask?.cancel()
@@ -279,16 +331,35 @@ import SwiftUI
         guard !live.isEmpty, !storageError else { return }
         do {
             let next = try TradingEngine.settle(ledger, execution: live, prices: live, at: Date())
-            if next != ledger { try commit(next) }
+            if next != ledger { try commit(next, notify: true) }
         } catch {
             self.error = Display.error(error)
         }
     }
 
-    private func commit(_ next: Ledger) throws {
+    private func commit(_ next: Ledger, notify: Bool = false) throws {
         guard let store else { throw SimulationError.invalidBackup }
+        let previous = ledger
         try store.save(next)
         ledger = next
+        guard notify, pushOperations, !testing else { return }
+        for portfolio in next.portfolios {
+            let count = previous.portfolios.first { $0.id == portfolio.id }?.entries.count ?? 0
+            guard portfolio.entries.count > count else { continue }
+            for entry in portfolio.entries.dropFirst(count) where OperationNotifications.eligible(entry) {
+                let filled = portfolio.orders.contains { $0.id == entry.id && $0.status == .filled }
+                var summary: String?
+                if !privateNotifications && !hide {
+                    let quantity = entry.asset == "USD" ? money(entry.amount) : "\(units(entry.amount)) \(Asset.ticker(entry.asset))"
+                    if entry.asset != "USD", let usd = entry.usd {
+                        summary = quantity + " · " + money(usd)
+                    } else {
+                        summary = quantity
+                    }
+                }
+                OperationNotifications.schedule(entry, filled: filled, amounts: summary)
+            }
+        }
     }
 
     private static func loadDemoKey() -> String? {

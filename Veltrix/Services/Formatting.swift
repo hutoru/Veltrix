@@ -7,7 +7,18 @@ enum L {
     }
 }
 
-enum Display {
+enum FinancialFormatter {
+    static func pricePrecision(_ amount: Decimal, minimum: Int) -> Int {
+        guard amount != 0, abs(amount) < 1 else { return minimum }
+        var scaled = abs(amount)
+        var places = 3
+        while scaled < 1 && places < 12 {
+            scaled *= 10
+            places += 1
+        }
+        return max(minimum, places)
+    }
+
     static func number(_ number: Decimal, maximum: Int = 8) -> String {
         let format = NumberFormatter()
         format.numberStyle = .decimal
@@ -22,6 +33,7 @@ enum Display {
         format.currencyCode = currency
         format.maximumFractionDigits = digits
         format.minimumFractionDigits = minimum ?? digits
+        format.minusSign = "−"
         return format.string(from: NSDecimalNumber(decimal: value)) ?? "—"
     }
 
@@ -32,6 +44,7 @@ enum Display {
         format.maximumFractionDigits = 2
         format.minimumFractionDigits = 2
         format.positivePrefix = "+"
+        format.minusSign = "−"
         return format.string(from: NSDecimalNumber(decimal: value / 100)) ?? "—"
     }
 
@@ -74,3 +87,5 @@ enum Display {
         return L.text("The operation couldn’t be completed.")
     }
 }
+
+typealias Display = FinancialFormatter

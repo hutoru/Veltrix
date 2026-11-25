@@ -87,7 +87,7 @@
 "Market" = "Рыночный";
 "Limit" = "Лимитный";
 "Limit price (USD)" = "Лимитная цена (USD)";
-"Enter amount in USD" = "Ввести сумму в USD";
+"Amount unit" = "Валюта суммы";
 "Receive asset" = "Получаемый актив";
 "Simulated recipient" = "Условный получатель";
 "Simulated sender" = "Условный отправитель";

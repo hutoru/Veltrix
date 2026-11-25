@@ -47,6 +47,8 @@ struct TradeScreen: View {
     @State private var error: String?
     @State private var done = false
     @State private var processing = false
+    @State private var scanner = false
+    @State private var network: TransferNetwork?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     init(intent: TradeIntent) {
@@ -78,7 +80,7 @@ struct TradeScreen: View {
             }
             .background(Color.vxBackground.ignoresSafeArea())
             .scrollDismissesKeyboard(.interactively)
-            .navigationTitle(Text(verbatim: L.text(intent.action.rawValue.capitalized) + (intent.action == .deposit ? "" : " " + Asset.ticker(asset))))
+            .navigationTitle(Text(verbatim: navigationTitle))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -89,43 +91,37 @@ struct TradeScreen: View {
                 }
             }
             .interactiveDismissDisabled(processing)
+            .fullScreenCover(isPresented: $scanner) {
+                QRScanner { value in label = value; error = nil }
+            }
             .animation(reduceMotion ? nil : .easeInOut(duration: 0.22), value: review != nil)
             .animation(reduceMotion ? nil : .easeInOut(duration: 0.22), value: done)
         }
     }
 
     private var editor: some View {
-        VStack(spacing: 13) {
-            if intent.action != .deposit {
+        VStack(spacing: 12) {
+            if isTrading {
+                tradeControls
+            } else if intent.action != .deposit {
                 AssetPicker(title: "Asset", asset: $asset)
-                if intent.action == .swap { AssetPicker(title: "Receive asset", asset: $target) }
-            }
-            if intent.action == .buy || intent.action == .sell {
-                Picker("Execution", selection: $isLimit) {
-                    Text("Market").tag(false)
-                    Text("Limit").tag(true)
-                }.pickerStyle(.segmented)
-                if isLimit {
-                    TextField("Limit price (USD)", text: $limit)
-                        .keyboardType(.decimalPad)
-                        .padding(10).background(Color.vxSurface, in: RoundedRectangle(cornerRadius: 10))
-                } else {
-                    Toggle("Enter amount in USD", isOn: $useFiat).font(.footnote)
-                }
             }
             if intent.action == .send || intent.action == .receive {
-                TextField(intent.action == .send ? "Recipient label" : "Sender label", text: $label)
-                    .textInputAutocapitalization(.never).padding(10)
-                    .background(Color.vxSurface, in: RoundedRectangle(cornerRadius: 10))
+                Picker("Network", selection: $network) {
+                    Text("Contact label").tag(nil as TransferNetwork?)
+                    ForEach(TransferNetwork.available(for: asset), id: \.self) { network in
+                        Text(verbatim: network.rawValue).tag(Optional(network))
+                    }
+                }.onChange(of: asset) { _ in network = nil }
+                HStack {
+                    TextField(network == nil ? (intent.action == .send ? "Recipient label" : "Sender label") : "Public address", text: $label)
+                        .textInputAutocapitalization(.never).autocorrectionDisabled()
+                    IconButton(icon: "qrcode.viewfinder", label: "Scan QR code") { scanner = true }
+                }.padding(.horizontal, 12)
+                    .background(Color.vxCard, in: RoundedRectangle(cornerRadius: 12))
             }
-            VStack(spacing: 4) {
-                CountValue(text: (amount.isEmpty ? "0" : amount) + " " + amountUnit)
-                    .font(.system(size: 51, weight: .semibold))
-                    .lineLimit(1).minimumScaleFactor(0.36)
-                    .accessibilityIdentifier("trade.amount")
-                if let equivalent { Text(verbatim: equivalent).font(.footnote).foregroundStyle(Color.vxMuted) }
-            }.frame(maxWidth: .infinity, minHeight: 72)
-            LabeledContent("Virtual funds", value: availableLabel)
+            amountDisplay
+            LabeledContent("Available balance", value: availableLabel)
                 .font(.footnote)
                 .foregroundStyle(Color.vxMuted)
             if available != nil {
@@ -136,33 +132,121 @@ struct TradeScreen: View {
                             Feedback.tap()
                         } label: {
                             Text(verbatim: fraction == 100 ? "MAX" : "\(fraction)%")
-                                .font(.caption.weight(.semibold)).frame(maxWidth: .infinity, minHeight: 32)
-                                .background(Color.vxSurface, in: Capsule())
+                                .font(.caption.weight(.semibold))
+                                .frame(maxWidth: .infinity, minHeight: isTrading ? 36 : 32)
+                                .background(Color.vxSurface, in: RoundedRectangle(cornerRadius: isTrading ? 10 : 16))
                         }.buttonStyle(.plain)
                     }
                 }
             }
-            NumericPad(allowsDecimal: true, onInput: append, onDelete: {
+            NumericPad(allowsDecimal: true, keyHeight: isTrading ? 48 : 44, onInput: append, onDelete: {
                 if !amount.isEmpty { amount.removeLast() }
+                error = nil
             })
             Button("Continue") {
                 do { review = try makeReview(); error = nil; Feedback.tap() }
                 catch { self.error = Display.error(error) }
             }
-            .buttonStyle(PrimaryButtonStyle(tint: actionColor, ink: [.buy, .sell].contains(intent.action) ? .black : .white))
+            .buttonStyle(PrimaryButtonStyle())
             .accessibilityIdentifier("trade.review")
         }
     }
 
-    private var amountIsCash: Bool { intent.action == .deposit || (useFiat && !isLimit) }
-    private var amountUnit: String { amountIsCash ? "USD" : Asset.ticker(asset) }
-    private var actionColor: Color {
-        switch intent.action {
-        case .buy: return .vxUp
-        case .sell: return .vxDown
-        default: return .vxAccent
+    private var isTrading: Bool { [.buy, .sell, .swap].contains(intent.action) }
+
+    private var navigationTitle: String {
+        let title = L.text(intent.action.rawValue.capitalized)
+        return isTrading || intent.action == .deposit ? title : title + " " + Asset.ticker(asset)
+    }
+
+    private var tradeControls: some View {
+        VStack(spacing: 8) {
+            VStack(spacing: 0) {
+                tradeAssetRow("Asset", selection: $asset)
+                if intent.action == .swap {
+                    Divider()
+                    tradeAssetRow("Receive asset", selection: $target)
+                    HStack {
+                        if let source = model.usablePrices[asset], let destination = model.usablePrices[target],
+                           let rate = try? MoneyMath.divide(source, destination) {
+                            Text(verbatim: "1 \(Asset.ticker(asset)) ≈ \(Display.number(rate)) \(Asset.ticker(target))")
+                                .font(.caption.monospacedDigit()).foregroundStyle(Color.vxMuted)
+                        }
+                        Spacer()
+                        IconButton(icon: "arrow.up.arrow.down", label: "Reverse swap") {
+                            let previous = asset
+                            asset = target
+                            target = previous
+                            amount = ""
+                            error = nil
+                            Feedback.tap()
+                        }
+                    }
+                }
+            }
+            .padding(.horizontal, 12)
+            .background(Color.vxCard, in: RoundedRectangle(cornerRadius: 12))
+
+            if intent.action != .swap {
+                HStack(spacing: 10) {
+                    Picker("Execution", selection: $isLimit) {
+                        Text("Market").tag(false)
+                        Text("Limit").tag(true)
+                    }
+                    .pickerStyle(.segmented)
+
+                    if !isLimit {
+                        Picker("Amount unit", selection: $useFiat) {
+                            Text(verbatim: "USD").tag(true)
+                            Text(verbatim: Asset.ticker(asset)).tag(false)
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .fixedSize()
+                        .tint(.vxHighlight)
+                    }
+                }
+
+                if isLimit {
+                    TextField("Limit price (USD)", text: $limit)
+                        .keyboardType(.decimalPad)
+                        .padding(10)
+                        .background(Color.vxSurface, in: RoundedRectangle(cornerRadius: 10))
+                }
+            }
         }
     }
+
+    private func tradeAssetRow(_ title: LocalizedStringKey, selection: Binding<String>) -> some View {
+        LabeledContent {
+            AssetPicker(title: title, asset: selection)
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .tint(.vxHighlight)
+        } label: {
+            Text(title).foregroundStyle(Color.vxMuted)
+        }
+        .font(.subheadline)
+        .frame(minHeight: 44)
+    }
+
+    private var amountDisplay: some View {
+        VStack(spacing: 3) {
+            CountValue(text: (amount.isEmpty ? "0" : amount) + " " + amountUnit)
+                .font(.system(size: isTrading ? 62 : 51, weight: .semibold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.36)
+                .accessibilityIdentifier("trade.amount")
+            Text(verbatim: equivalent ?? " ")
+                .font(.footnote)
+                .foregroundStyle(Color.vxMuted)
+                .accessibilityHidden(equivalent == nil)
+        }
+        .frame(maxWidth: .infinity, minHeight: isTrading ? 104 : 72)
+    }
+
+    private var amountIsCash: Bool { intent.action == .deposit || (useFiat && !isLimit) }
+    private var amountUnit: String { amountIsCash ? "USD" : Asset.ticker(asset) }
 
     private var pricingQuote: Decimal? {
         isLimit ? Display.amount(limit) : model.usablePrices[asset]
@@ -196,7 +280,7 @@ struct TradeScreen: View {
 
     private func append(_ value: String) {
         let separator = Locale.current.decimalSeparator ?? "."
-        guard value != separator || !amount.contains(separator) else { return }
+        guard amount.count < 32, value != separator || !amount.contains(separator) else { return }
         if value == separator && amount.isEmpty { amount = "0" }
         if amount == "0" && value != separator { amount = value }
         else { amount.append(value) }
@@ -233,11 +317,23 @@ struct TradeScreen: View {
             }
             Text(verbatim: review.summary).font(.system(size: 38, weight: .semibold).monospacedDigit())
                 .lineLimit(1).minimumScaleFactor(0.4)
-            Label("Virtual funds", systemImage: "info.circle").font(.footnote).foregroundStyle(Color.vxMuted)
+            Text("Local operation")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Color.vxMuted)
             VStack(spacing: 12) {
-                if [.buy, .sell, .swap].contains(intent.action) {
-                    LabeledContent("Execution", value: L.text(isLimit ? "Limit" : "Market"))
-                    LabeledContent(isLimit ? "Limit price" : "Market price", value: model.money(pricingQuote, privateValue: false, price: true))
+                if isTrading {
+                    if intent.action != .swap {
+                        LabeledContent("Order type", value: L.text(isLimit ? "Limit" : "Market"))
+                        Divider().overlay(Color.vxSeparator)
+                    }
+                    LabeledContent(isLimit ? "Limit price" : "Market price", value: model.money(review.price, privateValue: false, price: true))
+                    Divider().overlay(Color.vxSeparator)
+                }
+                if intent.action == .send || intent.action == .receive {
+                    if let network { LabeledContent("Network", value: network.rawValue) }
+                    LabeledContent(network == nil ? (intent.action == .send ? "Recipient label" : "Sender label") : "Public address",
+                                   value: label).lineLimit(2)
+                    Divider().overlay(Color.vxSeparator)
                 }
                 if let estimate = review.estimate { LabeledContent("Estimated value", value: model.money(estimate)) }
                 if let fee = review.fee { LabeledContent("Estimated fee", value: model.money(fee, price: true)) }
@@ -248,14 +344,15 @@ struct TradeScreen: View {
                 if let quantity = review.received {
                     LabeledContent("Receive asset", value: "\(model.units(quantity)) \(Asset.ticker(target))")
                 }
+                Divider().overlay(Color.vxSeparator)
                 LabeledContent("Available balance", value: availableLabel)
-            }.font(.subheadline).panel()
+            }.font(.subheadline)
             if review.market {
                 Text("The final price uses the latest available quote at confirmation.")
                     .font(.caption).foregroundStyle(Color.vxMuted)
             }
             Button { submit(review) } label: { Text(intent.action == .deposit ? "Confirm operation" : intent.action.title) }
-                .buttonStyle(PrimaryButtonStyle(tint: actionColor))
+                .buttonStyle(PrimaryButtonStyle())
                 .accessibilityIdentifier("trade.confirm")
         }
     }
@@ -266,7 +363,7 @@ struct TradeScreen: View {
             error = nil
             processing = true
             Task { @MainActor in
-                if !reduceMotion { try? await Task.sleep(nanoseconds: 420_000_000) }
+                if !reduceMotion { try? await Task.sleep(nanoseconds: 780_000_000) }
                 done = true
                 processing = false
                 Feedback.tap()
@@ -279,24 +376,46 @@ struct TradeScreen: View {
 
     private var completion: some View {
         VStack(spacing: 20) {
-            if let coin = Asset.catalog.first(where: { $0.id == asset }), intent.action != .deposit {
-                CoinIcon(asset: coin, url: model.quotes[asset]?.image, size: 66)
-            }
+            completionMark
             if processing {
-                ProgressView().scaleEffect(1.35).tint(.vxHighlight)
                 Text("Updating portfolio").foregroundStyle(Color.vxMuted)
             } else {
-                Image(systemName: "checkmark.circle.fill").font(.system(size: 54)).foregroundStyle(Color.vxUp)
                 Text("Operation saved").font(.title2.bold()).accessibilityIdentifier("trade.saved")
-                Text("Virtual operation").font(.footnote).foregroundStyle(Color.vxMuted)
+                if intent.action == .send || intent.action == .receive {
+                    Text("Recorded on this device").font(.footnote).foregroundStyle(Color.vxMuted)
+                }
                 if let review {
                     let summary = confirmedAmount ?? review.summary
-                    Text(verbatim: summary).font(.title3.monospacedDigit())
+                    Text(verbatim: summary).font(.largeTitle.monospacedDigit()).lineLimit(1).minimumScaleFactor(0.4)
                     ShareLink(item: "VELTRIX · \(L.text("Virtual operation")) · \(L.text(intent.action.rawValue.capitalized)) · \(summary)")
                 }
                 Button("Done") { dismiss() }.buttonStyle(PrimaryButtonStyle())
             }
         }.padding(.vertical, 44)
+    }
+
+    private var completionMark: some View {
+        ZStack(alignment: .bottomTrailing) {
+            Circle().stroke(Color.vxSeparator, lineWidth: 2)
+            Circle().trim(from: 0, to: done ? 1 : (processing ? 0.86 : 0))
+                .stroke(Color.vxUp, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+                .animation(reduceMotion ? nil : .easeOut(duration: 0.68), value: processing)
+                .animation(reduceMotion ? nil : .easeOut(duration: 0.22), value: done)
+            Group {
+                if let coin = Asset.catalog.first(where: { $0.id == asset }), intent.action != .deposit {
+                    CoinIcon(asset: coin, url: model.quotes[asset]?.image, size: 54)
+                } else {
+                    VeltrixMark().fill(Color.vxText).frame(width: 34, height: 34)
+                }
+            }.frame(width: 92, height: 92)
+            if done {
+                Image(systemName: "checkmark").font(.caption.bold())
+                    .foregroundStyle(.black).frame(width: 24, height: 24)
+                    .background(Color.vxUp, in: Circle())
+                    .transition(reduceMotion ? .identity : .scale.combined(with: .opacity))
+            }
+        }.frame(width: 92, height: 92).accessibilityHidden(true)
     }
 
     private func makeReview() throws -> TradeReview {
@@ -310,16 +429,19 @@ struct TradeScreen: View {
         case .send, .receive:
             let name = label.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !name.isEmpty else { throw SimulationError.invalidName }
+            if let network, !network.accepts(name) { throw SimulationError.invalidAddress }
             let price = try live(asset)
-            return TradeReview(command: .transfer(receive: intent.action == .receive, asset: asset, units: quantity, label: name),
-                               summary: unitsText(quantity), estimate: try MoneyMath.multiply(quantity, price), market: true)
+            let note = network.map { $0.rawValue + " · " + name } ?? name
+            return TradeReview(command: .transfer(receive: intent.action == .receive, asset: asset, units: quantity, label: note),
+                               summary: unitsText(quantity), estimate: try MoneyMath.multiply(quantity, price), fee: 0)
         case .swap:
             guard asset != target else { throw SimulationError.invalidPair }
-            let gross = try MoneyMath.multiply(quantity, live(asset))
+            let price = try live(asset)
+            let gross = try MoneyMath.multiply(quantity, price)
             let fee = try MoneyMath.multiply(gross, model.fee)
             let received = try MoneyMath.divide(MoneyMath.subtract(gross, fee), live(target))
             return TradeReview(command: .swap(asset, target, quantity, model.fee), summary: unitsText(quantity),
-                               estimate: gross, fee: fee, received: received, market: true)
+                               estimate: gross, fee: fee, received: received, market: true, price: price)
         case .buy, .sell:
             let side: OrderSide = intent.action == .buy ? .buy : .sell
             let price: Decimal
@@ -337,7 +459,7 @@ struct TradeScreen: View {
             if isLimit { command = .limit(side, asset, units, price, model.fee) }
             else if useFiat { command = .marketNotional(side, asset, quantity, model.fee) }
             else { command = .market(side, asset, units, model.fee) }
-            return TradeReview(command: command, summary: unitsText(units), estimate: gross, fee: fee, market: !isLimit)
+            return TradeReview(command: command, summary: unitsText(units), estimate: gross, fee: fee, market: !isLimit, price: price)
         }
     }
 
@@ -358,5 +480,33 @@ struct TradeScreen: View {
         var fee: Decimal?
         var received: Decimal?
         var market = false
+        var price: Decimal?
+    }
+}
+
+private enum TransferNetwork: String, CaseIterable {
+    case bitcoin = "Bitcoin"
+    case ethereum = "Ethereum"
+    case solana = "Solana"
+
+    static func available(for asset: String) -> [TransferNetwork] {
+        switch asset {
+        case "bitcoin": return [.bitcoin]
+        case "ethereum", "chainlink", "wrapped-bitcoin": return [.ethereum]
+        case "solana": return [.solana]
+        case "tether", "usd-coin": return [.ethereum, .solana]
+        default: return []
+        }
+    }
+
+    func accepts(_ address: String) -> Bool {
+        let expression: String
+        switch self {
+        case .bitcoin:
+            expression = "^(?:[13][1-9A-HJ-NP-Za-km-z]{25,34}|bc1[ac-hj-np-z02-9]{11,87}|BC1[AC-HJ-NP-Z02-9]{11,87})$"
+        case .ethereum: expression = "^0x[0-9a-fA-F]{40}$"
+        case .solana: expression = "^[1-9A-HJ-NP-Za-km-z]{32,44}$"
+        }
+        return address.range(of: expression, options: .regularExpression) != nil
     }
 }

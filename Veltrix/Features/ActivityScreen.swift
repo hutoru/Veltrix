@@ -54,7 +54,7 @@ struct ActivityScreen: View {
 
     var body: some View {
         PageScroll {
-            PageHeader(title: "Activity", detail: "Virtual transactions and open orders") { EmptyView() }
+            PageHeader(title: "Activity", detail: "Transactions and open orders") { EmptyView() }
             Picker("Activity view", selection: $showOrders) {
                 Text("Transactions").tag(false)
                 Text("Orders").tag(true)
@@ -268,7 +268,7 @@ struct EntryScreen: View {
 
     var body: some View {
         PageScroll {
-            PageHeader(title: entry.kind.title, detail: "Virtual operation") { EmptyView() }
+            PageHeader(title: entry.kind.title, detail: "Operation details") { EmptyView() }
             VStack(alignment: .leading, spacing: 16) {
                 LabeledContent("Amount", value: summary)
                 LabeledContent("Date", value: entry.date.formatted(date: .abbreviated, time: .standard))
