@@ -5,18 +5,16 @@
 ## Системные требования
 
 - iPhone XS или другой iPhone с ARM64 и iOS 16.0 либо новее.
-- Windows 11 и Git for Windows для работы с кодом. GitHub CLI нужен только для получения артефакта из командной строки.
+- Windows 11 и Git for Windows для работы с кодом.
 - Сборка выполняется на стандартном runner GitHub Actions `macos-15`. Для приватного репозитория сборка расходует включённую квоту аккаунта. В настройках биллинга можно задать остановку при исчерпании бюджета. [GitHub Actions и квоты](https://docs.github.com/en/actions/concepts/billing-and-usage)
 
 ## Скачать IPA на Windows
 
 1. Откройте [Build iOS IPA](https://github.com/hutoru/Veltrix/actions/workflows/build-ios.yml). Если нужна новая сборка, выберите **Run workflow → main**.
 2. В успешном запуске скачайте **Veltrix-unsigned-ipa** и распакуйте артефакт. Внутри находятся `Veltrix.ipa` и контрольная сумма SHA-256.
-3. Через PowerShell можно скачать и одновременно проверить последний успешный артефакт.
+3. Через PowerShell можно скачать и одновременно проверить последний успешный артефакт. Скрипт использует вход через Git Credential Manager или GitHub CLI.
 
 ```powershell
-.\scripts\setup.ps1 -InstallGitHubCli
-gh auth login
 .\scripts\download-ipa.ps1 -Repository hutoru/Veltrix
 ```
 
@@ -26,8 +24,8 @@ gh auth login
 
 Артефакт GitHub нужно подписать перед установкой. Для бесплатного Apple ID подпись обычно действует 7 дней, после чего приложение нужно обновить через инструмент подписи. AltStore Classic допускает до трёх активных приложений, установленных таким способом. На iOS 16 может потребоваться «Режим разработчика» в разделе «Конфиденциальность и безопасность». [AltStore Classic](https://faq.altstore.io/altstore-classic/your-altstore) · [Режим разработчика Apple](https://developer.apple.com/documentation/xcode/enabling-developer-mode-on-a-device)
 
-- **Sideloadly.** Подключите разблокированный iPhone по USB, подтвердите доверие этому компьютеру, выберите устройство и `Veltrix.ipa`. Введите Apple ID в Sideloadly, нажмите **Start** и следуйте подсказкам на iPhone. [Sideloadly](https://sideloadly.io/)
-- **AltStore Classic.** Установите AltServer на Windows, через него установите AltStore на iPhone, перенесите `Veltrix.ipa` на телефон и откройте через **My Apps → +**. Для обновления подписи AltServer должен быть доступен. [Установка AltStore на Windows](https://faq.altstore.io/altstore-classic/how-to-install-altstore-classic)
+- **Sideloadly.** Установите рекомендованные разработчиком версии iTunes и iCloud с сайта Apple. Подключите разблокированный iPhone по USB, подтвердите доверие этому компьютеру, выберите устройство и `Veltrix.ipa`. Введите Apple ID в Sideloadly, нажмите **Start** и следуйте подсказкам на iPhone. [Sideloadly](https://sideloadly.io/)
+- **AltStore Classic.** Установите AltServer на Windows, через него установите AltStore на iPhone, перенесите `Veltrix.ipa` на телефон и откройте через **My Apps → +**. Для обновления подписи AltServer должен быть доступен. [Установка AltStore на Windows](https://faq.altstore.io/altstore-classic/how-to-install-altstore-windows)
 
 ## Данные и поведение симуляции
 

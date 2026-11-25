@@ -193,7 +193,7 @@ private struct SettingsForm: View {
     @State private var processing = false
     @State private var removeHolding = false
     @State private var removePIN = false
-    private let operation = UUID()
+    @State private var operation = UUID()
 
     var body: some View {
         NavigationStack {

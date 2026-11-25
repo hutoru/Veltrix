@@ -53,6 +53,7 @@ struct VeltrixRoot: View {
     @Environment(\.scenePhase) private var phase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var tab = Destination.portfolio
+    @State private var keyboardVisible = false
 
     var body: some View {
         Group {
@@ -89,6 +90,12 @@ struct VeltrixRoot: View {
             if value { model.stop() }
             else if phase == .active { model.start() }
         }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
+            keyboardVisible = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+            keyboardVisible = false
+        }
         .onAppear { if phase == .active && !lock.locked { model.start() } }
     }
 
@@ -113,7 +120,7 @@ struct VeltrixRoot: View {
                             .glass(radius: 15)
                             .transition(.opacity)
                     }
-                    tabBar
+                    if !keyboardVisible { tabBar }
                 }
                 .animation(reduceMotion ? nil : .spring(response: 0.28, dampingFraction: 0.8), value: model.toast)
             }

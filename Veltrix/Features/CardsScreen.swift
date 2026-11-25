@@ -20,7 +20,6 @@ struct CardsScreen: View {
                     .accessibilityIdentifier("card.new")
             }
             if let card {
-                HStack { SimBadge(); Spacer(); Text(verbatim: "\(model.cards.count)").font(.caption.monospaced()) }
                 cardDeck(card)
                 actions(card)
                 spending(card)
