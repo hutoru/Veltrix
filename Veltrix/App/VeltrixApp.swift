@@ -126,7 +126,7 @@ struct VeltrixRoot: View {
             }
         }
         .id(tab)
-        .alert("VELTRIX · Simulation", isPresented: .init(get: { model.error != nil }, set: { if !$0 { model.error = nil } })) {
+        .alert("VELTRIX", isPresented: .init(get: { model.error != nil }, set: { if !$0 { model.error = nil } })) {
             Button("OK", role: .cancel) { model.error = nil }
         } message: { Text(verbatim: model.error ?? "") }
     }
@@ -174,8 +174,7 @@ private struct LockScreen: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 19) {
             VeltrixMark().fill(Color.vxHighlight).frame(width: 54, height: 54)
-            Text("Simulation locked").font(.largeTitle.bold())
-            SimBadge()
+            Text("Portfolio locked").font(.largeTitle.bold())
             if lock.hasPIN {
                 SecureField("PIN", text: $pin)
                     .textContentType(.password)

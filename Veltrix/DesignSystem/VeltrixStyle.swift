@@ -76,25 +76,6 @@ struct PrimaryButtonStyle: ButtonStyle {
     }
 }
 
-struct SimBadge: View {
-    var inverted = false
-
-    var body: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "circle.dotted")
-            Text("Simulation")
-                .textCase(.uppercase)
-                .tracking(1.3)
-        }
-        .font(.caption2.weight(.bold))
-        .foregroundStyle(inverted ? .white : Color.vxHighlight)
-        .padding(.horizontal, 9)
-        .padding(.vertical, 6)
-        .background(inverted ? Color.white.opacity(0.14) : Color.vxAccent.opacity(0.12), in: Capsule())
-        .accessibilityLabel(Text("Simulation · Virtual funds"))
-    }
-}
-
 struct PageHeader<Trailing: View>: View {
     let title: LocalizedStringKey
     let detail: LocalizedStringKey

@@ -21,7 +21,7 @@ struct MarketsScreen: View {
     var body: some View {
         let visible = filtered
         PageScroll {
-            PageHeader(title: "Markets", detail: "Crypto prices in your display currency") { SimBadge() }
+            PageHeader(title: "Markets", detail: "Crypto prices in your display currency") { EmptyView() }
             HStack(spacing: 10) {
                 Image(systemName: "magnifyingglass").foregroundStyle(Color.vxMuted)
                 TextField("Search assets", text: $query).textInputAutocapitalization(.never).autocorrectionDisabled()
@@ -159,7 +159,6 @@ struct AssetScreen: View {
                     Text(verbatim: asset.ticker).font(.caption.monospaced()).foregroundStyle(Color.vxMuted)
                 }
                 Spacer()
-                SimBadge()
             }
             VStack(alignment: .leading, spacing: 8) {
                 CountValue(text: model.money(quote?.price, privateValue: false, price: true))
@@ -219,7 +218,6 @@ struct AssetScreen: View {
         .fullScreenCover(isPresented: $full) {
             NavigationStack {
                 PageScroll {
-                    SimBadge()
                     chartBody(height: 345)
                 }
                 .navigationTitle(Text(verbatim: asset.name))

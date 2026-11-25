@@ -15,7 +15,7 @@ struct CardsScreen: View {
 
     var body: some View {
         PageScroll {
-            PageHeader(title: "Cards", detail: "Virtual balances and simulated spending") {
+            PageHeader(title: "Cards", detail: "Virtual balances and card spending") {
                 IconButton(icon: "plus", label: "New virtual card") { editor = CardIntent(.create) }
                     .accessibilityIdentifier("card.new")
             }
@@ -24,7 +24,6 @@ struct CardsScreen: View {
                 actions(card)
                 spending(card)
             } else {
-                SimBadge()
                 EmptyPanel(icon: "creditcard", title: "Start your card collection",
                            detail: "Choose Classic, Gold, Platinum or Black and simulate spending from a separate balance.")
                 Button("Create virtual card") { editor = CardIntent(.create) }
@@ -159,7 +158,7 @@ struct CardsScreen: View {
                 Text(verbatim: model.money(total)).font(.headline.monospacedDigit())
                     .lineLimit(1).minimumScaleFactor(0.6)
             }
-            Text("Net simulated spending").font(.caption).foregroundStyle(Color.vxMuted)
+            Text("Net spending").font(.caption).foregroundStyle(Color.vxMuted)
             if entries.isEmpty {
                 Text("Card operations will appear here.").font(.footnote).foregroundStyle(Color.vxMuted)
             } else {
@@ -238,7 +237,7 @@ private struct CardFace: View, Animatable {
                 Spacer()
                 if rotated {
                     Text("Virtual funds").font(.headline)
-                    Text("Simulated card. No payment credentials.").font(.caption).opacity(0.78)
+                    Text("Virtual card. No payment credentials.").font(.caption).opacity(0.78)
                 } else {
                     Text(verbatim: balance).font(.system(size: 27, weight: .semibold, design: .rounded)).monospacedDigit()
                         .lineLimit(1).minimumScaleFactor(0.38)
@@ -247,7 +246,6 @@ private struct CardFace: View, Animatable {
                 HStack {
                     Text(tier.title).font(.caption.weight(.bold)).textCase(.uppercase).tracking(1.5)
                     Spacer()
-                    SimBadge(inverted: true)
                 }
             }
             .foregroundStyle(.white)
@@ -319,7 +317,7 @@ private struct CardIntent: Identifiable {
         case .edit: return "Edit card"
         case .topUp: return "Top up"
         case .returnFunds: return "Return funds"
-        case .pay: return "Simulated payment"
+        case .pay: return "Virtual payment"
         }
     }
 
@@ -344,8 +342,8 @@ private struct CardForm: View {
     var body: some View {
         NavigationStack {
             Form {
-                SimBadge()
                 Section {
+                    if case .pay = intent.mode { Text("Virtual funds").font(.footnote).foregroundStyle(Color.vxMuted) }
                     switch intent.mode {
                     case .create, .edit:
                         if case .create = intent.mode {
@@ -363,7 +361,7 @@ private struct CardForm: View {
                     }
                 }
                 if let error { Text(verbatim: error).font(.footnote).foregroundStyle(Color.vxDown) }
-                Button("Confirm simulation") { save() }
+                Button("Confirm operation") { save() }
                     .buttonStyle(PrimaryButtonStyle()).listRowBackground(Color.clear)
                     .accessibilityIdentifier("card.confirm")
             }

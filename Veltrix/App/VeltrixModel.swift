@@ -87,7 +87,7 @@ import SwiftUI
             let next = try TradingEngine.apply(command, to: ledger, id: id, prices: live, execution: live)
             try commit(next)
             Feedback.success()
-            toast = L.text("Simulation saved")
+            toast = L.text("Operation saved")
             toastTask?.cancel()
             toastTask = Task { [weak self] in
                 try? await Task.sleep(nanoseconds: 2_200_000_000)

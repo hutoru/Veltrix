@@ -114,7 +114,7 @@ struct ChartPanel: View {
         HStack {
             if let value = focus ?? visible.last {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(verbatim: format(value.close)).font(.headline.monospacedDigit())
+                    CountValue(text: format(value.close)).font(.title3.weight(.semibold))
                     Text(value.date.formatted(date: .abbreviated, time: .shortened)).font(.caption2).foregroundStyle(Color.vxMuted)
                 }
             }
@@ -131,6 +131,8 @@ struct ChartPanel: View {
     private var plotting: some View {
         let plotted = visible
         let data = Array(plotted.prefix(replayCount ?? plotted.count))
+        let rising = (plotted.last?.close ?? 0) >= (plotted.first?.close ?? 0)
+        let trend = rising ? Color.vxUp : Color.vxDown
         let prices = plotted.flatMap { sample -> [Double] in
             [double(sample.low ?? sample.close), double(sample.high ?? sample.close)]
         }
@@ -156,10 +158,10 @@ struct ChartPanel: View {
                     AreaMark(x: .value("Date", sample.date), yStart: .value("Floor", minimum - padding),
                              yEnd: .value("Price", double(sample.close)))
                         .interpolationMethod(.monotone)
-                        .foregroundStyle(LinearGradient(colors: [.vxAccent.opacity(0.20), .vxAccent.opacity(0.01)],
+                        .foregroundStyle(LinearGradient(colors: [trend.opacity(0.19), trend.opacity(0.01)],
                                                         startPoint: .top, endPoint: .bottom))
                     LineMark(x: .value("Date", sample.date), y: .value("Price", double(sample.close)))
-                        .foregroundStyle(Color.vxHighlight)
+                        .foregroundStyle(trend)
                         .interpolationMethod(.monotone)
                         .lineStyle(StrokeStyle(lineWidth: 1.8, lineCap: .round))
                     if data.count == 1 {
@@ -181,8 +183,20 @@ struct ChartPanel: View {
         }
         .chartYScale(domain: (minimum - padding)...(maximum + padding))
         .chartXScale(domain: first...last)
-        .chartXAxis { AxisMarks(values: .automatic(desiredCount: 3)) }
-        .chartYAxis { AxisMarks(position: .trailing, values: .automatic(desiredCount: 3)) { _ in AxisGridLine() } }
+        .chartXAxis {
+            AxisMarks(values: .automatic(desiredCount: 3)) { _ in
+                AxisValueLabel().foregroundStyle(Color.vxMuted)
+            }
+        }
+        .chartYAxis {
+            AxisMarks(position: .trailing, values: .automatic(desiredCount: 3)) { value in
+                AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [3, 4]))
+                    .foregroundStyle(Color.vxMuted.opacity(0.36))
+                if let amount = value.as(Double.self), amount.isFinite {
+                    AxisValueLabel { Text(verbatim: format(Decimal(amount))).font(.caption2) }
+                }
+            }
+        }
         .chartOverlay { proxy in
             GeometryReader { geometry in
                 let plot = geometry[proxy.plotAreaFrame]

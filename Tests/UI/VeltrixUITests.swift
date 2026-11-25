@@ -20,11 +20,12 @@ final class VeltrixUITests: XCTestCase {
         amount.typeText("100")
         if !app.buttons["trade.review"].isHittable { app.swipeUp() }
         app.buttons["trade.review"].tap()
+        XCTAssertTrue(app.staticTexts["Virtual funds"].exists)
         app.buttons["trade.confirm"].tap()
         XCTAssertTrue(app.staticTexts["trade.saved"].waitForExistence(timeout: 5))
         app.buttons["Done"].tap()
         app.buttons["tab.activity"].tap()
-        XCTAssertTrue(app.staticTexts["Simulation history and open orders"].waitForExistence(timeout: 5), app.debugDescription)
+        XCTAssertTrue(app.staticTexts["Transactions and open orders"].waitForExistence(timeout: 5), app.debugDescription)
         XCTAssertTrue(app.descendants(matching: .any)["activity.deposit"].exists)
         capture(app, name: "Activity")
     }

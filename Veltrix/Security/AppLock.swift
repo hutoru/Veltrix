@@ -216,7 +216,7 @@ enum Keychain {
             return false
         }
         do {
-            let success = try await context.evaluatePolicy(policy, localizedReason: L.text("Protect your simulation"))
+            let success = try await context.evaluatePolicy(policy, localizedReason: L.text("Protect your portfolio"))
             if success { error = nil }
             return success
         } catch {

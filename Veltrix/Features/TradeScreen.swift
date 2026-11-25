@@ -56,18 +56,14 @@ struct TradeScreen: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section {
-                    SimBadge()
-                    Text("Virtual funds").font(.footnote).foregroundStyle(Color.vxMuted)
-                }
                 if done {
                     Section {
-                        Label("Simulation saved", systemImage: "checkmark.circle.fill").foregroundStyle(Color.vxUp)
+                        Label("Operation saved", systemImage: "checkmark.circle.fill").foregroundStyle(Color.vxUp)
                             .accessibilityIdentifier("trade.saved")
                         if let review {
                             let summary = confirmedAmount ?? review.summary
                             LabeledContent("Amount", value: summary)
-                            ShareLink(item: "VELTRIX · Simulation · \(L.text(intent.action.rawValue.capitalized)) · \(summary)")
+                            ShareLink(item: "VELTRIX · \(L.text("Virtual operation")) · \(L.text(intent.action.rawValue.capitalized)) · \(summary)")
                         }
                     }
                     Button("Done") { dismiss() }.buttonStyle(PrimaryButtonStyle()).listRowBackground(Color.clear)
@@ -79,6 +75,7 @@ struct TradeScreen: View {
                 if let error { Text(verbatim: error).foregroundStyle(Color.vxDown).font(.footnote) }
             }
             .scrollContentBackground(.hidden)
+            .tint(.vxHighlight)
             .background(Color.vxBackground)
             .navigationTitle(intent.action.title)
             .navigationBarTitleDisplayMode(.inline)
@@ -106,15 +103,15 @@ struct TradeScreen: View {
                 }
                 if intent.action == .swap { AssetPicker(title: "Receive asset", asset: $target) }
                 if intent.action == .send || intent.action == .receive {
-                    TextField(intent.action == .send ? "Simulated recipient" : "Simulated sender", text: $label)
+                    TextField(intent.action == .send ? "Recipient label" : "Sender label", text: $label)
                         .textInputAutocapitalization(.never)
-                    Text("Transfers are recorded locally in this simulation.")
+                    Text("Transfers are recorded locally.")
                         .font(.caption).foregroundStyle(Color.vxMuted)
                 }
                 if intent.action == .deposit || (useFiat && !isLimit) {
-                    TextField("Amount (USD)", text: $amount).keyboardType(.decimalPad).accessibilityIdentifier("trade.amount")
+                    TextField("Amount (USD)", text: $amount).font(.title2.monospacedDigit()).keyboardType(.decimalPad).accessibilityIdentifier("trade.amount")
                 } else {
-                    TextField("Quantity", text: $amount).keyboardType(.decimalPad).accessibilityIdentifier("trade.amount")
+                    TextField("Quantity", text: $amount).font(.title2.monospacedDigit()).keyboardType(.decimalPad).accessibilityIdentifier("trade.amount")
                 }
                 if intent.action != .deposit {
                     LabeledContent("Market price", value: model.money(model.quotes[asset]?.price, privateValue: false, price: true))
@@ -128,7 +125,7 @@ struct TradeScreen: View {
             Button {
                 do { review = try makeReview(); error = nil }
                 catch { self.error = Display.error(error) }
-            } label: { Text("Review simulation") }
+            } label: { Text("Review order") }
                 .buttonStyle(PrimaryButtonStyle())
                 .listRowBackground(Color.clear)
                 .accessibilityIdentifier("trade.review")
@@ -137,12 +134,19 @@ struct TradeScreen: View {
 
     private func reviewSection(_ review: TradeReview) -> some View {
         Group {
-            Section("Review simulation") {
-                LabeledContent("Amount", value: review.summary)
+            Section("Review order") {
+                Label("Virtual funds", systemImage: "info.circle")
+                    .font(.footnote).foregroundStyle(Color.vxMuted)
+                Text(verbatim: review.summary).font(.title2.weight(.semibold).monospacedDigit())
+                    .accessibilityLabel(Text("Amount") + Text(" ") + Text(verbatim: review.summary))
                 if let estimate = review.estimate {
                     LabeledContent("Estimated value", value: model.money(estimate))
                 }
                 if let fee = review.fee { LabeledContent("Estimated fee", value: model.money(fee, price: true)) }
+                if let estimate = review.estimate, let fee = review.fee,
+                   let total = try? (intent.action == .buy ? MoneyMath.add(estimate, fee) : MoneyMath.subtract(estimate, fee)) {
+                    LabeledContent("Estimated total", value: model.money(total)).fontWeight(.semibold)
+                }
                 if let quantity = review.received {
                     LabeledContent("Receive asset", value: "\(model.units(quantity)) \(Asset.ticker(target))")
                 }
@@ -159,7 +163,7 @@ struct TradeScreen: View {
                     error = model.error
                     model.error = nil
                 }
-            } label: { Text("Confirm simulation") }
+            } label: { Text("Confirm operation") }
                 .buttonStyle(PrimaryButtonStyle())
                 .listRowBackground(Color.clear)
                 .accessibilityIdentifier("trade.confirm")

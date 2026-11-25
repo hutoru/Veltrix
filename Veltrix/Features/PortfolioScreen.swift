@@ -8,6 +8,7 @@ struct PortfolioScreen: View {
     @State private var candles = false
     @State private var trade: TradeIntent?
     @AppStorage("profileName") private var profileName = ""
+    @AppStorage("profileUsername") private var username = ""
     @State private var more = false
     @State private var addAsset = false
     @State private var chart = false
@@ -22,7 +23,10 @@ struct PortfolioScreen: View {
             HStack {
                 Menu {
                     ForEach(model.ledger.portfolios) { item in
-                        Button(item.name) { _ = model.execute(.selectPortfolio(item.id)) }
+                        Button { _ = model.execute(.selectPortfolio(item.id)) } label: {
+                            if item.id == portfolio.id { Label(item.name, systemImage: "checkmark") }
+                            else { Text(verbatim: item.name) }
+                        }
                     }
                 } label: {
                     HStack(spacing: 9) {
@@ -30,7 +34,8 @@ struct PortfolioScreen: View {
                             .frame(width: 36, height: 36).background(Color.vxSurface, in: Circle())
                         VStack(alignment: .leading) {
                             Text(verbatim: profileName.isEmpty ? L.text("My profile") : profileName).font(.subheadline.bold())
-                            Text(verbatim: portfolio.name).font(.caption2).foregroundStyle(Color.vxMuted)
+                            Text(verbatim: username.isEmpty ? portfolio.name : "@" + username)
+                                .font(.caption2).foregroundStyle(Color.vxMuted).lineLimit(1)
                         }
                     }
                 }
@@ -38,6 +43,12 @@ struct PortfolioScreen: View {
                 IconButton(icon: "plus", label: "Add holding") { addAsset = true }
             }
             balanceCard
+            HStack {
+                Label(portfolio.name, systemImage: "wallet.bifold")
+                    .lineLimit(1)
+                Spacer()
+                Text(verbatim: L.text("Trades") + " · " + String(tradeCount)).monospacedDigit()
+            }.font(.caption).foregroundStyle(Color.vxMuted)
             actions
             positions
             MarketStatus()
@@ -45,7 +56,7 @@ struct PortfolioScreen: View {
                 HStack {
                     Button { chart = true } label: { Label("Portfolio history", systemImage: "chart.xyaxis.line") }
                     Spacer()
-                    IconButton(icon: "square.and.arrow.up", label: "Share simulation") { share = true }
+                    IconButton(icon: "square.and.arrow.up", label: "Share portfolio") { share = true }
                 }
             }
         }
@@ -64,7 +75,6 @@ struct PortfolioScreen: View {
         .fullScreenCover(isPresented: $chart) {
             NavigationStack {
                 PageScroll {
-                    SimBadge()
                     ChartPanel(samples: samples, range: $range, candles: $candles, allowsCandles: true, height: 320) {
                         model.money($0)
                     }
@@ -76,13 +86,17 @@ struct PortfolioScreen: View {
         }
     }
 
+    private var tradeCount: Int {
+        portfolio.entries.filter { [.buy, .sell, .swap].contains($0.kind) }.count
+    }
+
     private var samples: [ChartSample] { portfolio.chart(range: range, candles: candles) }
 
     private var balanceCard: some View {
         VStack(spacing: 6) {
-            Text("Paper Trading").font(.caption.weight(.medium)).foregroundStyle(Color.vxMuted)
+            Text("Portfolio value").font(.caption).foregroundStyle(Color.vxMuted)
             Button {
-                model.hide.toggle()
+                withAnimation(reduceMotion ? nil : .spring(response: 0.28)) { model.hide.toggle() }
                 Feedback.tap()
             } label: {
                 CountValue(text: model.money(value))

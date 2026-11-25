@@ -23,7 +23,7 @@ struct PortfolioShare: View {
                 } label: { Label("Share image", systemImage: "square.and.arrow.up") }
                 .buttonStyle(PrimaryButtonStyle())
             }
-            .navigationTitle("Share simulation")
+            .navigationTitle("Share portfolio")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } } }
             .sheet(isPresented: .init(get: { image != nil }, set: { if !$0 { image = nil } })) {
@@ -38,7 +38,7 @@ struct PortfolioShare: View {
                 VeltrixMark().fill(Color.vxHighlight).frame(width: 28, height: 28)
                 Text(verbatim: "VELTRIX").font(.headline).tracking(2)
                 Spacer()
-                SimBadge(inverted: true)
+                Text("Virtual funds").font(.caption.weight(.semibold))
             }
             Text(verbatim: portfolio.name).font(.subheadline).foregroundStyle(Color.vxMuted)
             Text(verbatim: model.money(try? portfolio.value(prices: model.prices)))

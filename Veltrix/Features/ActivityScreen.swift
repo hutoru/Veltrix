@@ -54,7 +54,7 @@ struct ActivityScreen: View {
 
     var body: some View {
         PageScroll {
-            PageHeader(title: "Activity", detail: "Simulation history and open orders") { SimBadge() }
+            PageHeader(title: "Activity", detail: "Transactions and open orders") { EmptyView() }
             Picker("Activity view", selection: $showOrders) {
                 Text("Transactions").tag(false)
                 Text("Orders").tag(true)
@@ -129,7 +129,7 @@ struct ActivityScreen: View {
             }
             if entries.isEmpty {
                 EmptyPanel(icon: "clock.arrow.circlepath", title: "No transactions found",
-                           detail: "Completed simulations appear here.")
+                           detail: "Completed operations appear here.")
             } else {
                 ForEach(groups.keys.sorted(by: descending ? (>) : (<)), id: \.self) { day in
                     VStack(alignment: .leading, spacing: 8) {
@@ -218,26 +218,46 @@ struct EntryRow: View {
     let entry: Entry
 
     var body: some View {
-        HStack(spacing: 9) {
-            Image(systemName: entry.kind.icon)
-                .font(.subheadline.weight(.semibold)).foregroundStyle(Color.vxHighlight)
-                .frame(width: 37, height: 37).background(Color.vxAccent.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
+        HStack(spacing: 10) {
+            if let asset = Asset.catalog.first(where: { $0.id == entry.asset }) {
+                CoinIcon(asset: asset, url: model.quotes[asset.id]?.image, size: 36)
+            } else {
+                Image(systemName: entry.kind.icon)
+                    .font(.subheadline.weight(.semibold)).foregroundStyle(Color.vxHighlight)
+                    .frame(width: 36, height: 36).background(Color.vxAccent.opacity(0.12), in: Circle())
+            }
             VStack(alignment: .leading, spacing: 4) {
                 Text(entry.kind.title).font(.subheadline.weight(.semibold)).lineLimit(1)
-                Text(entry.date, style: .time).font(.caption2).foregroundStyle(Color.vxMuted)
+                Text(verbatim: assetLabel + " · " + entry.date.formatted(date: .omitted, time: .shortened))
+                    .font(.caption2).foregroundStyle(Color.vxMuted).lineLimit(1)
             }
             Spacer(minLength: 5)
             VStack(alignment: .trailing, spacing: 4) {
                 Text(verbatim: entry.asset == "USD" ? model.money(entry.amount) :
                       "\(model.units(entry.amount)) \(Asset.ticker(entry.asset))")
-                    .font(.subheadline.weight(.semibold).monospacedDigit())
-                Text("Simulated").font(.caption2).foregroundStyle(Color.vxMuted)
+                    .font(.subheadline.weight(.semibold).monospacedDigit()).foregroundStyle(amountColor)
+                if let usd = entry.usd, entry.asset != "USD" {
+                    Text(verbatim: model.money(usd)).font(.caption2).foregroundStyle(Color.vxMuted)
+                }
             }
             .lineLimit(1).minimumScaleFactor(0.52)
         }
         .frame(minHeight: 52)
         .contentShape(Rectangle())
         .accessibilityIdentifier("activity." + entry.kind.rawValue)
+    }
+
+    private var assetLabel: String {
+        let symbol = Asset.ticker(entry.asset)
+        return entry.counterAsset.map { symbol + "/" + Asset.ticker($0) } ?? symbol
+    }
+
+    private var amountColor: Color {
+        switch entry.kind {
+        case .buy, .receive, .deposit, .refund: return .vxUp
+        case .sell, .send, .cardPayment: return .vxDown
+        default: return .primary
+        }
     }
 }
 
@@ -248,11 +268,10 @@ struct EntryScreen: View {
 
     var body: some View {
         PageScroll {
-            PageHeader(title: entry.kind.title, detail: "Simulated operation") { SimBadge() }
+            PageHeader(title: entry.kind.title, detail: "Virtual operation") { EmptyView() }
             VStack(alignment: .leading, spacing: 16) {
                 LabeledContent("Amount", value: summary)
                 LabeledContent("Date", value: entry.date.formatted(date: .abbreviated, time: .standard))
-                LabeledContent("Status", value: L.text("Simulated"))
                 if let usd = entry.usd, entry.asset != "USD" { LabeledContent("Value", value: model.money(usd)) }
                 if entry.fee != 0 { LabeledContent("Fee", value: model.money(entry.fee, price: true)) }
                 if let profit = entry.profit { LabeledContent("Realized P&L", value: model.money(profit)) }
@@ -267,11 +286,11 @@ struct EntryScreen: View {
                 if model.portfolio.entries.contains(where: { $0.reference == entry.id }) {
                     Label("Refunded", systemImage: "checkmark.circle").foregroundStyle(Color.vxUp)
                 } else {
-                    Button("Simulate refund") { refund = true }.buttonStyle(PrimaryButtonStyle())
+                    Button("Refund payment") { refund = true }.buttonStyle(PrimaryButtonStyle())
                 }
             }
             if !model.hide {
-                ShareLink(item: "VELTRIX · Simulation · \(entry.kind.localized) · \(summary) · \(entry.date.formatted())") {
+                ShareLink(item: "VELTRIX · \(L.text("Virtual operation")) · \(entry.kind.localized) · \(summary) · \(entry.date.formatted())") {
                     Label("Share confirmation", systemImage: "square.and.arrow.up")
                 }
                 .buttonStyle(.bordered)
@@ -279,7 +298,7 @@ struct EntryScreen: View {
         }
         .navigationTitle("Operation details")
         .navigationBarTitleDisplayMode(.inline)
-        .confirmationDialog("Refund simulated payment?", isPresented: $refund, titleVisibility: .visible) {
+        .confirmationDialog("Refund virtual payment?", isPresented: $refund, titleVisibility: .visible) {
             if let card = entry.cardID {
                 Button("Refund") { _ = model.execute(.refund(card, entry.id)) }
             }

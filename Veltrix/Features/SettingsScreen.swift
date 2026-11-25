@@ -5,6 +5,7 @@ struct SettingsScreen: View {
     @EnvironmentObject private var model: VeltrixModel
     @EnvironmentObject private var lock: AppLock
     @AppStorage("profileName") private var profileName = ""
+    @AppStorage("profileUsername") private var username = ""
     @State private var panel: SettingsPanel?
     @State private var export = false
     @State private var takeFile = false
@@ -16,6 +17,14 @@ struct SettingsScreen: View {
         List {
             Section("My profile") {
                 TextField("Display name", text: $profileName)
+                TextField("Username", text: $username)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .onChange(of: username) { value in
+                        let cleaned = String(value.filter { $0.isLetter || $0.isNumber || $0 == "_" || $0 == "." }.prefix(24))
+                        if cleaned != value { username = cleaned }
+                    }
+                LabeledContent("Portfolio created", value: model.portfolio.createdAt.formatted(date: .abbreviated, time: .omitted))
             }
             Section {
                 display
@@ -30,17 +39,21 @@ struct SettingsScreen: View {
                 NavigationLink("About VELTRIX") {
                     PageScroll {
                         Text(verbatim: "Beyond the balance.").font(.title2.bold())
-                        Text("VELTRIX uses virtual funds. Trades, transfers and card payments are simulated on this device.")
                         sources
                     }.navigationTitle("About VELTRIX")
                 }
+            } footer: {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Simulation").font(.footnote.weight(.semibold))
+                    Text("VELTRIX uses virtual funds. Trades, transfers and card payments are simulated on this device.")
+                }.foregroundStyle(Color.vxMuted)
             }
         }
         .navigationTitle("Settings")
         .scrollContentBackground(.hidden)
         .background(Color.vxBackground)
         .sheet(item: $panel) { SettingsForm(panel: $0) }
-        .fileExporter(isPresented: $export, document: backup, contentType: .json, defaultFilename: "VELTRIX-Simulation") { result in
+        .fileExporter(isPresented: $export, document: backup, contentType: .json, defaultFilename: "VELTRIX-Backup") { result in
             if case let .failure(error) = result { model.error = Display.error(error) }
         }
         .fileImporter(isPresented: $takeFile, allowedContentTypes: [.json]) { result in
@@ -53,7 +66,7 @@ struct SettingsScreen: View {
                 incoming = data
             } catch { model.error = Display.error(error) }
         }
-        .confirmationDialog("Replace simulation data?", isPresented: .init(get: { incoming != nil }, set: { if !$0 { incoming = nil } }),
+        .confirmationDialog("Replace portfolio data?", isPresented: .init(get: { incoming != nil }, set: { if !$0 { incoming = nil } }),
                             titleVisibility: .visible, presenting: incoming) { data in
             Button("Replace with backup", role: .destructive) {
                 _ = model.importBackup(data)
@@ -71,7 +84,7 @@ struct SettingsScreen: View {
 
     private var simulation: some View {
         VStack(alignment: .leading, spacing: 6) {
-            heading("Simulation controls")
+            heading("Portfolio controls")
             Picker("Active portfolio", selection: .init(get: { model.ledger.selected }, set: { _ = model.execute(.selectPortfolio($0)) })) {
                 ForEach(model.ledger.portfolios) { Text(verbatim: $0.name).tag($0.id) }
             }
@@ -228,7 +241,6 @@ struct SettingsForm: View {
     var body: some View {
         NavigationStack {
             Form {
-                SimBadge()
                 Section { fields }
                 if let error = message ?? (panel == .pin ? lock.error : nil) {
                     Text(verbatim: error).font(.footnote).foregroundStyle(Color.vxDown)
