@@ -7,6 +7,9 @@ struct PortfolioScreen: View {
     @State private var range = ChartRange.week
     @State private var candles = false
     @State private var trade: TradeIntent?
+    @AppStorage("profileName") private var profileName = ""
+    @State private var more = false
+    @State private var addAsset = false
     @State private var chart = false
     @State private var share = false
 
@@ -16,55 +19,45 @@ struct PortfolioScreen: View {
 
     var body: some View {
         PageScroll {
-            HStack(spacing: 10) {
-                VeltrixMark().fill(Color.vxHighlight).frame(width: 24, height: 24)
-                Text(verbatim: "VELTRIX").font(.system(size: 17, weight: .heavy, design: .rounded)).tracking(3)
-                Spacer()
+            HStack {
                 Menu {
                     ForEach(model.ledger.portfolios) { item in
-                        Button {
-                            _ = model.execute(.selectPortfolio(item.id))
-                        } label: {
-                            if model.ledger.selected == item.id {
-                                Label(item.name, systemImage: "checkmark")
-                            } else {
-                                Text(verbatim: item.name)
-                            }
-                        }
+                        Button(item.name) { _ = model.execute(.selectPortfolio(item.id)) }
                     }
                 } label: {
-                    HStack(spacing: 6) {
-                        Text(verbatim: portfolio.name).lineLimit(1)
-                        Image(systemName: "chevron.up.chevron.down").font(.system(size: 9, weight: .bold))
+                    HStack(spacing: 9) {
+                        VeltrixMark().fill(Color.vxHighlight).padding(9)
+                            .frame(width: 36, height: 36).background(Color.vxSurface, in: Circle())
+                        VStack(alignment: .leading) {
+                            Text(verbatim: profileName.isEmpty ? L.text("My profile") : profileName).font(.subheadline.bold())
+                            Text(verbatim: portfolio.name).font(.caption2).foregroundStyle(Color.vxMuted)
+                        }
                     }
-                    .font(.caption.weight(.semibold))
-                    .padding(.horizontal, 11).padding(.vertical, 10)
-                    .background(Color.vxSurface, in: Capsule())
                 }
-                .accessibilityLabel(Text("Switch portfolio"))
+                Spacer()
+                IconButton(icon: "plus", label: "Add holding") { addAsset = true }
             }
             balanceCard
-            MarketStatus()
             actions
-            if !model.hide {
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack {
-                        Text("Portfolio history").font(.title3.weight(.semibold))
-                        Spacer()
-                        IconButton(icon: "arrow.up.left.and.arrow.down.right", label: "Full screen chart") { chart = true }
-                        IconButton(icon: "square.and.arrow.up", label: "Share simulation") { share = true }
-                    }
-                    ChartPanel(samples: samples, range: $range, candles: $candles, allowsCandles: true) {
-                        model.money($0)
-                    }
-                }
-                .panel()
-            }
             positions
+            MarketStatus()
+            if !model.hide {
+                HStack {
+                    Button { chart = true } label: { Label("Portfolio history", systemImage: "chart.xyaxis.line") }
+                    Spacer()
+                    IconButton(icon: "square.and.arrow.up", label: "Share simulation") { share = true }
+                }
+            }
         }
         .refreshable { await model.refresh() }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.userDidTakeScreenshotNotification)) { _ in
             if !model.hide, !chart, trade == nil { share = true }
+        }
+        .sheet(isPresented: $addAsset) { SettingsForm(panel: .positions) }
+        .confirmationDialog("More", isPresented: $more, titleVisibility: .visible) {
+            ForEach([TradeAction.send, .receive, .deposit]) { action in
+                Button(action.title) { trade = TradeIntent(action: action) }
+            }
         }
         .sheet(item: $trade) { TradeScreen(intent: $0) }
         .sheet(isPresented: $share) { PortfolioShare(portfolio: portfolio) }
@@ -86,153 +79,95 @@ struct PortfolioScreen: View {
     private var samples: [ChartSample] { portfolio.chart(range: range, candles: candles) }
 
     private var balanceCard: some View {
-        VStack(alignment: .leading, spacing: 11) {
-            HStack {
-                SimBadge(inverted: true)
-                Spacer()
-                Button {
-                    withAnimation(reduceMotion ? nil : .spring(response: 0.3)) { model.hide.toggle() }
-                    Feedback.tap()
-                } label: {
-                    Image(systemName: model.hide ? "eye.slash" : "eye")
-                        .frame(width: 44, height: 44)
-                        .background(.white.opacity(0.12), in: Circle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(Text(model.hide ? "Show balances" : "Hide balances"))
-            }
-            Text("Portfolio value").font(.subheadline.weight(.medium)).foregroundStyle(.white.opacity(0.73))
-            if model.loading && value == nil && !model.hide {
-                Skeleton().frame(width: 160, height: 39)
-            } else {
+        VStack(spacing: 6) {
+            Text("Paper Trading").font(.caption.weight(.medium)).foregroundStyle(Color.vxMuted)
+            Button {
+                model.hide.toggle()
+                Feedback.tap()
+            } label: {
                 CountValue(text: model.money(value))
-                    .font(.system(size: 42, weight: .medium, design: .rounded))
-                    .lineLimit(1).minimumScaleFactor(0.35)
-                    .accessibilityIdentifier("portfolio.value")
+                    .font(.system(size: 42, weight: .semibold, design: .rounded))
+                    .lineLimit(1).minimumScaleFactor(0.4)
             }
-            Divider().overlay(.white.opacity(0.10))
-            HStack(alignment: .top) {
-                balanceMetric("Available cash", model.money(try? portfolio.freeCash()))
-                Spacer()
-                VStack(alignment: .trailing, spacing: 4) {
-                    Text("24h P&L").font(.caption).foregroundStyle(.white.opacity(0.73))
-                    Text(verbatim: model.money(daily?.value)).font(.subheadline.weight(.semibold).monospacedDigit())
-                        .lineLimit(1).minimumScaleFactor(0.55)
-                    if !model.hide { ChangeText(change: daily?.percent).environment(\.colorScheme, .dark) }
-                }
-            }
-        }
-        .padding(18)
-        .foregroundStyle(.white)
-        .background {
-            RoundedRectangle(cornerRadius: 24)
-                .fill(LinearGradient(colors: [Color(red: 0.14, green: 0.08, blue: 0.28), Color(red: 0.25, green: 0.13, blue: 0.48),
-                                             Color(red: 0.09, green: 0.06, blue: 0.17)], startPoint: .topLeading, endPoint: .bottomTrailing))
-                .overlay { OrbitLines().clipShape(RoundedRectangle(cornerRadius: 24)) }
-        }
-        .overlay(RoundedRectangle(cornerRadius: 24).strokeBorder(.white.opacity(0.11)))
-    }
-
-    private func balanceMetric(_ label: LocalizedStringKey, _ value: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(label).font(.caption).foregroundStyle(.white.opacity(0.73))
-            Text(verbatim: value).font(.subheadline.weight(.semibold).monospacedDigit())
-                .lineLimit(1).minimumScaleFactor(0.55)
-        }
+            .buttonStyle(.plain)
+            .accessibilityLabel(Text(model.hide ? "Show balances" : "Hide balances"))
+            HStack(spacing: 6) {
+                Text("24h P&L").foregroundStyle(Color.vxMuted)
+                Text(verbatim: model.money(daily?.value))
+                if !model.hide { ChangeText(change: daily?.percent) }
+            }.font(.caption.monospacedDigit())
+        }.frame(maxWidth: .infinity).padding(.vertical, 6)
     }
 
     private var actions: some View {
-        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 8) {
-            ForEach(TradeAction.allCases) { action in
+        HStack(spacing: 6) {
+            ForEach([TradeAction.buy, .sell, .swap]) { action in
                 Button { trade = TradeIntent(action: action); Feedback.tap() } label: {
-                    HStack(spacing: 7) {
-                        Image(systemName: action.icon).font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(Color.vxHighlight)
-                        Text(action.title).font(.caption.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.7)
-                    }
-                    .frame(maxWidth: .infinity, minHeight: 45)
-                    .background(Color.vxCard, in: RoundedRectangle(cornerRadius: 13))
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("trade." + action.rawValue)
+                    shortcut(action.title, action.icon)
+                }.accessibilityIdentifier("trade." + action.rawValue)
             }
-        }
+            Button { more = true; Feedback.tap() } label: { shortcut("More", "ellipsis") }
+                .accessibilityIdentifier("trade.more")
+        }.buttonStyle(.plain)
+    }
+
+    private func shortcut(_ title: LocalizedStringKey, _ icon: String) -> some View {
+        VStack(spacing: 5) {
+            Image(systemName: icon).font(.system(size: 17, weight: .medium))
+            Text(title).font(.caption.weight(.medium))
+        }.frame(maxWidth: .infinity, minHeight: 55)
+            .background(Color.vxSurface, in: RoundedRectangle(cornerRadius: 14))
     }
 
     private var positions: some View {
-        VStack(alignment: .leading, spacing: 13) {
-            Text("Holdings").font(.title2.weight(.semibold)).accessibilityAddTraits(.isHeader)
-            if portfolio.positions.isEmpty {
-                EmptyPanel(icon: "square.stack.3d.up", title: "No positions yet",
-                           detail: "Simulate a buy or add holdings in Settings.")
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Holdings").font(.title3.bold())
+                Spacer()
+                Text(verbatim: model.money(try? portfolio.freeCash())).font(.caption.monospacedDigit())
+                    .accessibilityLabel(Text("Available cash"))
+            }
+            Text("Available cash").font(.caption2).foregroundStyle(Color.vxMuted)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+            if holdings.isEmpty {
+                EmptyPanel(icon: "square.stack.3d.up", title: "No positions yet", detail: "Simulate a buy or add holdings in Settings.")
             } else {
-                if !model.hide {
-                    HStack {
-                        stat("Realized P&L", try? portfolio.realized())
-                        Spacer()
-                        stat("Unrealized P&L", try? portfolio.unrealized(prices: model.prices))
+                ForEach(holdings) { asset in
+                    if let pos = portfolio.positions[asset.id] {
+                        NavigationLink(value: asset) {
+                            HStack(spacing: 10) {
+                                CoinIcon(asset: asset, url: model.quotes[asset.id]?.image)
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(verbatim: asset.name).font(.subheadline.weight(.semibold))
+                                    Text(verbatim: model.units(pos.units) + " " + asset.ticker).font(.caption).foregroundStyle(Color.vxMuted)
+                                }
+                                Spacer(minLength: 4)
+                                VStack(alignment: .trailing, spacing: 4) {
+                                    CountValue(text: model.money(positionValue(asset))).font(.subheadline.bold())
+                                    ChangeText(change: model.quotes[asset.id]?.change)
+                                }
+                            }.lineLimit(1).minimumScaleFactor(0.7).padding(.horizontal, 12)
+                                .frame(height: 64).background(Color.vxCard, in: RoundedRectangle(cornerRadius: 15))
+                        }.buttonStyle(.plain)
                     }
-                    .panel()
                 }
-                VStack(alignment: .leading, spacing: 0) {
-                    ForEach(Asset.catalog.filter { portfolio.positions[$0.id] != nil }) { asset in
-                        if let position = portfolio.positions[asset.id] {
-                            NavigationLink(value: asset) { holding(asset, position) }.buttonStyle(.plain)
-                            if asset.id != Asset.catalog.last(where: { portfolio.positions[$0.id] != nil })?.id {
-                                Divider()
-                            }
-                        }
-                    }
-                }
-                .panel(padding: 13)
+                LabeledContent("Realized P&L", value: model.money(try? portfolio.realized()))
+                LabeledContent("Unrealized P&L", value: model.money(try? portfolio.unrealized(prices: model.prices)))
             }
         }
     }
 
-    private func stat(_ title: LocalizedStringKey, _ value: Decimal?) -> some View {
-        VStack(alignment: .leading, spacing: 5) {
-            Text(title).font(.caption).foregroundStyle(Color.vxMuted)
-            Text(verbatim: model.money(value)).font(.subheadline.weight(.semibold))
-                .foregroundStyle(value.map { $0 >= 0 ? Color.vxUp : .vxDown } ?? .vxMuted)
-                .lineLimit(1).minimumScaleFactor(0.55)
-        }
+    private func positionValue(_ asset: Asset) -> Decimal? {
+        guard let price = model.prices[asset.id], let pos = portfolio.positions[asset.id] else { return nil }
+        return try? MoneyMath.multiply(price, pos.units)
     }
 
-    private func holding(_ asset: Asset, _ position: Position) -> some View {
-        let quote = model.quotes[asset.id]
-        let positionValue = quote?.price.flatMap { try? MoneyMath.multiply($0, position.units) }
-        let percentage = allocation(positionValue)
-        return HStack(spacing: 10) {
-            CoinIcon(asset: asset, url: quote?.image)
-            VStack(alignment: .leading, spacing: 4) {
-                Text(verbatim: asset.name).font(.subheadline.weight(.semibold)).lineLimit(1)
-                Text("Avg. \(model.money(position.average, price: true))")
-                    .font(.caption2).foregroundStyle(Color.vxMuted).lineLimit(1)
-            }
-            Spacer(minLength: 4)
-            VStack(alignment: .trailing, spacing: 4) {
-                Text(verbatim: model.money(positionValue)).font(.subheadline.weight(.semibold).monospacedDigit())
-                Text(verbatim: "\(model.units(position.units)) \(asset.ticker)")
-                    .font(.caption2).foregroundStyle(Color.vxMuted)
-            }
-            .lineLimit(1).minimumScaleFactor(0.55)
-            if let percentage, !model.hide {
-                VStack(alignment: .trailing, spacing: 5) {
-                    Text(verbatim: Display.number(percentage, maximum: 1) + "%")
-                        .font(.system(size: 9, weight: .semibold, design: .monospaced)).foregroundStyle(Color.vxHighlight)
-                    ProgressView(value: min(100, max(0, NSDecimalNumber(decimal: percentage).doubleValue)), total: 100)
-                        .tint(.vxAccent).frame(width: 34)
-                }
-                .accessibilityLabel(Text("Portfolio allocation"))
-            }
+    private var holdings: [Asset] {
+        Asset.catalog.filter { portfolio.positions[$0.id] != nil }.sorted {
+            let a = positionValue($0) ?? -1
+            let b = positionValue($1) ?? -1
+            return a == b ? $0.ticker < $1.ticker : a > b
         }
-        .padding(.vertical, 10)
-        .contentShape(Rectangle())
-    }
-
-    private func allocation(_ position: Decimal?) -> Decimal? {
-        guard let position, let value, value > 0 else { return nil }
-        return try? MoneyMath.multiply(MoneyMath.divide(position, value), 100)
     }
 }
 

@@ -159,6 +159,7 @@ struct ChartPanel: View {
                                                         startPoint: .top, endPoint: .bottom))
                     LineMark(x: .value("Date", sample.date), y: .value("Price", double(sample.close)))
                         .foregroundStyle(Color.vxHighlight)
+                        .interpolationMethod(.monotone)
                         .lineStyle(StrokeStyle(lineWidth: 1.8, lineCap: .round))
                     if data.count == 1 {
                         PointMark(x: .value("Date", sample.date), y: .value("Price", double(sample.close)))

@@ -219,14 +219,14 @@ private struct CardFace: View, Animatable {
                     context.stroke(line, with: .color(.white.opacity(alpha)), lineWidth: 0.35)
                 }
             }
-            OrbitLines(opacity: 0.35)
+            OrbitLines(opacity: tier == .black ? 0.06 : 0.16)
             GeometryReader { geometry in
                 let x = 0.63 + tilt.width * 0.22
                 let y = 0.35 + tilt.height * 0.25
                 AngularGradient(colors: [.clear, .cyan.opacity(0.19), .white.opacity(0.36), .purple.opacity(0.30), .clear],
                                 center: UnitPoint(x: x, y: y), angle: .degrees(geometry.size.width / 5))
                     .blendMode(.screen)
-                    .opacity(tier == .classic ? 0.4 : 0.65)
+                    .opacity(tier == .black ? 0.15 : (tier == .classic ? 0.24 : 0.50))
             }
             VStack(alignment: .leading, spacing: 9) {
                 HStack {
@@ -298,10 +298,10 @@ extension CardTier {
 
     var colors: [Color] {
         switch self {
-        case .classic: return [.init(red: 0.11, green: 0.09, blue: 0.24), .init(red: 0.24, green: 0.17, blue: 0.53), .black]
-        case .gold: return [.init(red: 0.33, green: 0.20, blue: 0.08), .init(red: 0.45, green: 0.29, blue: 0.11), .black]
-        case .platinum: return [.init(red: 0.29, green: 0.34, blue: 0.44), .init(red: 0.23, green: 0.27, blue: 0.39), .black]
-        case .black: return [.black, .init(red: 0.23, green: 0.22, blue: 0.27), .black]
+        case .classic: return [.init(red: 0.11, green: 0.11, blue: 0.13), .init(red: 0.24, green: 0.24, blue: 0.26), .black]
+        case .gold: return [.init(red: 0.33, green: 0.20, blue: 0.08), .init(red: 0.58, green: 0.44, blue: 0.22), .black]
+        case .platinum: return [.init(red: 0.29, green: 0.34, blue: 0.44), .init(red: 0.48, green: 0.50, blue: 0.55), .black]
+        case .black: return [.black, .init(red: 0.13, green: 0.13, blue: 0.15), .black]
         }
     }
 }

@@ -2,10 +2,10 @@ import SwiftUI
 import UIKit
 
 extension Color {
-    static let vxBackground = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(rgb: 0x0B0B0D) : UIColor(rgb: 0xF4F2FA) })
-    static let vxCard = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(rgb: 0x17171C) : .white })
-    static let vxSurface = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(rgb: 0x212128) : UIColor(rgb: 0xEBE7F6) })
-    static let vxMuted = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(rgb: 0x8E8E93) : UIColor(rgb: 0x655E75) })
+    static let vxBackground = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(rgb: 0x0B0B0F) : UIColor(rgb: 0xF4F2FA) })
+    static let vxCard = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(rgb: 0x15151C) : .white })
+    static let vxSurface = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(rgb: 0x1C1C25) : UIColor(rgb: 0xEBE7F6) })
+    static let vxMuted = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(rgb: 0x85858F) : UIColor(rgb: 0x655E75) })
     static let vxAccent = Color(uiColor: UIColor(rgb: 0x7955FF))
     static let vxHighlight = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(rgb: 0xB69FFF) : UIColor(rgb: 0x5532CE) })
     static let vxUp = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(rgb: 0x22C55E) : UIColor(rgb: 0x12773B) })
@@ -66,7 +66,7 @@ struct PrimaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(.headline, design: .rounded))
-            .frame(maxWidth: .infinity, minHeight: 50)
+            .frame(maxWidth: .infinity, minHeight: 44)
             .foregroundStyle(.white)
             .background(Color.vxAccent.gradient, in: RoundedRectangle(cornerRadius: 15))
             .opacity(configuration.isPressed ? 0.76 : 1)
@@ -180,8 +180,8 @@ struct Skeleton: View {
 extension View {
     func panel(padding: CGFloat = 16) -> some View {
         self.padding(padding)
-            .background(Color.vxCard, in: RoundedRectangle(cornerRadius: 21))
-            .overlay(RoundedRectangle(cornerRadius: 21).strokeBorder(.primary.opacity(0.06), lineWidth: 1).allowsHitTesting(false))
+            .background(Color.vxCard, in: RoundedRectangle(cornerRadius: 15))
+            .overlay(RoundedRectangle(cornerRadius: 15).strokeBorder(.primary.opacity(0.06), lineWidth: 1).allowsHitTesting(false))
     }
 
     func glass(radius: CGFloat) -> some View {
@@ -216,7 +216,7 @@ struct PageScroll<Content: View>: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 22, content: content)
+            VStack(alignment: .leading, spacing: 16, content: content)
                 .padding(.horizontal, 18)
                 .padding(.top, 14)
                 .padding(.bottom, 20)

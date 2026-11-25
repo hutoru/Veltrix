@@ -273,3 +273,11 @@
 "PIN" = "PIN";
 "Unlock" = "Разблокировать";
 "Use device authentication" = "Вход через устройство";
+"Paper Trading" = "Виртуальный портфель";
+"My profile" = "Мой профиль";
+"Display name" = "Имя пользователя";
+"App language" = "Язык приложения";
+"About VELTRIX" = "О VELTRIX";
+"More" = "Ещё";
+"Add holding" = "Добавить актив";
+"VELTRIX uses virtual funds. Trades, transfers and card payments are simulated on this device." = "В VELTRIX используются виртуальные средства. Сделки, переводы и платежи по картам моделируются на этом устройстве.";

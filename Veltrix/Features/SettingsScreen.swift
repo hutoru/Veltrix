@@ -4,6 +4,7 @@ import UniformTypeIdentifiers
 struct SettingsScreen: View {
     @EnvironmentObject private var model: VeltrixModel
     @EnvironmentObject private var lock: AppLock
+    @AppStorage("profileName") private var profileName = ""
     @State private var panel: SettingsPanel?
     @State private var export = false
     @State private var takeFile = false
@@ -12,18 +13,32 @@ struct SettingsScreen: View {
     @State private var reset = false
 
     var body: some View {
-        PageScroll {
-            PageHeader(title: "Settings", detail: "Portfolio, security and display preferences") { SimBadge() }
-            simulation
-            display
-            security
-            backups
-            sources
-            VStack(alignment: .leading, spacing: 5) {
-                Text(verbatim: "VELTRIX").font(.headline).tracking(2.5)
-                Text(verbatim: "Beyond the balance.").font(.caption).foregroundStyle(Color.vxMuted)
+        List {
+            Section("My profile") {
+                TextField("Display name", text: $profileName)
+            }
+            Section {
+                display
+                Link(destination: URL(string: UIApplication.openSettingsURLString)!) {
+                    Label("App language", systemImage: "globe")
+                }
+            }
+            Section { simulation }
+            Section { security }
+            Section { backups }
+            Section {
+                NavigationLink("About VELTRIX") {
+                    PageScroll {
+                        Text(verbatim: "Beyond the balance.").font(.title2.bold())
+                        Text("VELTRIX uses virtual funds. Trades, transfers and card payments are simulated on this device.")
+                        sources
+                    }.navigationTitle("About VELTRIX")
+                }
             }
         }
+        .navigationTitle("Settings")
+        .scrollContentBackground(.hidden)
+        .background(Color.vxBackground)
         .sheet(item: $panel) { SettingsForm(panel: $0) }
         .fileExporter(isPresented: $export, document: backup, contentType: .json, defaultFilename: "VELTRIX-Simulation") { result in
             if case let .failure(error) = result { model.error = Display.error(error) }
@@ -68,7 +83,7 @@ struct SettingsScreen: View {
             settingsButton("Trading fee", "percent") { panel = .fee }
             settingsButton("Reset portfolio", "arrow.counterclockwise", destructive: true) { reset = true }
         }
-        .panel()
+
     }
 
     private var display: some View {
@@ -105,7 +120,7 @@ struct SettingsScreen: View {
             .accessibilityIdentifier("settings.hide")
             .accessibilityAddTraits(model.hide ? .isSelected : [])
         }
-        .panel()
+
     }
 
     private var security: some View {
@@ -127,7 +142,7 @@ struct SettingsScreen: View {
             if lock.hasPIN || lock.biometrics { settingsButton("Lock now", "lock.fill") { lock.lockNow() } }
             if let error = lock.error { Text(verbatim: error).font(.caption).foregroundStyle(Color.vxDown) }
         }
-        .panel()
+
     }
 
     private var backups: some View {
@@ -141,7 +156,7 @@ struct SettingsScreen: View {
             Text("The backup contains virtual balances and activity. Store it somewhere private.")
                 .font(.caption).foregroundStyle(Color.vxMuted)
         }
-        .panel()
+
     }
 
     private var sources: some View {
@@ -153,7 +168,7 @@ struct SettingsScreen: View {
             Link("Fiat reference rates by Frankfurter", destination: URL(string: "https://frankfurter.dev/")!)
         }
         .font(.footnote)
-        .panel()
+
     }
 
     private func heading(_ title: LocalizedStringKey) -> some View {
@@ -177,7 +192,7 @@ struct SettingsScreen: View {
     }
 }
 
-private enum SettingsPanel: String, Identifiable {
+enum SettingsPanel: String, Identifiable {
     case newPortfolio, cash, positions, fee, pin, key
     var id: String { rawValue }
     var title: LocalizedStringKey {
@@ -192,7 +207,7 @@ private enum SettingsPanel: String, Identifiable {
     }
 }
 
-private struct SettingsForm: View {
+struct SettingsForm: View {
     @EnvironmentObject private var model: VeltrixModel
     @EnvironmentObject private var lock: AppLock
     @Environment(\.dismiss) private var dismiss

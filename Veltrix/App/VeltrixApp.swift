@@ -143,13 +143,13 @@ struct VeltrixRoot: View {
                         if destination == .portfolio {
                             VeltrixMark().fill().frame(width: 19, height: 19)
                         } else {
-                            Image(systemName: destination.icon).font(.system(size: 17, weight: .medium)).frame(height: 19)
+                            Image(systemName: destination.icon).font(.system(size: 17, weight: .regular)).frame(height: 19)
                         }
                         Text(destination.name).font(.system(size: 9, weight: .semibold)).lineLimit(1).minimumScaleFactor(0.65)
                     }
                     .foregroundStyle(tab == destination ? Color.vxHighlight : Color.vxMuted)
                     .frame(maxWidth: .infinity, minHeight: 49)
-                    .background(tab == destination ? Color.vxAccent.opacity(0.13) : .clear, in: RoundedRectangle(cornerRadius: 15))
+                    .overlay(alignment: .top) { if tab == destination { Capsule().fill(Color.vxAccent).frame(width: 16, height: 2) } }
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -159,7 +159,7 @@ struct VeltrixRoot: View {
         }
         .padding(5)
         .background {
-            Color.clear.glass(radius: 22).allowsHitTesting(false)
+            RoundedRectangle(cornerRadius: 16).fill(Color.vxCard.opacity(0.97)).allowsHitTesting(false)
         }
         .frame(maxWidth: 600)
         .padding(.horizontal, 13)

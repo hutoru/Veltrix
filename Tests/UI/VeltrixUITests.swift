@@ -12,7 +12,8 @@ final class VeltrixUITests: XCTestCase {
     func testDepositThroughReviewAndSeeItInActivity() {
         let app = launch()
         capture(app, name: "Portfolio")
-        app.buttons["trade.deposit"].tap()
+        app.buttons["trade.more"].tap()
+        app.buttons["Deposit"].tap()
         let amount = app.textFields["trade.amount"]
         XCTAssertTrue(amount.waitForExistence(timeout: 5))
         amount.tap()

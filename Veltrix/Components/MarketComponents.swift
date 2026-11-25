@@ -35,7 +35,7 @@ struct CoinIcon: View {
     var size: CGFloat = 39
 
     var body: some View {
-        AsyncImage(url: url) { phase in
+        AsyncImage(url: url, transaction: Transaction(animation: .easeOut(duration: 0.18))) { phase in
             if let image = phase.image {
                 image.resizable().scaledToFit()
             } else {
