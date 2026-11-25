@@ -139,6 +139,7 @@ final class VeltrixUITests: XCTestCase {
                 app.buttons["Done"].tap()
                 XCTAssertTrue(app.buttons["tab.trade"].waitForExistence(timeout: 5))
                 XCTAssertTrue(app.staticTexts["Bitcoin"].waitForExistence(timeout: 5))
+                XCTAssertEqual(app.staticTexts["portfolio.total"].label, "$10,000.00")
                 capture(app, name: "Home")
                 continue
             }

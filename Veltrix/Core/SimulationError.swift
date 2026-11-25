@@ -27,6 +27,21 @@ enum MoneyMath {
         return try calculate(a, b, NSDecimalDivide, rounded: true)
     }
 
+    static func addValuation(_ a: Decimal, _ b: Decimal) throws -> Decimal {
+        try calculate(a, b, NSDecimalAdd, rounded: true)
+    }
+
+    static func subtractValuation(_ a: Decimal, _ b: Decimal) throws -> Decimal {
+        try calculate(a, b, NSDecimalSubtract, rounded: true)
+    }
+
+    static func quotedUSD(_ units: Decimal, at price: Decimal) throws -> Decimal {
+        let value = try multiply(units, price)
+        // Products from repeating coin quantities can exhaust Decimal's precision before fees or cash are applied.
+        let settled = round(value, scale: 16)
+        return settled == 0 ? value : settled
+    }
+
     private static func calculate(
         _ a: Decimal, _ b: Decimal,
         _ operation: (UnsafeMutablePointer<Decimal>, UnsafePointer<Decimal>, UnsafePointer<Decimal>, Decimal.RoundingMode) -> Decimal.CalculationError,

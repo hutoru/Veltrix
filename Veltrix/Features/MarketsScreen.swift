@@ -270,7 +270,7 @@ struct AssetScreen: View {
                     LabeledContent("Average purchase price", value: model.money(position.average, price: true))
                     let positionValue = quote?.price.flatMap { try? MoneyMath.multiply(position.units, $0) }
                     LabeledContent("Position value", value: model.money(positionValue))
-                    let pnl = positionValue.flatMap { try? MoneyMath.subtract($0, position.basis) }
+                    let pnl = positionValue.flatMap { try? MoneyMath.subtractValuation($0, position.basis) }
                     LabeledContent("Unrealized P&L", value: model.signedMoney(pnl))
                 }
             }

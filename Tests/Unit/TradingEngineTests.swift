@@ -46,6 +46,21 @@ final class TradingEngineTests: XCTestCase {
         XCTAssertEqual(units, try MoneyMath.divide(100, decimal("63.17")))
     }
 
+    func testSmallFiatBuyCanBeValuedAndSoldByItsExactCoinQuantity() throws {
+        let ledger = Ledger.fresh(cash: 10_000, date: start)
+        let price = decimal("59617.9")
+        let fee = decimal("0.001")
+        let bought = try execute(.marketNotional(.buy, btc, 1, fee), ledger, bitcoin: price)
+        let position = try XCTUnwrap(bought.portfolios[0].positions[btc])
+        XCTAssertEqual(position.units, try MoneyMath.divide(1, price))
+        XCTAssertEqual(MoneyMath.round(try bought.portfolios[0].value(prices: [btc: price]), scale: 3), decimal("9999.999"))
+        XCTAssertEqual(MoneyMath.round(try bought.portfolios[0].unrealized(prices: [btc: price]), scale: 3), -fee)
+        let sold = try execute(.market(.sell, btc, position.units, fee), bought, bitcoin: price)
+        XCTAssertNil(sold.portfolios[0].positions[btc])
+        XCTAssertEqual(MoneyMath.round(sold.portfolios[0].cash, scale: 3), decimal("9999.998"))
+        XCTAssertEqual(MoneyMath.round(try sold.portfolios[0].realized(), scale: 3), decimal("-0.002"))
+    }
+
     func testOfflinePositionEditRecordsUnitsWithoutFabricatingValue() throws {
         let ledger = Ledger.fresh(cash: 100, date: start)
         let edited = try TradingEngine.apply(.setPosition(btc, 1, 25), to: ledger, at: start.addingTimeInterval(1))

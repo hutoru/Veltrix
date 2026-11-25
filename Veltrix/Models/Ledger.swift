@@ -75,7 +75,7 @@ struct Portfolio: Codable, Identifiable, Equatable, Sendable {
             guard let price = prices[asset], let position = positions[asset], price > 0 else {
                 throw SimulationError.missingQuote
             }
-            return try MoneyMath.add(subtotal, MoneyMath.multiply(price, position.units))
+            return try MoneyMath.addValuation(subtotal, MoneyMath.multiply(price, position.units))
         }
     }
 
@@ -84,13 +84,13 @@ struct Portfolio: Codable, Identifiable, Equatable, Sendable {
             guard let price = prices[asset], let position = positions[asset], price > 0 else {
                 throw SimulationError.missingQuote
             }
-            let gain = try MoneyMath.subtract(MoneyMath.multiply(price, position.units), position.basis)
-            return try MoneyMath.add(total, gain)
+            let gain = try MoneyMath.subtractValuation(MoneyMath.multiply(price, position.units), position.basis)
+            return try MoneyMath.addValuation(total, gain)
         }
     }
 
     func realized() throws -> Decimal {
-        try entries.compactMap(\.profit).reduce(Decimal.zero, MoneyMath.add)
+        try entries.compactMap(\.profit).reduce(Decimal.zero, MoneyMath.addValuation)
     }
 
     func daily(now: Date, prices: [String: Decimal]) throws -> (value: Decimal, percent: Decimal?)? {
@@ -100,9 +100,9 @@ struct Portfolio: Codable, Identifiable, Equatable, Sendable {
         guard let start, start.date < now, start.date >= cutoff.addingTimeInterval(-3_600) else { return nil }
         let changes = entries.filter { $0.date > start.date && $0.date <= now }
         guard !changes.contains(where: { $0.valuationUnavailable == true }) else { return nil }
-        let net = try changes.map(\.externalFlow).reduce(Decimal.zero, MoneyMath.add)
-        let value = try MoneyMath.subtract(MoneyMath.subtract(self.value(prices: prices), start.value), net)
-        let basis = try MoneyMath.add(start.value, max(0, net))
+        let net = try changes.map(\.externalFlow).reduce(Decimal.zero, MoneyMath.addValuation)
+        let value = try MoneyMath.subtractValuation(MoneyMath.subtractValuation(self.value(prices: prices), start.value), net)
+        let basis = try MoneyMath.addValuation(start.value, max(0, net))
         let percent = basis > 0 ? try MoneyMath.multiply(MoneyMath.divide(value, basis), 100) : nil
         return (value, percent)
     }

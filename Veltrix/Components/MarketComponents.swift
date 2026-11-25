@@ -77,9 +77,10 @@ struct ChangeText: View {
     let change: Decimal?
 
     var body: some View {
+        let rounded = change.map { MoneyMath.round($0, scale: 2) }
         Text(verbatim: Display.percent(change))
             .font(.caption.weight(.semibold).monospacedDigit())
-            .foregroundStyle(change.map { $0 >= 0 ? Color.vxUp : .vxDown } ?? .vxMuted)
+            .foregroundStyle(rounded.map { $0 == 0 ? Color.vxMuted : ($0 > 0 ? .vxUp : .vxDown) } ?? .vxMuted)
     }
 }
 

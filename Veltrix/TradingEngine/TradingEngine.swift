@@ -54,7 +54,7 @@ enum TradingEngine {
             try check(asset)
             try MoneyMath.quantity(units)
             try MoneyMath.quantity(limit)
-            let gross = try MoneyMath.multiply(units, limit)
+            let gross = try MoneyMath.quotedUSD(units, at: limit)
             let fee = try commission(gross, feeRate)
             let reserved = side == .buy ? try MoneyMath.add(gross, fee) : units
             if side == .buy {
@@ -75,7 +75,7 @@ enum TradingEngine {
             guard source != target else { throw SimulationError.invalidPair }
             try MoneyMath.quantity(units)
             try requireUnits(units, source, portfolio)
-            let gross = try MoneyMath.multiply(units, quote(source, in: execution))
+            let gross = try MoneyMath.quotedUSD(units, at: quote(source, in: execution))
             let fee = try commission(gross, rate)
             let net = try MoneyMath.subtract(gross, fee)
             let received = try MoneyMath.divide(net, quote(target, in: execution))
@@ -89,7 +89,7 @@ enum TradingEngine {
         case let .transfer(receive, asset, units, label):
             let price = try quote(asset, in: execution)
             try MoneyMath.quantity(units)
-            let value = try MoneyMath.multiply(units, price)
+            let value = try MoneyMath.quotedUSD(units, at: price)
             if receive {
                 try add(units, basis: value, asset: asset, to: &portfolio)
             } else {
@@ -239,7 +239,7 @@ enum TradingEngine {
                               id: UUID, date: Date, portfolio: inout Portfolio, usdGross: Decimal? = nil) throws -> Entry {
         try check(asset)
         try MoneyMath.quantity(units)
-        let gross = try usdGross ?? MoneyMath.multiply(units, price)
+        let gross = try usdGross ?? MoneyMath.quotedUSD(units, at: price)
         let fee = try commission(gross, rate)
         if side == .buy {
             let total = try MoneyMath.add(gross, fee)

@@ -105,7 +105,7 @@ struct ProfileScreen: View {
             if !closed.isEmpty {
                 Text("Closed positions").font(.headline)
                 ForEach(closed) { coin in
-                    let profit = try? realizedTrades.filter { $0.asset == coin.id }.compactMap(\.profit).reduce(0, MoneyMath.add)
+                    let profit = try? realizedTrades.filter { $0.asset == coin.id }.compactMap(\.profit).reduce(0, MoneyMath.addValuation)
                     NavigationLink(value: coin) {
                         HStack {
                             CoinIcon(asset: coin, url: model.quotes[coin.id]?.image, size: 30)
@@ -181,6 +181,6 @@ struct ProfileScreen: View {
 
     private var periodProfit: Decimal? {
         let start = range.start(from: .now) ?? .distantPast
-        return try? realizedTrades.filter { $0.date >= start }.compactMap(\.profit).reduce(0, MoneyMath.add)
+        return try? realizedTrades.filter { $0.date >= start }.compactMap(\.profit).reduce(0, MoneyMath.addValuation)
     }
 }

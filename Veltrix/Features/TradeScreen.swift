@@ -468,11 +468,11 @@ struct TradeScreen: View {
             let price = try live(asset)
             let note = network.map { $0.rawValue + " · " + name } ?? name
             return TradeReview(command: .transfer(receive: intent.action == .receive, asset: asset, units: quantity, label: note),
-                               summary: unitsText(quantity), estimate: try MoneyMath.multiply(quantity, price), fee: 0)
+                               summary: unitsText(quantity), estimate: try MoneyMath.quotedUSD(quantity, at: price), fee: 0)
         case .swap:
             guard asset != target else { throw SimulationError.invalidPair }
             let price = try live(asset)
-            let gross = try MoneyMath.multiply(quantity, price)
+            let gross = try MoneyMath.quotedUSD(quantity, at: price)
             let fee = try MoneyMath.multiply(gross, model.fee)
             let received = try MoneyMath.divide(MoneyMath.subtract(gross, fee), live(target))
             return TradeReview(command: .swap(asset, target, quantity, model.fee), summary: unitsText(quantity),
@@ -488,7 +488,7 @@ struct TradeScreen: View {
                 price = try live(asset)
             }
             let units = useFiat && !isLimit ? try MoneyMath.divide(quantity, price) : quantity
-            let gross = useFiat && !isLimit ? quantity : try MoneyMath.multiply(units, price)
+            let gross = useFiat && !isLimit ? quantity : try MoneyMath.quotedUSD(units, at: price)
             let fee = try MoneyMath.multiply(gross, model.fee)
             let command: Command
             if isLimit { command = .limit(side, asset, units, price, model.fee) }

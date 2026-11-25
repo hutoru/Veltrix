@@ -138,6 +138,7 @@ struct PortfolioScreen: View {
             CountValue(text: model.money(value))
                 .font(.system(size: 48, weight: .semibold))
                 .tracking(-2).lineLimit(1).minimumScaleFactor(0.24)
+                .accessibilityIdentifier("portfolio.total")
             HStack(spacing: 6) {
                 Text("24h P&L").foregroundStyle(Color.vxMuted)
                 Text(verbatim: model.signedMoney(daily?.value))
