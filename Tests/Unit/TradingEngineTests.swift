@@ -61,6 +61,13 @@ final class TradingEngineTests: XCTestCase {
         XCTAssertEqual(MoneyMath.round(try sold.portfolios[0].realized(), scale: 3), decimal("-0.002"))
     }
 
+    func testQuotedUSDAmountStaysWithinExistingLimitReservations() throws {
+        let previousGross = decimal("1.00000000000000009")
+        XCTAssertEqual(try MoneyMath.quotedUSD(1, at: previousGross), 1)
+        let tiny = decimal("0.000000000000000001")
+        XCTAssertEqual(try MoneyMath.quotedUSD(1, at: tiny), tiny)
+    }
+
     func testOfflinePositionEditRecordsUnitsWithoutFabricatingValue() throws {
         let ledger = Ledger.fresh(cash: 100, date: start)
         let edited = try TradingEngine.apply(.setPosition(btc, 1, 25), to: ledger, at: start.addingTimeInterval(1))
