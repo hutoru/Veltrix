@@ -164,6 +164,13 @@ struct VeltrixRoot: View {
     private func attemptAutomaticUnlock() {
         guard !showSplash, phase == .active, lock.locked, lock.enabled, !model.storageError else { return }
         Task {
+            #if DEBUG
+            let arguments = ProcessInfo.processInfo.arguments
+            if arguments.contains("--ui-testing") && arguments.contains("--capture-lock-background") {
+                try? await Task.sleep(nanoseconds: 3_500_000_000)
+                guard !Task.isCancelled, UIApplication.shared.applicationState == .active else { return }
+            }
+            #endif
             await lock.tryAutomaticUnlock()
         }
     }

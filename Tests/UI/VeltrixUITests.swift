@@ -162,13 +162,16 @@ final class VeltrixUITests: XCTestCase {
     }
 
     func testLaunchShowsSystemAuthenticationGate() {
-        let app = launch(["--capture-launch", "--locked-fixture"])
+        let app = launch(["--capture-launch", "--locked-fixture", "--capture-lock-background"])
         capture(app, name: "Splash")
         XCTAssertTrue(app.staticTexts["Welcome back"].waitForExistence(timeout: 8))
         XCTAssertTrue(app.buttons["lock.unlock"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["keypad.1"].exists)
         XCTAssertFalse(app.buttons["tab.portfolio"].exists)
         capture(app, name: "Lock Screen")
+        let systemPrompt = app.staticTexts.containing(NSPredicate(format: "label CONTAINS[c] %@", "iPhone Passcode")).firstMatch
+        _ = systemPrompt.waitForExistence(timeout: 5)
+        capture(app, name: "iOS Device Authentication")
     }
 
     func testSavedTradeReachesIOSNotificationCenter() {
