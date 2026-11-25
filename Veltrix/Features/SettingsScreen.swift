@@ -38,7 +38,9 @@ struct SettingsScreen: View {
             Section("Notifications") {
                 Toggle("iOS notifications", isOn: Binding(get: { model.pushOperations }, set: updateNotifications))
                 Toggle("Hide amounts in notifications", isOn: $model.privateNotifications)
+                NavigationLink("Price alerts") { PriceAlertsScreen() }
             }
+            Section("Cards") { NavigationLink("Cards") { CardsScreen() } }
             Section { security }
             Section { backups }
             Section("Community") {

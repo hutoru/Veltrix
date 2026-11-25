@@ -20,6 +20,12 @@ import SwiftUI
     @Published var favorites: Set<String> { didSet { defaults.set(Array(favorites), forKey: "favorites") } }
     @Published var pushOperations: Bool { didSet { defaults.set(pushOperations, forKey: "pushOperations") } }
     @Published var privateNotifications: Bool { didSet { defaults.set(privateNotifications, forKey: "privateNotifications") } }
+    @Published private(set) var priceAlerts: [PriceAlert] {
+        didSet { defaults.set(try? JSONEncoder().encode(priceAlerts), forKey: "priceAlerts") }
+    }
+    @Published private(set) var recentAssetIDs: [String] {
+        didSet { defaults.set(recentAssetIDs, forKey: "recentAssetIDs") }
+    }
     @Published private var notificationsCleared: Date { didSet { defaults.set(notificationsCleared, forKey: "notificationsCleared") } }
     @Published private var notificationsReadDate: Date { didSet { defaults.set(notificationsReadDate, forKey: "notificationsReadDate") } }
     @Published private var notificationsRead: Set<String> { didSet { defaults.set(Array(notificationsRead), forKey: "notificationsRead") } }
@@ -57,6 +63,9 @@ import SwiftUI
         favorites = Set(defaults.stringArray(forKey: "favorites") ?? [])
         pushOperations = defaults.bool(forKey: "pushOperations")
         privateNotifications = defaults.object(forKey: "privateNotifications") as? Bool ?? true
+        priceAlerts = defaults.data(forKey: "priceAlerts")
+            .flatMap { try? JSONDecoder().decode([PriceAlert].self, from: $0) } ?? []
+        recentAssetIDs = defaults.stringArray(forKey: "recentAssetIDs") ?? []
         notificationsCleared = defaults.object(forKey: "notificationsCleared") as? Date ?? .distantPast
         notificationsReadDate = defaults.object(forKey: "notificationsReadDate") as? Date ?? Date()
         notificationsRead = Set(defaults.stringArray(forKey: "notificationsRead") ?? [])
@@ -72,6 +81,22 @@ import SwiftUI
     var portfolio: Portfolio { ledger.portfolios.first { $0.id == ledger.selected } ?? ledger.portfolios[0] }
     var cards: [VirtualCard] { ledger.cards.filter { $0.owner == ledger.selected } }
     var prices: [String: Decimal] { quotes.compactMapValues(\.price) }
+
+    var recentAssets: [Asset] {
+        recentAssetIDs.compactMap { id in Asset.catalog.first { $0.id == id } }
+    }
+
+    func recordAsset(_ asset: Asset) {
+        guard recentAssetIDs.first != asset.id else { return }
+        recentAssetIDs = Array(([asset.id] + recentAssetIDs.filter { $0 != asset.id }).prefix(8))
+    }
+
+    func addPriceAlert(_ alert: PriceAlert) {
+        priceAlerts.append(alert)
+        checkPriceAlerts()
+    }
+
+    func removePriceAlert(_ id: UUID) { priceAlerts.removeAll { $0.id == id } }
 
     var notificationEntries: [Entry] {
         portfolio.entries.reversed().filter { $0.date > notificationsCleared && OperationNotifications.eligible($0) }
@@ -245,6 +270,7 @@ import SwiftUI
             for quote in values where quote.price.map({ $0 > 0 }) ?? false { gecko[quote.id] = quote }
             quoteDate = values.compactMap(\.updated).max()
             rebuildQuotes()
+            checkPriceAlerts()
             marketMessage = nil
             await cache.write(Array(gecko.values), key: "quotes")
             if !Task.isCancelled { settle() }
@@ -311,7 +337,37 @@ import SwiftUI
         guard inForeground else { return }
         for tick in values where tick.date > (ticks[tick.asset]?.date ?? .distantPast) { ticks[tick.asset] = tick }
         rebuildQuotes()
+        checkPriceAlerts()
         settle()
+    }
+
+    private func checkPriceAlerts() {
+        let live = usablePrices
+        guard !live.isEmpty, !priceAlerts.isEmpty else { return }
+        var alerts = priceAlerts
+        var triggered: [(PriceAlert, Decimal)] = []
+        for index in alerts.indices {
+            let alert = alerts[index]
+            guard alert.triggeredAt == nil, let price = live[alert.asset],
+                  (alert.above ? price >= alert.threshold : price <= alert.threshold) else { continue }
+            alerts[index].triggeredAt = .now
+            triggered.append((alert, price))
+        }
+        guard !triggered.isEmpty else { return }
+        priceAlerts = alerts
+        for (alert, price) in triggered {
+            let message = L.format("Price alert · %@", Asset.ticker(alert.asset))
+            if pushOperations && !testing {
+                let body = privateNotifications || hide ? message : message + " · " + money(price, privateValue: false, price: true)
+                OperationNotifications.schedulePriceAlert(id: alert.id, body: body)
+            }
+            toast = message
+        }
+        toastTask?.cancel()
+        toastTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 2_200_000_000)
+            if !Task.isCancelled { self?.toast = nil }
+        }
     }
 
     private func rebuildQuotes() {

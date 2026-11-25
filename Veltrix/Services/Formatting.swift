@@ -74,6 +74,7 @@ enum FinancialFormatter {
             case .cardHasBalance: return L.text("Return the card balance before deleting it.")
             case .alreadyRefunded: return L.text("This simulated payment was already refunded.")
             case .invalidName: return L.text("Enter a name.")
+            case .invalidAddress: return L.text("Check the address format for the selected network.")
             }
         }
         if let issue = error as? MarketError {

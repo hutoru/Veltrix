@@ -129,7 +129,40 @@ struct Portfolio: Codable, Identifiable, Equatable, Sendable {
     }
 }
 
-enum CardTier: String, Codable, CaseIterable, Sendable { case classic, gold, platinum, black }
+enum CardTier: String, Codable, CaseIterable, Sendable {
+    case classic, gold, platinum, signature, infinite
+    case standard, atlasGold, atlasPlatinum, world, worldElite
+    case green, reserveGold, reservePlatinum, centurion
+    case black, carbonBlack, royalGold, brushedSilver, ceramicWhite, crystalGlass, holographic, purple, custom
+}
+
+enum CardMaterial: String, Codable, CaseIterable, Sendable {
+    case matte, titanium, gold, silver, carbon, ceramic, glass, holographic
+}
+
+enum CardTexture: String, Codable, CaseIterable, Sendable {
+    case none, brushed, woven, engraved
+}
+
+enum CardTypeface: String, Codable, CaseIterable, Sendable {
+    case modern, classic, mono
+}
+
+struct CardDesign: Codable, Equatable, Sendable {
+    var material: CardMaterial
+    var texture: CardTexture
+    var typeface: CardTypeface = .modern
+    var tint: UInt32?
+    var sheen = 0.5
+    var markX = 0.18
+    var markY = 0.23
+    var portrait: Data?
+
+    var isValid: Bool {
+        (0...1).contains(sheen) && (0.13...0.87).contains(markX) && (0.14...0.82).contains(markY)
+            && (tint.map { $0 <= 0xFFFFFF } ?? true) && (portrait?.count ?? 0) <= 360_000
+    }
+}
 
 struct VirtualCard: Codable, Identifiable, Equatable, Sendable {
     var id = UUID()
@@ -139,6 +172,7 @@ struct VirtualCard: Codable, Identifiable, Equatable, Sendable {
     var balance: Decimal = 0
     var limit: Decimal?
     var frozen = false
+    var design: CardDesign? = nil
 }
 
 struct Ledger: Codable, Equatable, Sendable {
@@ -195,7 +229,8 @@ struct Ledger: Codable, Equatable, Sendable {
             }
         }
         for card in cards {
-            guard ids.contains(card.owner), !card.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            guard ids.contains(card.owner), !card.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                  card.design?.isValid ?? true
             else { throw SimulationError.invalidBackup }
             try MoneyMath.nonnegative(card.balance)
             if let limit = card.limit { try MoneyMath.quantity(limit) }

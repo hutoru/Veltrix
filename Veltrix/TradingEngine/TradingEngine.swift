@@ -13,8 +13,8 @@ enum Command: Sendable {
     case createPortfolio(String, Decimal)
     case selectPortfolio(UUID)
     case resetPortfolio
-    case createCard(CardTier, String, Decimal?)
-    case configureCard(UUID, String, Decimal?)
+    case createCard(CardTier, String, Decimal?, design: CardDesign? = nil)
+    case configureCard(UUID, String, Decimal?, tier: CardTier? = nil, design: CardDesign? = nil)
     case freezeCard(UUID)
     case deleteCard(UUID)
     case moveCardFunds(UUID, Decimal, toCard: Bool)
@@ -143,15 +143,19 @@ enum TradingEngine {
             ledger.cards.removeAll { $0.owner == portfolio.id }
             changedValue = true
 
-        case let .createCard(tier, name, limit):
+        case let .createCard(tier, name, limit, design):
             if let limit { try MoneyMath.quantity(limit) }
-            ledger.cards.append(VirtualCard(owner: portfolio.id, tier: tier, name: try validName(name), limit: limit))
+            guard design?.isValid ?? true else { throw SimulationError.invalidBackup }
+            ledger.cards.append(VirtualCard(owner: portfolio.id, tier: tier, name: try validName(name), limit: limit, design: design))
 
-        case let .configureCard(card, name, limit):
+        case let .configureCard(card, name, limit, tier, design):
             if let limit { try MoneyMath.quantity(limit) }
+            guard design?.isValid ?? true else { throw SimulationError.invalidBackup }
             let cardIndex = try findCard(card, in: ledger)
             ledger.cards[cardIndex].name = try validName(name)
             ledger.cards[cardIndex].limit = limit
+            if let tier { ledger.cards[cardIndex].tier = tier }
+            if let design { ledger.cards[cardIndex].design = design }
 
         case let .freezeCard(card):
             let cardIndex = try findCard(card, in: ledger)

@@ -50,4 +50,13 @@ final class NotificationDelegate: NSObject, UIApplicationDelegate, UNUserNotific
         center.removeAllPendingNotificationRequests()
         center.removeAllDeliveredNotifications()
     }
+
+    static func schedulePriceAlert(id: UUID, body: String) {
+        let content = UNMutableNotificationContent()
+        content.title = "Veltrix"
+        content.body = body
+        content.sound = .default
+        let request = UNNotificationRequest(identifier: "price-\(id.uuidString)", content: content, trigger: nil)
+        UNUserNotificationCenter.current().add(request) { _ in }
+    }
 }
