@@ -648,6 +648,15 @@ jobs:
           git apply --check "$patch"
           git apply "$patch"
           rm -f "$patch"
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('Veltrix/Resources/LaunchScreen.storyboard')
+          s = p.read_text()
+          s = s.replace('version="3.0" targetRuntime', 'version="3.0" toolsVersion="23094" targetRuntime')
+          s = s.replace('launchScreen="YES" initialViewController', 'useAutolayout="YES" useTraitCollections="YES" launchScreen="YES" colorMatched="YES" initialViewController')
+          s = s.replace('IBCocoaTouchPlugin"/>', 'IBCocoaTouchPlugin" version="23084"/>')
+          p.write_text(s)
+          PY
 
       - name: Install XcodeGen
         run: brew list xcodegen >/dev/null 2>&1 || brew install xcodegen
@@ -681,6 +690,7 @@ jobs:
             -parallel-testing-enabled NO CODE_SIGNING_ALLOWED=NO
 
       - name: Build and validate unsigned ARM64 IPA
+        if: always() && hashFiles('Veltrix.xcodeproj/project.pbxproj') != ''
         run: bash scripts/build-ipa.sh
 
       - name: Collect simulator screenshots
@@ -700,6 +710,7 @@ jobs:
           retention-days: 3
 
       - uses: actions/upload-artifact@v6
+        if: always() && hashFiles('build/Veltrix.ipa') != ''
         with:
           name: Veltrix-unsigned-ipa
           path: |
