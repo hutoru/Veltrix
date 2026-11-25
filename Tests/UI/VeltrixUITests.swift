@@ -113,7 +113,6 @@ final class VeltrixUITests: XCTestCase {
             app.sheets["Trade"].buttons[action].tap()
             let amount = app.staticTexts["trade.amount"]
             XCTAssertTrue(amount.waitForExistence(timeout: 5))
-            capture(app, name: action)
             app.buttons["keypad.1"].tap()
             app.buttons["keypad.2"].tap()
             app.buttons["keypad.delete"].tap()
@@ -121,6 +120,7 @@ final class VeltrixUITests: XCTestCase {
             XCTAssertFalse(app.keyboards.firstMatch.exists)
 
             if action == "Buy" {
+                capture(app, name: action)
                 app.buttons["Limit"].tap()
                 let price = app.textFields["Limit price (USD)"]
                 price.tap()
@@ -143,8 +143,22 @@ final class VeltrixUITests: XCTestCase {
                 capture(app, name: "Home")
                 continue
             }
-            app.buttons["Close"].tap()
+
+            app.buttons["trade.unit"].tap()
+            XCTAssertTrue(amount.label.hasSuffix(" USD"))
+            app.buttons[action == "Sell" ? "25%" : "MAX"].tap()
+            XCTAssertFalse(amount.label.hasPrefix("0 USD"))
+            capture(app, name: action)
+            app.buttons["trade.review"].tap()
+            XCTAssertTrue(app.staticTexts["Local operation"].waitForExistence(timeout: 5))
+            app.buttons["trade.confirm"].tap()
+            XCTAssertTrue(app.staticTexts["trade.saved"].waitForExistence(timeout: 5))
+            capture(app, name: action + " Saved")
+            app.buttons["Done"].tap()
         }
+        app.buttons["tab.activity"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["activity.swap"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["activity.sell"].exists)
     }
 
     func testLaunchShowsSystemAuthenticationGate() {

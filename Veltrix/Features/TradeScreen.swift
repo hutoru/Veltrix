@@ -44,6 +44,7 @@ struct TradeScreen: View {
     @State private var isLimit = false
     @State private var useFiat = false
     @State private var exactMaxUnits: Decimal?
+    @State private var computedAmount = false
     @State private var review: TradeReview?
     @State private var error: String?
     @State private var done = false
@@ -63,26 +64,28 @@ struct TradeScreen: View {
     var body: some View {
         NavigationStack {
             GeometryReader { geometry in
-            ScrollView {
-                VStack(spacing: 18) {
-                    if processing || done {
-                        completion.frame(minHeight: max(0, geometry.size.height - 28))
-                    } else if let review {
-                        reviewContent(review)
-                    } else {
-                        editor(minimumHeight: max(0, geometry.size.height - 28))
+                ScrollView {
+                    VStack(spacing: 18) {
+                        if processing || done {
+                            completion.frame(minHeight: max(0, geometry.size.height - 28))
+                                .task { await animateCompletion() }
+                        } else if let review {
+                            reviewContent(review)
+                        } else {
+                            editor(minimumHeight: max(0, geometry.size.height - 28))
+                        }
+                        if let error, review != nil {
+                            Text(verbatim: error).font(.footnote).foregroundStyle(Color.vxDown)
+                        }
                     }
-                    if let error, review != nil {
-                        Text(verbatim: error).font(.footnote).foregroundStyle(Color.vxDown)
-                    }
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 14)
+                    .frame(maxWidth: 490)
+                    .frame(maxWidth: .infinity)
                 }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 14)
-                .frame(maxWidth: 490)
-                .frame(maxWidth: .infinity)
-            }}
-            .background(Color.vxBackground.ignoresSafeArea())
-            .scrollDismissesKeyboard(.interactively)
+                .scrollDismissesKeyboard(.interactively)
+            }
+            .background(Color.vxDarkBackground.ignoresSafeArea())
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 if !processing { footer }
             }
@@ -104,12 +107,12 @@ struct TradeScreen: View {
             .animation(reduceMotion ? nil : .easeInOut(duration: 0.22), value: done)
             .environment(\.colorScheme, .dark)
             .tint(.white)
-            .onChange(of: asset) { _ in amount = ""; exactMaxUnits = nil; error = nil }
+            .onChange(of: asset) { _ in amount = ""; exactMaxUnits = nil; computedAmount = false; error = nil }
         }
     }
 
     private func editor(minimumHeight: CGFloat) -> some View {
-        VStack(spacing: 8) {
+        VStack(spacing: minimumHeight < 510 ? 5 : 8) {
             if isTrading {
                 tradeControls
             } else if intent.action != .deposit {
@@ -150,7 +153,9 @@ struct TradeScreen: View {
                 }
             }
             if isTrading { Spacer(minLength: 0) }
-            NumericPad(allowsDecimal: true, keyHeight: 44, digitSize: isTrading ? 31 : 22, onInput: append, onDelete: {
+            NumericPad(keyHeight: 44, digitSize: isTrading ? 31 : 22,
+                       rowSpacing: isTrading ? 4 : 7, onInput: append, onDelete: {
+                beginEditingAmount()
                 if !amount.isEmpty { amount.removeLast() }
                 error = nil
                 exactMaxUnits = nil
@@ -191,7 +196,7 @@ struct TradeScreen: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
         .frame(maxWidth: .infinity)
-        .background(Color.vxBackground)
+        .background(Color.vxDarkBackground)
         .overlay(alignment: .top) { Rectangle().fill(Color.vxSeparator).frame(height: 1).allowsHitTesting(false) }
     }
 
@@ -274,6 +279,7 @@ struct TradeScreen: View {
                 } else {
                     amount = Display.input(exactMaxUnits ?? converted)
                 }
+                computedAmount = true
             }
             useFiat.toggle()
             error = nil
@@ -312,7 +318,7 @@ struct TradeScreen: View {
 
     private var amountDisplay: some View {
         VStack(spacing: 3) {
-            CountValue(text: (amount.isEmpty ? "0" : amount) + " " + amountUnit)
+            CountValue(text: visibleAmount + " " + amountUnit)
                 .font(.system(size: isTrading ? 62 : 51, weight: .semibold))
                 .lineLimit(1)
                 .minimumScaleFactor(0.24)
@@ -323,6 +329,20 @@ struct TradeScreen: View {
                 .accessibilityHidden(equivalent == nil)
         }
         .frame(maxWidth: .infinity, minHeight: isTrading ? 84 : 72)
+    }
+
+    private var visibleAmount: String {
+        guard !amount.isEmpty else { return "0" }
+        guard computedAmount, let value = Display.amount(amount) else { return amount }
+        let rounded = MoneyMath.round(value, scale: FinancialFormatter.pricePrecision(value, minimum: amountIsCash ? 2 : 4))
+        return Display.input(rounded == 0 ? value : rounded)
+    }
+
+    private func beginEditingAmount() {
+        if computedAmount {
+            amount = visibleAmount
+            computedAmount = false
+        }
     }
 
     private var amountIsCash: Bool { intent.action == .deposit || useFiat }
@@ -371,6 +391,7 @@ struct TradeScreen: View {
     }
 
     private func append(_ value: String) {
+        beginEditingAmount()
         let separator = Locale.current.decimalSeparator ?? "."
         guard amount.count < 32, value != separator || !amount.contains(separator) else { return }
         if value == separator && amount.isEmpty { amount = "0" }
@@ -387,6 +408,7 @@ struct TradeScreen: View {
                                               sourceIsUSD: intent.action == .buy, inputIsUSD: amountIsCash,
                                               price: pricingQuote)
             amount = Display.input(size)
+            computedAmount = true
             exactMaxUnits = percent == 100 && intent.action != .buy ? available : nil
             error = nil
         } catch {
@@ -454,17 +476,23 @@ struct TradeScreen: View {
         if model.execute(review.command, id: intent.id, showFeedback: false) {
             error = nil
             processing = true
-            Task { @MainActor in
-                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.68)) { ringProgress = 1 }
-                if !reduceMotion { try? await Task.sleep(nanoseconds: 690_000_000) }
-                done = true
-                processing = false
-                Feedback.success()
-            }
         } else {
             error = model.error
             model.error = nil
         }
+    }
+
+    @MainActor private func animateCompletion() async {
+        guard processing, !done else { return }
+        await Task.yield()
+        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.68)) { ringProgress = 1 }
+        if !reduceMotion { try? await Task.sleep(nanoseconds: 690_000_000) }
+        guard !Task.isCancelled else { return }
+        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.22)) {
+            done = true
+            processing = false
+        }
+        Feedback.success()
     }
 
     private var completion: some View {

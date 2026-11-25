@@ -107,7 +107,7 @@ struct VeltrixRoot: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.vxBackground.ignoresSafeArea())
         .overlay {
-            if phase != .active {
+            if phase != .active && !lock.locked {
                 Color.vxBackground.ignoresSafeArea()
                     .overlay(VeltrixMark().fill(Color.vxHighlight).frame(width: 52, height: 52))
                     .accessibilityHidden(true)
@@ -148,6 +148,7 @@ struct VeltrixRoot: View {
         }
         .onChange(of: model.onSet) { enabled in if !enabled { openPendingNotification() } }
         .onAppear {
+            NotificationDelegate.lockState = lock
             if phase == .active && !lock.locked { model.start(); openPendingNotification(); openPendingShortcut() }
             else { attemptAutomaticUnlock() }
         }

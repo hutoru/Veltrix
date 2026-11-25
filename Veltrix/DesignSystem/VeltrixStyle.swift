@@ -2,6 +2,7 @@ import SwiftUI
 import UIKit
 
 extension Color {
+    static let vxDarkBackground = Color(uiColor: UIColor(rgb: 0x080809))
     static let vxBackground = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(rgb: 0x080809) : UIColor(rgb: 0xF6F6F8) })
     static let vxText = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(rgb: 0xF8F8FA) : UIColor(rgb: 0x17171C) })
     static let vxCard = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(rgb: 0x121214) : .white })
@@ -218,35 +219,31 @@ struct PageScroll<Content: View>: View {
 
 
 struct NumericPad: View {
-    let allowsDecimal: Bool
     var keyHeight: CGFloat = 44
     var digitSize: CGFloat = 22
+    var rowSpacing: CGFloat = 7
     let onInput: (String) -> Void
     let onDelete: () -> Void
     private var separator: String { Locale.current.decimalSeparator ?? "." }
 
     var body: some View {
-        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 7) {
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: rowSpacing) {
             ForEach(["1", "2", "3", "4", "5", "6", "7", "8", "9", separator, "0", "delete"], id: \.self) { key in
-                if key != separator || allowsDecimal {
-                    Button {
-                        if key == "delete" { onDelete() } else { onInput(key) }
-                        Feedback.tap()
-                    } label: {
-                        Group {
-                            if key == "delete" { Image(systemName: "delete.left") }
-                            else { Text(verbatim: key) }
-                        }
-                        .font(.system(size: key == "delete" ? 22 : digitSize, weight: .regular).monospacedDigit())
-                        .frame(maxWidth: .infinity, minHeight: keyHeight)
-                        .contentShape(Rectangle())
+                Button {
+                    if key == "delete" { onDelete() } else { onInput(key) }
+                    Feedback.tap()
+                } label: {
+                    Group {
+                        if key == "delete" { Image(systemName: "delete.left") }
+                        else { Text(verbatim: key) }
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(key == "delete" ? Text("Delete digit") : Text(verbatim: key))
-                    .accessibilityIdentifier("keypad." + key)
-                } else {
-                    Color.clear.frame(height: keyHeight)
+                    .font(.system(size: key == "delete" ? 22 : digitSize, weight: .regular).monospacedDigit())
+                    .frame(maxWidth: .infinity, minHeight: keyHeight)
+                    .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
+                .accessibilityLabel(key == "delete" ? Text("Delete digit") : Text(verbatim: key))
+                .accessibilityIdentifier("keypad." + key)
             }
         }
     }

@@ -4,11 +4,13 @@ import OSLog
 
 final class NotificationDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     static let opened = Notification.Name("VeltrixOperationOpened")
+    @MainActor static weak var lockState: AppLock?
     private var privacyWindows: [String: UIWindow] = [:]
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions options: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         UNUserNotificationCenter.current().delegate = self
         NotificationCenter.default.addObserver(self, selector: #selector(shield(_:)), name: UIScene.willDeactivateNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(shield(_:)), name: UIScene.didEnterBackgroundNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(removeShield(_:)), name: UIScene.didActivateNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(removeShield(_:)), name: UIScene.didDisconnectNotification, object: nil)
         application.shortcutItems = AppShortcut.allCases.map { shortcut in
@@ -25,8 +27,9 @@ final class NotificationDelegate: NSObject, UIApplicationDelegate, UNUserNotific
         return configuration
     }
 
-    @objc private func shield(_ notification: Notification) {
+    @MainActor @objc private func shield(_ notification: Notification) {
         guard let scene = notification.object as? UIWindowScene else { return }
+        if notification.name == UIScene.willDeactivateNotification && Self.lockState?.locked == true { return }
         let id = scene.session.persistentIdentifier
         guard privacyWindows[id] == nil else { return }
         let window = UIWindow(windowScene: scene)

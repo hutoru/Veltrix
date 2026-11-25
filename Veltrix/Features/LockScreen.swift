@@ -64,7 +64,7 @@ struct LockScreen: View {
                 .frame(maxWidth: .infinity)
             }
         }
-        .background(Color(red: 8.0 / 255, green: 8.0 / 255, blue: 9.0 / 255).ignoresSafeArea())
+        .background(Color.vxDarkBackground.ignoresSafeArea())
         .foregroundStyle(.white)
         .environment(\.colorScheme, .dark)
         .onAppear { withAnimation(reduceMotion ? nil : .easeOut(duration: 0.35)) { appeared = true } }

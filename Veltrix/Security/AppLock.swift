@@ -57,7 +57,6 @@ enum Keychain {
     @Published private(set) var error: String?
 
     private let defaults: UserDefaults
-    private let legacyLock: () throws -> Bool
     private let evaluator: Evaluator?
     private var context: LAContext?
     private var backgrounded: Date?
@@ -68,13 +67,13 @@ enum Keychain {
          legacyLock: (() throws -> Bool)? = nil, evaluator: Evaluator? = nil) {
         self.defaults = defaults
         self.evaluator = evaluator
-        self.legacyLock = legacyLock ?? { !testing ? try Keychain.exists("pin") : false }
+        let legacyProtection = legacyLock ?? { !testing ? try Keychain.exists("pin") : false }
 
         if let saved = defaults.object(forKey: "deviceLockEnabled") as? Bool {
             enabled = saved
         } else {
             do {
-                enabled = try defaults.bool(forKey: "biometrics") || self.legacyLock()
+                enabled = try defaults.bool(forKey: "biometrics") || legacyProtection()
                 defaults.set(enabled, forKey: "deviceLockEnabled")
             } catch {
                 // Keep the app locked until iOS authorizes access if the legacy setting cannot be read.
