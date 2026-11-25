@@ -124,11 +124,11 @@ struct PortfolioScreen: View {
             HStack {
                 Text("Holdings").font(.title3.bold())
                 Spacer()
-                Text(verbatim: model.money(try? portfolio.freeCash())).font(.caption.monospacedDigit())
-                    .accessibilityLabel(Text("Available cash"))
+                VStack(alignment: .trailing, spacing: 1) {
+                    Text("Available cash").font(.caption2).foregroundStyle(Color.vxMuted)
+                    Text(verbatim: model.money(try? portfolio.freeCash())).font(.caption.monospacedDigit())
+                }
             }
-            Text("Available cash").font(.caption2).foregroundStyle(Color.vxMuted)
-                .frame(maxWidth: .infinity, alignment: .trailing)
             if holdings.isEmpty {
                 EmptyPanel(icon: "square.stack.3d.up", title: "No positions yet", detail: "Simulate a buy or add holdings in Settings.")
             } else {

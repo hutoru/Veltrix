@@ -3,6 +3,7 @@ import UIKit
 
 extension Color {
     static let vxBackground = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(rgb: 0x0B0B0F) : UIColor(rgb: 0xF4F2FA) })
+    static let vxText = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(rgb: 0xF5F5F7) : UIColor(rgb: 0x17171C) })
     static let vxCard = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(rgb: 0x15151C) : .white })
     static let vxSurface = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(rgb: 0x1C1C25) : UIColor(rgb: 0xEBE7F6) })
     static let vxMuted = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(rgb: 0x85858F) : UIColor(rgb: 0x655E75) })
@@ -217,6 +218,7 @@ struct PageScroll<Content: View>: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16, content: content)
+                .foregroundStyle(Color.vxText)
                 .padding(.horizontal, 18)
                 .padding(.top, 14)
                 .padding(.bottom, 20)

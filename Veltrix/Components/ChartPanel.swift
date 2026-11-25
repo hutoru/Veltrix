@@ -155,7 +155,8 @@ struct ChartPanel: View {
                 } else {
                     AreaMark(x: .value("Date", sample.date), yStart: .value("Floor", minimum - padding),
                              yEnd: .value("Price", double(sample.close)))
-                        .foregroundStyle(LinearGradient(colors: [.vxAccent.opacity(0.43), .vxAccent.opacity(0.01)],
+                        .interpolationMethod(.monotone)
+                        .foregroundStyle(LinearGradient(colors: [.vxAccent.opacity(0.20), .vxAccent.opacity(0.01)],
                                                         startPoint: .top, endPoint: .bottom))
                     LineMark(x: .value("Date", sample.date), y: .value("Price", double(sample.close)))
                         .foregroundStyle(Color.vxHighlight)

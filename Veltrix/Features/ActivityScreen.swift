@@ -123,7 +123,10 @@ struct ActivityScreen: View {
         }
         let groups = Dictionary(grouping: entries) { Calendar.current.startOfDay(for: $0.date) }
         return VStack(alignment: .leading, spacing: 15) {
-            spending
+            if model.portfolio.entries.contains(where: { $0.kind == .cardPayment }) {
+                DisclosureGroup("Card spending") { spending }
+                    .font(.subheadline.weight(.medium))
+            }
             if entries.isEmpty {
                 EmptyPanel(icon: "clock.arrow.circlepath", title: "No transactions found",
                            detail: "Completed simulations appear here.")
@@ -193,7 +196,6 @@ struct ActivityScreen: View {
         let paid = try? payments.map(\.amount).reduce(Decimal.zero, MoneyMath.add)
         let refunded = try? refunds.map(\.amount).reduce(Decimal.zero, MoneyMath.add)
         return VStack(alignment: .leading, spacing: 7) {
-            Text("Card spending").font(.headline)
             LabeledContent("Payments", value: model.money(paid))
             LabeledContent("Refunds", value: model.money(refunded))
         }

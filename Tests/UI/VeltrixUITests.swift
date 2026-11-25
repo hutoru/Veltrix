@@ -26,6 +26,7 @@ final class VeltrixUITests: XCTestCase {
         app.buttons["tab.activity"].tap()
         XCTAssertTrue(app.staticTexts["Simulation history and open orders"].waitForExistence(timeout: 5), app.debugDescription)
         XCTAssertTrue(app.descendants(matching: .any)["activity.deposit"].exists)
+        capture(app, name: "Activity")
     }
 
     func testMarketSearchAndNativeDetail() {
@@ -60,11 +61,27 @@ final class VeltrixUITests: XCTestCase {
             app.swipeUp()
         }
         XCTAssertTrue(privacyButton.waitForExistence(timeout: 5))
+        capture(app, name: "Settings")
         privacyButton.tap()
         XCTAssertTrue(privacyButton.isSelected)
         app.buttons["tab.cards"].tap()
         let hidden = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "••••••"), object: card)
         XCTAssertEqual(XCTWaiter.wait(for: [hidden], timeout: 5), .completed)
+    }
+
+    func testPortfolioHoldingEditorAndHistory() {
+        let app = launch()
+        app.buttons["Add holding"].tap()
+        XCTAssertTrue(app.textFields["Quantity"].waitForExistence(timeout: 5))
+        app.buttons["Close"].tap()
+        let history = app.buttons["Portfolio history"]
+        for _ in 0..<3 where !history.isHittable || history.frame.midY > app.frame.maxY - 75 {
+            app.swipeUp()
+        }
+        history.tap()
+        XCTAssertTrue(app.navigationBars["Portfolio history"].waitForExistence(timeout: 5))
+        capture(app, name: "Portfolio history")
+        app.buttons["Done"].tap()
     }
 
     private func capture(_ app: XCUIApplication, name: String) {

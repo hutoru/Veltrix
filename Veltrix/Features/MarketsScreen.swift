@@ -200,6 +200,11 @@ struct AssetScreen: View {
                 if let position = model.portfolio.positions[asset.id] {
                     Divider()
                     LabeledContent("Holdings", value: model.units(position.units) + " " + asset.ticker)
+                    if let total = try? model.portfolio.value(prices: model.prices), total > 0,
+                       let price = quote?.price,
+                       let share = try? MoneyMath.multiply(MoneyMath.divide(MoneyMath.multiply(position.units, price), total), 100) {
+                        LabeledContent("Portfolio allocation", value: model.hide ? "••••" : Display.number(share, maximum: 2) + "%")
+                    }
                     LabeledContent("Average purchase price", value: model.money(position.average, price: true))
                 }
             }
