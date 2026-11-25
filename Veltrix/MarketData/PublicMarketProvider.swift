@@ -26,7 +26,7 @@ struct PublicMarketProvider: MarketDataProvider {
 
     func quotes() async throws -> [Quote] {
         let url = Self.query(Self.base.appendingPathComponent("coins/markets"), [
-            "vs_currency": "usd", "ids": Asset.catalog.map(\.id).joined(separator: ","), "precision": "full"
+            "vs_currency": "usd", "ids": Asset.catalog.map(\.id).joined(separator: ","), "precision": "full", "sparkline": "true"
         ])
         let data = try await http.get(url, headers: headers)
         let quotes = try JSONDecoder().decode([GeckoQuote].self, from: data).map(\.quote)
@@ -117,6 +117,10 @@ struct PublicMarketProvider: MarketDataProvider {
     private struct GeckoQuote: Decodable {
         let id: String
         let current_price: Decimal?
+        let price_change_24h: Decimal?
+        let sparkline_in_7d: Sparkline?
+
+        struct Sparkline: Decodable { let price: [Decimal]? }
         let price_change_percentage_24h: Decimal?
         let market_cap: Decimal?
         let total_volume: Decimal?
@@ -132,7 +136,8 @@ struct PublicMarketProvider: MarketDataProvider {
                 date = last_updated.flatMap(format.date(from:))
             }
             return Quote(id: id, price: current_price, change: price_change_percentage_24h, marketCap: market_cap,
-                         volume: total_volume, image: image, updated: date)
+                         volume: total_volume, image: image, updated: date,
+                         sparkline: sparkline_in_7d?.price, change24hUSD: price_change_24h)
         }
     }
 }

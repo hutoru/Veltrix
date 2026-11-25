@@ -26,23 +26,23 @@ struct VeltrixApp: App {
 }
 
 private enum Destination: String, CaseIterable {
-    case portfolio, markets, cards, activity, settings
+    case portfolio, markets, trade, activity, profile
     var name: LocalizedStringKey {
         switch self {
-        case .portfolio: return "Portfolio"
-        case .markets: return "Markets"
-        case .cards: return "Cards"
+        case .portfolio: return "Home"
+        case .markets: return "Explore"
+        case .trade: return "Trade"
         case .activity: return "Activity"
-        case .settings: return "Settings"
+        case .profile: return "Profile"
         }
     }
     var icon: String {
         switch self {
         case .portfolio: return "square.grid.2x2"
         case .markets: return "chart.xyaxis.line"
-        case .cards: return "creditcard"
+        case .trade: return "arrow.left.arrow.right"
         case .activity: return "list.bullet.rectangle"
-        case .settings: return "slider.horizontal.3"
+        case .profile: return "person.crop.circle"
         }
     }
 }
@@ -70,6 +70,7 @@ struct VeltrixRoot: View {
                 content
             }
         }
+        .animation(reduceMotion || lock.locked ? nil : .easeOut(duration: 0.25), value: lock.locked)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.vxBackground.ignoresSafeArea())
         .overlay {
@@ -105,9 +106,9 @@ struct VeltrixRoot: View {
                 switch tab {
                 case .portfolio: PortfolioScreen()
                 case .markets: MarketsScreen()
-                case .cards: CardsScreen()
+                case .trade: TradeHub()
                 case .activity: ActivityScreen()
-                case .settings: SettingsScreen()
+                case .profile: ProfileScreen()
                 }
             }
             .navigationDestination(for: Asset.self) { AssetScreen(asset: $0) }
@@ -169,37 +170,40 @@ struct VeltrixRoot: View {
 
 private struct LockScreen: View {
     @EnvironmentObject private var lock: AppLock
+    @AppStorage("profileName") private var name = ""
     @State private var pin = ""
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 19) {
-            VeltrixMark().fill(Color.vxHighlight).frame(width: 54, height: 54)
-            Text("Portfolio locked").font(.largeTitle.bold())
-            if lock.hasPIN {
-                SecureField("PIN", text: $pin)
-                    .textContentType(.password)
-                    .keyboardType(.numberPad)
-                    .padding()
-                    .background(Color.vxCard, in: RoundedRectangle(cornerRadius: 15))
-                Button("Unlock") {
-                    Task { await lock.unlock(pin: pin); pin = "" }
+        ScrollView {
+            VStack(spacing: 18) {
+                VeltrixMark().fill(Color.vxHighlight).frame(width: 46, height: 46)
+                Text(verbatim: "VELTRIX").font(.caption.bold()).tracking(5)
+                Text("Welcome back").font(.largeTitle.bold())
+                if !name.isEmpty { Text(verbatim: name).font(.headline).foregroundStyle(Color.vxMuted) }
+                if lock.hasPIN {
+                    Text(verbatim: pin.isEmpty ? "– – – –" : String(repeating: "● ", count: pin.count))
+                        .font(.title2.monospaced()).foregroundStyle(Color.vxHighlight)
+                        .accessibilityLabel(Text("PIN"))
+                    NumericPad(allowsDecimal: false, onInput: { digit in
+                        if pin.count < 8 { pin.append(digit) }
+                    }, onDelete: { if !pin.isEmpty { pin.removeLast() } }).disabled(lock.busy)
+                    Button("Unlock") {
+                        Task { await lock.unlock(pin: pin); pin = ""; if !lock.locked { Feedback.success() } }
+                    }.buttonStyle(PrimaryButtonStyle()).disabled(pin.count < 4 || lock.busy)
+                    if let retryAt = lock.retryAt, retryAt > Date() {
+                        Text(retryAt, style: .timer).font(.footnote.monospacedDigit())
+                    }
                 }
-                .buttonStyle(PrimaryButtonStyle())
-                .disabled(pin.isEmpty || lock.busy)
-                if let retryAt = lock.retryAt, retryAt > Date() {
-                    Text(retryAt, style: .timer).font(.footnote.monospacedDigit())
+                if lock.biometrics {
+                    Button {
+                        Task { await lock.unlockWithDevice(); if !lock.locked { Feedback.success() } }
+                    } label: { Label("Use device authentication", systemImage: "faceid") }
+                    .buttonStyle(.bordered).disabled(lock.busy)
                 }
+                if let error = lock.error { Text(verbatim: error).font(.footnote).foregroundStyle(Color.vxDown) }
             }
-            if lock.biometrics {
-                Button { Task { await lock.unlockWithDevice() } } label: {
-                    Label("Use device authentication", systemImage: "faceid").frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-                .disabled(lock.busy)
-            }
-            if let error = lock.error { Text(verbatim: error).font(.footnote).foregroundStyle(Color.vxDown) }
+            .frame(maxWidth: 370).padding(24)
+            .frame(maxWidth: .infinity)
         }
-        .padding(26)
-        .frame(maxWidth: 480)
     }
 }

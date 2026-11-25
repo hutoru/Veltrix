@@ -30,8 +30,7 @@ struct PortfolioScreen: View {
                     }
                 } label: {
                     HStack(spacing: 9) {
-                        VeltrixMark().fill(Color.vxHighlight).padding(9)
-                            .frame(width: 36, height: 36).background(Color.vxSurface, in: Circle())
+                        ProfileAvatar(size: 36)
                         VStack(alignment: .leading) {
                             Text(verbatim: profileName.isEmpty ? L.text("My profile") : profileName).font(.subheadline.bold())
                             Text(verbatim: username.isEmpty ? portfolio.name : "@" + username)
@@ -49,8 +48,8 @@ struct PortfolioScreen: View {
                 Spacer()
                 Text(verbatim: L.text("Trades") + " · " + String(tradeCount)).monospacedDigit()
             }.font(.caption).foregroundStyle(Color.vxMuted)
-            actions
             positions
+            actions
             MarketStatus()
             if !model.hide {
                 HStack {
@@ -70,7 +69,7 @@ struct PortfolioScreen: View {
                 Button(action.title) { trade = TradeIntent(action: action) }
             }
         }
-        .sheet(item: $trade) { TradeScreen(intent: $0) }
+        .fullScreenCover(item: $trade) { TradeScreen(intent: $0) }
         .sheet(isPresented: $share) { PortfolioShare(portfolio: portfolio) }
         .fullScreenCover(isPresented: $chart) {
             NavigationStack {

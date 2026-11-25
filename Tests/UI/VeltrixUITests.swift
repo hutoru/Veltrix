@@ -12,12 +12,14 @@ final class VeltrixUITests: XCTestCase {
     func testDepositThroughReviewAndSeeItInActivity() {
         let app = launch()
         capture(app, name: "Portfolio")
-        app.buttons["trade.more"].tap()
+        let more = app.buttons["trade.more"]
+        if !more.isHittable { app.swipeUp() }
+        more.tap()
         app.buttons["Deposit"].tap()
-        let amount = app.textFields["trade.amount"]
-        XCTAssertTrue(amount.waitForExistence(timeout: 5))
-        amount.tap()
-        amount.typeText("100")
+        XCTAssertTrue(app.staticTexts["trade.amount"].waitForExistence(timeout: 5))
+        app.buttons["keypad.1"].tap()
+        app.buttons["keypad.0"].tap()
+        app.buttons["keypad.0"].tap()
         if !app.buttons["trade.review"].isHittable { app.swipeUp() }
         app.buttons["trade.review"].tap()
         XCTAssertTrue(app.staticTexts["Virtual funds"].exists)
@@ -46,7 +48,8 @@ final class VeltrixUITests: XCTestCase {
 
     func testCreateCardAndHideItsBalanceThroughSettings() {
         let app = launch()
-        app.buttons["tab.cards"].tap()
+        app.buttons["tab.profile"].tap()
+        app.buttons["profile.cards"].tap()
         let create = app.buttons["card.create"]
         XCTAssertTrue(create.waitForExistence(timeout: 5), app.debugDescription)
         create.tap()
@@ -56,7 +59,8 @@ final class VeltrixUITests: XCTestCase {
         XCTAssertTrue(card.waitForExistence(timeout: 5))
         XCTAssertEqual(card.value as? String, "$0.00")
         capture(app, name: "Virtual card")
-        app.buttons["tab.settings"].tap()
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        app.buttons["profile.settings"].tap()
         let privacyButton = app.buttons["settings.hide"]
         for _ in 0..<3 where !privacyButton.isHittable || privacyButton.frame.midY > app.frame.maxY - 75 {
             app.swipeUp()

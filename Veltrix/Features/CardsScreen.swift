@@ -38,6 +38,8 @@ struct CardsScreen: View {
             if let selected, !ids.contains(selected) { self.selected = ids.last }
             configureMotion()
         }
+        .navigationTitle("Cards")
+        .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $editor, onDismiss: configureMotion) { CardForm(intent: $0).onAppear { motion.stop() } }
         .confirmationDialog("Delete virtual card?", isPresented: $delete, titleVisibility: .visible) {
             if let card {

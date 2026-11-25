@@ -2,14 +2,14 @@ import SwiftUI
 import UIKit
 
 extension Color {
-    static let vxBackground = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(rgb: 0x0B0B0F) : UIColor(rgb: 0xF4F2FA) })
+    static let vxBackground = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(rgb: 0x09090B) : UIColor(rgb: 0xF4F2FA) })
     static let vxText = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(rgb: 0xF5F5F7) : UIColor(rgb: 0x17171C) })
-    static let vxCard = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(rgb: 0x15151C) : .white })
+    static let vxCard = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(rgb: 0x17171C) : .white })
     static let vxSurface = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(rgb: 0x1C1C25) : UIColor(rgb: 0xEBE7F6) })
     static let vxMuted = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(rgb: 0x85858F) : UIColor(rgb: 0x655E75) })
     static let vxAccent = Color(uiColor: UIColor(rgb: 0x7955FF))
     static let vxHighlight = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(rgb: 0xB69FFF) : UIColor(rgb: 0x5532CE) })
-    static let vxUp = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(rgb: 0x22C55E) : UIColor(rgb: 0x12773B) })
+    static let vxUp = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(rgb: 0x34D058) : UIColor(rgb: 0x12773B) })
     static let vxDown = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(rgb: 0xFF453A) : UIColor(rgb: 0xB9222C) })
 }
 
@@ -64,12 +64,14 @@ struct OrbitLines: View {
 }
 
 struct PrimaryButtonStyle: ButtonStyle {
+    var tint: Color = .vxAccent
+    var ink: Color = .white
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(.headline, design: .rounded))
             .frame(maxWidth: .infinity, minHeight: 44)
-            .foregroundStyle(.white)
-            .background(Color.vxAccent.gradient, in: RoundedRectangle(cornerRadius: 15))
+            .foregroundStyle(ink)
+            .background(tint.gradient, in: RoundedRectangle(cornerRadius: 15))
             .opacity(configuration.isPressed ? 0.76 : 1)
             .scaleEffect(configuration.isPressed ? 0.98 : 1)
             .animation(.spring(response: 0.28, dampingFraction: 0.76), value: configuration.isPressed)
@@ -207,5 +209,39 @@ struct PageScroll<Content: View>: View {
                 .frame(maxWidth: .infinity)
         }
         .background(Color.vxBackground.ignoresSafeArea())
+    }
+}
+
+
+struct NumericPad: View {
+    let allowsDecimal: Bool
+    let onInput: (String) -> Void
+    let onDelete: () -> Void
+    private var separator: String { Locale.current.decimalSeparator ?? "." }
+
+    var body: some View {
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 7) {
+            ForEach(["1", "2", "3", "4", "5", "6", "7", "8", "9", separator, "0", "delete"], id: \.self) { key in
+                if key != separator || allowsDecimal {
+                    Button {
+                        if key == "delete" { onDelete() } else { onInput(key) }
+                        Feedback.tap()
+                    } label: {
+                        Group {
+                            if key == "delete" { Image(systemName: "delete.left") }
+                            else { Text(verbatim: key) }
+                        }
+                        .font(.system(size: 22, weight: .medium).monospacedDigit())
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .background(Color.vxCard, in: RoundedRectangle(cornerRadius: 12))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(key == "delete" ? Text("Delete digit") : Text(verbatim: key))
+                    .accessibilityIdentifier("keypad." + key)
+                } else {
+                    Color.clear.frame(height: 44)
+                }
+            }
+        }
     }
 }

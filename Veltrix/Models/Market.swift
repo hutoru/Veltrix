@@ -50,6 +50,8 @@ struct Quote: Codable, Sendable {
     var image: URL?
     var updated: Date?
     var exchange = false
+    var sparkline: [Decimal]?
+    var change24hUSD: Decimal?
 }
 
 struct ChartSample: Codable, Equatable, Identifiable, Sendable {

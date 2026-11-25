@@ -21,7 +21,7 @@ struct MarketsScreen: View {
     var body: some View {
         let visible = filtered
         PageScroll {
-            PageHeader(title: "Markets", detail: "Crypto prices in your display currency") { EmptyView() }
+            PageHeader(title: "Explore", detail: "Crypto prices in your display currency") { EmptyView() }
             HStack(spacing: 10) {
                 Image(systemName: "magnifyingglass").foregroundStyle(Color.vxMuted)
                 TextField("Search assets", text: $query).textInputAutocapitalization(.never).autocorrectionDisabled()
@@ -107,6 +107,9 @@ struct MarketsScreen: View {
                         Text(verbatim: asset.ticker).font(.caption2.monospaced()).foregroundStyle(Color.vxMuted)
                     }
                     Spacer(minLength: 4)
+                    if let values = quote?.sparkline, values.count > 2 {
+                        MarketSparkline(values: values).frame(width: 52, height: 21)
+                    }
                     if model.loading && quote == nil {
                         Skeleton().frame(width: 62, height: 25)
                     } else {
@@ -187,10 +190,6 @@ struct AssetScreen: View {
             }
             .panel()
 
-            HStack {
-                Button("Buy") { trade = TradeIntent(action: .buy, asset: asset.id) }.buttonStyle(PrimaryButtonStyle())
-                Button("Sell") { trade = TradeIntent(action: .sell, asset: asset.id) }.buttonStyle(PrimaryButtonStyle())
-            }
 
             VStack(alignment: .leading, spacing: 13) {
                 Text("Market statistics").font(.headline)
@@ -209,10 +208,42 @@ struct AssetScreen: View {
             }
             .font(.subheadline)
             .panel()
+
+            VStack(alignment: .leading, spacing: 9) {
+                Text("About asset").font(.headline)
+                Text(asset.category).font(.subheadline).foregroundStyle(Color.vxMuted)
+                Link("Asset profile on CoinGecko", destination: URL(string: "https://www.coingecko.com/en/coins/" + asset.id)!)
+                    .font(.footnote.weight(.semibold))
+            }
+            let trades = model.portfolio.entries.reversed().filter { $0.asset == asset.id || $0.counterAsset == asset.id }
+            if !trades.isEmpty {
+                Text("Activity").font(.headline)
+                ForEach(trades) { entry in
+                    NavigationLink { EntryScreen(entry: entry) } label: { EntryRow(entry: entry) }.buttonStyle(.plain)
+                }
+            }
         }
-        .navigationTitle(Text(verbatim: asset.ticker))
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            HStack(spacing: 10) {
+                Button("Sell") { Feedback.tap(); trade = TradeIntent(action: .sell, asset: asset.id) }
+                    .buttonStyle(PrimaryButtonStyle(tint: .vxDown, ink: Color.black))
+                Button("Buy") { Feedback.tap(); trade = TradeIntent(action: .buy, asset: asset.id) }
+                    .buttonStyle(PrimaryButtonStyle(tint: .vxUp, ink: Color.black))
+            }.padding(.horizontal, 18).padding(.vertical, 8).background(Color.vxBackground)
+        }
+        .navigationTitle(Text(verbatim: asset.name))
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                let favorite = model.favorites.contains(asset.id)
+                Button {
+                    if favorite { model.favorites.remove(asset.id) } else { model.favorites.insert(asset.id) }
+                    Feedback.tap()
+                } label: { Image(systemName: favorite ? "star.fill" : "star") }
+                    .accessibilityLabel(Text(favorite ? "Remove from favorites" : "Add to favorites"))
+            }
+        }
         .navigationBarTitleDisplayMode(.inline)
-        .sheet(item: $trade) { TradeScreen(intent: $0) }
+        .fullScreenCover(item: $trade) { TradeScreen(intent: $0) }
         .task(id: LoadKey(range: range, candles: candles, reload: reload)) { await load() }
         .refreshable { await model.refresh(); reload = UUID() }
         .fullScreenCover(isPresented: $full) {
@@ -230,7 +261,16 @@ struct AssetScreen: View {
     private func chartBody(height: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             if loading && history == nil { Skeleton().frame(height: 78) }
-            ChartPanel(samples: history?.samples ?? [], range: $range, candles: $candles, allowsCandles: true, height: height) {
+            ChartPanel(samples: history?.samples ?? [], range: $range, candles: $candles, allowsCandles: true, height: height,
+                       ranges: [.hour, .day, .week, .month, .year, .all],
+                       rangeLabel: { value in
+                           switch value {
+                           case .day: return "1D"
+                           case .week: return "1W"
+                           case .month: return "1M"
+                           default: return value.rawValue
+                           }
+                       }) {
                 model.money($0, privateValue: false, price: true)
             }
             if let history {
@@ -277,5 +317,22 @@ struct AssetScreen: View {
         let range: ChartRange
         let candles: Bool
         let reload: UUID
+    }
+}
+
+
+private extension Asset {
+    var category: LocalizedStringKey {
+        switch ticker {
+        case "BTC": return "Bitcoin is a peer-to-peer network with a fixed issuance schedule."
+        case "USDT", "USDC": return "A stablecoin designed to track the US dollar."
+        case "LINK": return "Chainlink powers decentralized oracle services for smart contracts."
+        case "UNI": return "UNI is the governance token of the Uniswap protocol."
+        case "ARB", "OP", "POL": return "A token used in an Ethereum scaling ecosystem."
+        case "DOGE", "SHIB", "PEPE": return "A cryptocurrency with origins in internet culture."
+        case "XMR": return "Monero is a network designed for private digital payments."
+        case "LTC", "BCH", "XRP", "XLM": return "A digital asset designed for payments and transfers."
+        default: return "A digital asset used in a network that supports decentralized applications."
+        }
     }
 }

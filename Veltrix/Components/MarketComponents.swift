@@ -74,3 +74,26 @@ struct ChangeText: View {
             .foregroundStyle(change.map { $0 >= 0 ? Color.vxUp : .vxDown } ?? .vxMuted)
     }
 }
+
+
+struct MarketSparkline: View {
+    let values: [Decimal]
+    var body: some View {
+        let prices = values.map { NSDecimalNumber(decimal: $0).doubleValue }.filter(\.isFinite)
+        Canvas { context, size in
+            guard prices.count > 1, let minimum = prices.min(), let maximum = prices.max() else { return }
+            let span = maximum - minimum
+            let line = Path { path in
+                for (index, price) in prices.enumerated() {
+                    let x = size.width * CGFloat(index) / CGFloat(prices.count - 1)
+                    let y = span > 0 ? size.height - 2 - CGFloat((price - minimum) / span) * (size.height - 4) : size.height / 2
+                    if index == 0 { path.move(to: CGPoint(x: x, y: y)) }
+                    else { path.addLine(to: CGPoint(x: x, y: y)) }
+                }
+            }
+            let rising = (prices.last ?? 0) >= (prices.first ?? 0)
+            context.stroke(line, with: .color(rising ? .vxUp : .vxDown),
+                           style: StrokeStyle(lineWidth: 1.3, lineCap: .round, lineJoin: .round))
+        }.accessibilityHidden(true)
+    }
+}

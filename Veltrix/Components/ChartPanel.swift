@@ -7,6 +7,8 @@ struct ChartPanel: View {
     @Binding var candles: Bool
     let allowsCandles: Bool
     var height: CGFloat = 190
+    var ranges = ChartRange.allCases
+    var rangeLabel: (ChartRange) -> String = { $0.rawValue }
     var format: (Decimal) -> String
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var phase
@@ -32,7 +34,7 @@ struct ChartPanel: View {
             } else {
                 readout
                 plotting
-                    .frame(height: height)
+                    .frame(height: samples.count < 3 ? min(130, height) : height)
                     .accessibilityLabel(Text("Historical chart"))
                     .accessibilityValue(accessibilityValue)
                     .accessibilityAdjustableAction { direction in
@@ -47,12 +49,12 @@ struct ChartPanel: View {
             }
 
             HStack(spacing: 2) {
-                ForEach(ChartRange.allCases, id: \.self) { value in
+                ForEach(ranges, id: \.self) { value in
                     Button {
                         range = value
                         Feedback.tap()
                     } label: {
-                        Text(verbatim: value.rawValue).font(.system(size: 11, weight: .semibold, design: .monospaced))
+                        Text(verbatim: rangeLabel(value)).font(.system(size: 11, weight: .semibold, design: .monospaced))
                             .frame(maxWidth: .infinity, minHeight: 40)
                             .foregroundStyle(range == value ? Color.vxHighlight : Color.vxMuted)
                             .background(range == value ? Color.vxAccent.opacity(0.15) : .clear,
@@ -155,20 +157,26 @@ struct ChartPanel: View {
                             .foregroundStyle(shade).symbolSize(8)
                     }
                 } else {
-                    AreaMark(x: .value("Date", sample.date), yStart: .value("Floor", minimum - padding),
+                    if plotted.count >= 3 { AreaMark(x: .value("Date", sample.date), yStart: .value("Floor", minimum - padding),
                              yEnd: .value("Price", double(sample.close)))
                         .interpolationMethod(.monotone)
                         .foregroundStyle(LinearGradient(colors: [trend.opacity(0.19), trend.opacity(0.01)],
-                                                        startPoint: .top, endPoint: .bottom))
-                    LineMark(x: .value("Date", sample.date), y: .value("Price", double(sample.close)))
-                        .foregroundStyle(trend)
-                        .interpolationMethod(.monotone)
-                        .lineStyle(StrokeStyle(lineWidth: 1.8, lineCap: .round))
-                    if data.count == 1 {
+                                                        startPoint: .top, endPoint: .bottom)) }
+                    if plotted.count >= 3 {
+                        LineMark(x: .value("Date", sample.date), y: .value("Price", double(sample.close)))
+                            .foregroundStyle(trend)
+                            .interpolationMethod(.monotone)
+                            .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round))
+                    }
+                    if data.count == 1 || plotted.count < 3 {
                         PointMark(x: .value("Date", sample.date), y: .value("Price", double(sample.close)))
                             .foregroundStyle(Color.vxHighlight).symbolSize(30)
                     }
                 }
+            }
+            if let latest = plotted.last, plotted.count > 2, replay == nil {
+                RuleMark(y: .value("Latest price", double(latest.close)))
+                    .foregroundStyle(trend.opacity(0.36)).lineStyle(StrokeStyle(lineWidth: 0.8, dash: [3, 4]))
             }
             if let anchor, anchor.date >= first, anchor.date <= last {
                 RuleMark(x: .value("Date", anchor.date))
