@@ -71,7 +71,8 @@ final class VeltrixUITests: XCTestCase {
         capture(app, name: "Settings")
         privacyButton.tap()
         XCTAssertTrue(privacyButton.isSelected)
-        app.buttons["tab.cards"].tap()
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        app.buttons["profile.cards"].tap()
         let hidden = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "••••••"), object: card)
         XCTAssertEqual(XCTWaiter.wait(for: [hidden], timeout: 5), .completed)
     }

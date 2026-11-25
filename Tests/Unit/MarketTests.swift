@@ -36,7 +36,8 @@ final class MarketTests: XCTestCase {
     func testProviderDecodesDecimalValuesAndDoesNotReplaceMissingFields() async throws {
         let response = Data("""
         [{"id":"bitcoin","current_price":345.0123456789,"price_change_percentage_24h":-1.25,
-          "last_updated":"2026-03-05T12:08:58.966Z"},
+          "last_updated":"2026-03-05T12:08:58.966Z","price_change_24h":-4.5,
+          "sparkline_in_7d":{"price":[340,347.25,345.0123456789]}},
          {"id":"ethereum","current_price":null}]
         """.utf8)
         let transport = MockTransport(status: 200, data: response)
@@ -45,6 +46,9 @@ final class MarketTests: XCTestCase {
         XCTAssertEqual(quotes.first?.price, Decimal(string: "345.0123456789"))
         XCTAssertEqual(quotes.first?.change, Decimal(string: "-1.25"))
         XCTAssertNotNil(quotes.first?.updated)
+        XCTAssertEqual(quotes.first?.change24hUSD, Decimal(string: "-4.5"))
+        XCTAssertEqual(quotes.first?.sparkline, [340, Decimal(string: "347.25")!, Decimal(string: "345.0123456789")!])
+        XCTAssertNil(quotes.last?.sparkline)
         XCTAssertNil(quotes.last?.price)
         let request = await transport.lastRequest
         XCTAssertEqual(request?.url?.path, "/api/v3/coins/markets")
