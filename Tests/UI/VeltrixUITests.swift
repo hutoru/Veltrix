@@ -2,6 +2,7 @@ import XCTest
 
 final class VeltrixUITests: XCTestCase {
     private func launch() -> XCUIApplication {
+        continueAfterFailure = false
         let app = XCUIApplication()
         app.launchArguments += ["--ui-testing", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         app.launch()
@@ -10,6 +11,7 @@ final class VeltrixUITests: XCTestCase {
 
     func testDepositThroughReviewAndSeeItInActivity() {
         let app = launch()
+        capture(app, name: "Portfolio")
         app.buttons["trade.deposit"].tap()
         let amount = app.textFields["trade.amount"]
         XCTAssertTrue(amount.waitForExistence(timeout: 5))
@@ -21,18 +23,20 @@ final class VeltrixUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["trade.saved"].waitForExistence(timeout: 5))
         app.buttons["Done"].tap()
         app.buttons["tab.activity"].tap()
-        XCTAssertTrue(app.staticTexts["Deposit"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Simulation history and open orders"].waitForExistence(timeout: 5), app.debugDescription)
+        XCTAssertTrue(app.descendants(matching: .any)["activity.deposit"].exists)
     }
 
     func testMarketSearchAndNativeDetail() {
         let app = launch()
         app.buttons["tab.markets"].tap()
         let search = app.textFields["markets.search"]
-        XCTAssertTrue(search.waitForExistence(timeout: 5))
+        XCTAssertTrue(search.waitForExistence(timeout: 5), app.debugDescription)
         search.tap()
         search.typeText("Bitcoin")
         let coin = app.buttons["market.BTC"]
         XCTAssertTrue(coin.waitForExistence(timeout: 5))
+        capture(app, name: "Market search")
         coin.tap()
         XCTAssertTrue(app.staticTexts["Price history"].waitForExistence(timeout: 5))
     }
@@ -40,18 +44,28 @@ final class VeltrixUITests: XCTestCase {
     func testCreateCardAndHideItsBalanceThroughSettings() {
         let app = launch()
         app.buttons["tab.cards"].tap()
-        app.buttons["card.create"].tap()
+        let create = app.buttons["card.create"]
+        XCTAssertTrue(create.waitForExistence(timeout: 5), app.debugDescription)
+        create.tap()
         XCTAssertTrue(app.buttons["card.confirm"].waitForExistence(timeout: 5))
         app.buttons["card.confirm"].tap()
         let card = app.buttons["card.face"]
         XCTAssertTrue(card.waitForExistence(timeout: 5))
         XCTAssertEqual(card.value as? String, "$0.00")
+        capture(app, name: "Virtual card")
         app.buttons["tab.settings"].tap()
-        let toggle = app.switches["Hide balances"]
-        if !toggle.isHittable { app.swipeUp() }
+        let toggle = app.switches["settings.hide"]
+        for _ in 0..<3 where !toggle.isHittable { app.swipeUp() }
         XCTAssertTrue(toggle.waitForExistence(timeout: 5))
         toggle.tap()
         app.buttons["tab.cards"].tap()
         XCTAssertEqual(card.value as? String, "••••••")
+    }
+
+    private func capture(_ app: XCUIApplication, name: String) {
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = name
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
     }
 }

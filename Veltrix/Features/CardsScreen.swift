@@ -5,7 +5,7 @@ struct CardsScreen: View {
     @EnvironmentObject private var model: VeltrixModel
     @Environment(\.scenePhase) private var phase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @StateObject private var motion = CardMotion()
+    @State private var motion = CardMotion()
     @State private var selected: UUID?
     @State private var flipped = false
     @State private var editor: CardIntent?
@@ -71,8 +71,7 @@ struct CardsScreen: View {
                     withAnimation(reduceMotion ? nil : .spring(response: 0.49, dampingFraction: 0.81)) { flipped.toggle() }
                     Feedback.tap()
                 } label: {
-                    CardFace(tier: card.tier, name: card.name, balance: model.money(card.balance), frozen: card.frozen,
-                             flip: flipped ? 180 : 0, tilt: motion.tilt)
+                    MotionCardFace(motion: motion, card: card, balance: model.money(card.balance), flipped: flipped)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(Text("Flip \(card.name) card"))
@@ -177,6 +176,18 @@ struct CardsScreen: View {
             }
         }
         .panel()
+    }
+}
+
+private struct MotionCardFace: View {
+    @ObservedObject var motion: CardMotion
+    let card: VirtualCard
+    let balance: String
+    let flipped: Bool
+
+    var body: some View {
+        CardFace(tier: card.tier, name: card.name, balance: balance, frozen: card.frozen,
+                 flip: flipped ? 180 : 0, tilt: motion.tilt)
     }
 }
 

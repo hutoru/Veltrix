@@ -88,6 +88,7 @@ struct SettingsScreen: View {
             }
             .pickerStyle(.segmented)
             Toggle("Hide balances", isOn: $model.hide)
+                .accessibilityIdentifier("settings.hide")
         }
         .panel()
     }

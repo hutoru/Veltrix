@@ -19,6 +19,7 @@ struct MarketsScreen: View {
     @State private var onlyFavorites = false
 
     var body: some View {
+        let visible = filtered
         PageScroll {
             PageHeader(title: "Markets", detail: "Crypto prices in your display currency") { SimBadge() }
             HStack(spacing: 10) {
@@ -50,13 +51,13 @@ struct MarketsScreen: View {
             }
             .font(.caption.weight(.semibold))
             MarketStatus()
-            if filtered.isEmpty {
+            if visible.isEmpty {
                 EmptyPanel(icon: "magnifyingglass", title: "No assets found", detail: "Try a different search or disable the favorites filter.")
             } else {
                 LazyVStack(spacing: 0) {
-                    ForEach(filtered) { asset in
+                    ForEach(visible) { asset in
                         row(asset)
-                        if asset != filtered.last { Divider() }
+                        if asset != visible.last { Divider() }
                     }
                 }
                 .panel(padding: 13)

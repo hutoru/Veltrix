@@ -95,7 +95,9 @@ struct Portfolio: Codable, Identifiable, Equatable, Sendable {
 
     func daily(now: Date, prices: [String: Decimal]) throws -> (value: Decimal, percent: Decimal?)? {
         let cutoff = now.addingTimeInterval(-86_400)
-        guard let start = history.last(where: { $0.date <= cutoff }) ?? history.first, start.date < now else { return nil }
+        let baseline = history.last(where: { $0.date <= cutoff })
+        let start = baseline ?? (createdAt > cutoff ? history.first : nil)
+        guard let start, start.date < now, start.date >= cutoff.addingTimeInterval(-3_600) else { return nil }
         let changes = entries.filter { $0.date > start.date && $0.date <= now }
         guard !changes.contains(where: { $0.valuationUnavailable == true }) else { return nil }
         let net = try changes.map(\.externalFlow).reduce(Decimal.zero, MoneyMath.add)

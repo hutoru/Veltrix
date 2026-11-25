@@ -54,7 +54,7 @@ struct PortfolioScreen: View {
                         IconButton(icon: "arrow.up.left.and.arrow.down.right", label: "Full screen chart") { chart = true }
                         IconButton(icon: "square.and.arrow.up", label: "Share simulation") { share = true }
                     }
-                    ChartPanel(samples: samples, range: $range, candles: $candles, allowsCandles: false) {
+                    ChartPanel(samples: samples, range: $range, candles: $candles, allowsCandles: true) {
                         model.money($0)
                     }
                 }
@@ -72,7 +72,7 @@ struct PortfolioScreen: View {
             NavigationStack {
                 PageScroll {
                     SimBadge()
-                    ChartPanel(samples: samples, range: $range, candles: $candles, allowsCandles: false, height: 320) {
+                    ChartPanel(samples: samples, range: $range, candles: $candles, allowsCandles: true, height: 320) {
                         model.money($0)
                     }
                 }
@@ -83,7 +83,7 @@ struct PortfolioScreen: View {
         }
     }
 
-    private var samples: [ChartSample] { portfolio.chart(range: range) }
+    private var samples: [ChartSample] { portfolio.chart(range: range, candles: candles) }
 
     private var balanceCard: some View {
         VStack(alignment: .leading, spacing: 11) {
@@ -237,13 +237,31 @@ struct PortfolioScreen: View {
 }
 
 extension Portfolio {
-    func chart(range: ChartRange) -> [ChartSample] {
+    func chart(range: ChartRange, candles: Bool = false) -> [ChartSample] {
         let cutoff = range.start(from: Date()) ?? .distantPast
         let visible = history.filter { $0.date >= cutoff }
-        guard visible.count > 500 else { return visible.map { ChartSample(date: $0.date, close: $0.value) } }
+        let samples: [ChartSample]
+        if candles {
+            let interval: TimeInterval
+            switch range {
+            case .hour: interval = 5 * 60
+            case .day: interval = 60 * 60
+            case .week: interval = 6 * 3_600
+            case .month, .quarter: interval = 86_400
+            case .year, .all: interval = 7 * 86_400
+            }
+            let buckets = Dictionary(grouping: visible) { floor($0.date.timeIntervalSince1970 / interval) }
+            samples = buckets.keys.sorted().compactMap { key in
+                guard let points = buckets[key], let first = points.first, let last = points.last else { return nil }
+                let values = points.map(\.value)
+                return ChartSample(date: last.date, close: last.value, open: first.value, high: values.max(), low: values.min())
+            }
+        } else {
+            samples = visible.map { ChartSample(date: $0.date, close: $0.value) }
+        }
+        guard samples.count > 500 else { return samples }
         return (0..<500).map { offset in
-            let point = visible[offset * (visible.count - 1) / 499]
-            return ChartSample(date: point.date, close: point.value)
+            samples[offset * (samples.count - 1) / 499]
         }
     }
 }

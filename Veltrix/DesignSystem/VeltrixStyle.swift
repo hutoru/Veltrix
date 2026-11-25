@@ -181,7 +181,7 @@ extension View {
     func panel(padding: CGFloat = 16) -> some View {
         self.padding(padding)
             .background(Color.vxCard, in: RoundedRectangle(cornerRadius: 21))
-            .overlay(RoundedRectangle(cornerRadius: 21).strokeBorder(.primary.opacity(0.06), lineWidth: 1))
+            .overlay(RoundedRectangle(cornerRadius: 21).strokeBorder(.primary.opacity(0.06), lineWidth: 1).allowsHitTesting(false))
     }
 
     func glass(radius: CGFloat) -> some View {

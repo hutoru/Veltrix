@@ -120,6 +120,7 @@ final class TradingEngineTests: XCTestCase {
         XCTAssertThrowsError(try Fiat.convert(123, currency: "RUB", rates: rates))
         XCTAssertGreaterThan(Set(Fiat.currencies).count, 50)
         XCTAssertEqual(Asset.ids.count, 30)
+        XCTAssertEqual(Set(KrakenSymbols.pairs.keys), Set(Asset.catalog.map(\.ticker)))
     }
 
     func testCardMoveFreezeLimitPaymentRefundAndOwnership() throws {

@@ -139,6 +139,6 @@ struct PublicMarketProvider: MarketDataProvider {
 
 enum KrakenSymbols {
     static let pairs: [String: String] = Dictionary(uniqueKeysWithValues:
-        "ETH SOL TON USDT USDC XRP DOGE ADA TRX AVAX LINK DOT LTC BCH SHIB PEPE SUI XLM XMR NEAR ATOM APT ARB OP UNI HBAR ETC POL"
-        .split(separator: " ").map { (String($0), "\($0)USD") } + [("BTC", "XBTUSD")])
+        "ETH SOL TON USDT USDC BNB XRP ADA TRX AVAX LINK DOT LTC BCH SHIB PEPE SUI XLM XMR NEAR ATOM APT ARB OP UNI HBAR ETC POL"
+        .split(separator: " ").map { (String($0), "\($0)USD") } + [("BTC", "XBTUSD"), ("DOGE", "XDGUSD")])
 }

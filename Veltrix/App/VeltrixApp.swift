@@ -143,6 +143,7 @@ struct VeltrixRoot: View {
                     .foregroundStyle(tab == destination ? Color.vxHighlight : Color.vxMuted)
                     .frame(maxWidth: .infinity, minHeight: 49)
                     .background(tab == destination ? Color.vxAccent.opacity(0.13) : .clear, in: RoundedRectangle(cornerRadius: 15))
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("tab." + destination.rawValue)
@@ -150,7 +151,9 @@ struct VeltrixRoot: View {
             }
         }
         .padding(5)
-        .glass(radius: 22)
+        .background {
+            Color.clear.glass(radius: 22).allowsHitTesting(false)
+        }
         .frame(maxWidth: 600)
         .padding(.horizontal, 13)
         .padding(.bottom, 4)
