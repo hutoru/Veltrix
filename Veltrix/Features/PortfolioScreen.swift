@@ -44,6 +44,7 @@ struct PortfolioScreen: View {
                 .accessibilityLabel(Text("Switch portfolio"))
             }
             balanceCard
+            MarketStatus()
             actions
             if !model.hide {
                 VStack(alignment: .leading, spacing: 10) {
@@ -60,7 +61,6 @@ struct PortfolioScreen: View {
                 .panel()
             }
             positions
-            MarketStatus()
         }
         .refreshable { await model.refresh() }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.userDidTakeScreenshotNotification)) { _ in

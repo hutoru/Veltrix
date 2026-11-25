@@ -77,7 +77,7 @@ enum Keychain {
             keychainUnavailable = false
         } catch {
             keychainUnavailable = true
-            error = L.text("Secure storage unavailable")
+            self.error = L.text("Secure storage unavailable")
         }
     }
 

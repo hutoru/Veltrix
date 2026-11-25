@@ -79,6 +79,7 @@ struct ChartPanel: View {
                     Button { replay == nil ? startReplay() : stopReplay() } label: {
                         Label(replay == nil ? "Replay" : "Stop", systemImage: replay == nil ? "play.fill" : "stop.fill")
                     }
+                    .disabled(samples.count < 2)
                     Button {
                         if baseline != nil { baseline = nil }
                         else { baseline = (focus ?? visible.first)?.date }
@@ -179,7 +180,7 @@ struct ChartPanel: View {
         .chartYScale(domain: (minimum - padding)...(maximum + padding))
         .chartXScale(domain: first...last)
         .chartXAxis { AxisMarks(values: .automatic(desiredCount: 3)) }
-        .chartYAxis { AxisMarks(position: .trailing, values: .automatic(desiredCount: 3)) { AxisGridLine() } }
+        .chartYAxis { AxisMarks(position: .trailing, values: .automatic(desiredCount: 3)) { _ in AxisGridLine() } }
         .chartOverlay { proxy in
             GeometryReader { geometry in
                 let plot = geometry[proxy.plotAreaFrame]
@@ -212,14 +213,15 @@ struct ChartPanel: View {
 
     private func startReplay() {
         let count = visible.count
-        guard count > 1, !reduceMotion else { return }
+        guard count > 1 else { return }
         selected = nil
         replayCount = 1
         replay = Task { @MainActor in
-            for step in 1...48 {
-                try? await Task.sleep(nanoseconds: 45_000_000)
+            let steps = reduceMotion ? 12 : 48
+            for step in 1...steps {
+                try? await Task.sleep(nanoseconds: reduceMotion ? 180_000_000 : 45_000_000)
                 guard !Task.isCancelled else { return }
-                replayCount = max(1, step * count / 48)
+                replayCount = max(1, step * count / steps)
             }
             replayCount = nil
             replay = nil

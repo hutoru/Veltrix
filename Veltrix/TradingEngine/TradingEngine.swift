@@ -2,6 +2,7 @@ import Foundation
 
 enum Command: Sendable {
     case market(OrderSide, String, Decimal, Decimal)
+    case marketNotional(OrderSide, String, Decimal, Decimal)
     case limit(OrderSide, String, Decimal, Decimal, Decimal)
     case cancel(UUID)
     case swap(String, String, Decimal, Decimal)
@@ -39,6 +40,14 @@ enum TradingEngine {
         case let .market(side, asset, units, fee):
             let price = try quote(asset, in: execution)
             entry = try trade(side, asset: asset, units: units, price: price, fee: fee, id: id, date: date, portfolio: &portfolio)
+            changedValue = true
+
+        case let .marketNotional(side, asset, notional, fee):
+            try MoneyMath.quantity(notional)
+            let price = try quote(asset, in: execution)
+            let units = try MoneyMath.divide(notional, price)
+            entry = try trade(side, asset: asset, units: units, price: price, fee: fee,
+                              id: id, date: date, portfolio: &portfolio, usdGross: notional)
             changedValue = true
 
         case let .limit(side, asset, units, limit, feeRate):
@@ -111,11 +120,11 @@ enum TradingEngine {
             try MoneyMath.nonnegative(average)
             let delta = try MoneyMath.subtract(units, portfolio.positions[asset]?.units ?? 0)
             let flow = try prices[asset].map { try MoneyMath.multiply(delta, $0) }
-            if delta != 0, flow == nil { throw SimulationError.missingQuote }
             portfolio.positions[asset] = units == 0 ? nil : Position(units: units, basis: try MoneyMath.multiply(units, average))
             guard try portfolio.freeUnits(asset) >= 0 else { throw SimulationError.reservedAsset }
             entry = Entry(id: id, date: date, kind: .adjustment, asset: asset, amount: abs(delta),
-                          usd: flow.map { abs($0) }, externalFlow: flow ?? 0)
+                          usd: flow.map { abs($0) }, externalFlow: flow ?? 0,
+                          valuationUnavailable: delta != 0 && flow == nil ? true : nil)
             changedValue = true
 
         case let .createPortfolio(name, cash):
@@ -223,10 +232,10 @@ enum TradingEngine {
     }
 
     private static func trade(_ side: OrderSide, asset: String, units: Decimal, price: Decimal, fee rate: Decimal,
-                              id: UUID, date: Date, portfolio: inout Portfolio) throws -> Entry {
+                              id: UUID, date: Date, portfolio: inout Portfolio, usdGross: Decimal? = nil) throws -> Entry {
         try check(asset)
         try MoneyMath.quantity(units)
-        let gross = try MoneyMath.multiply(units, price)
+        let gross = try usdGross ?? MoneyMath.multiply(units, price)
         let fee = try commission(gross, rate)
         if side == .buy {
             let total = try MoneyMath.add(gross, fee)

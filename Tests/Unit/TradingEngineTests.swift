@@ -37,6 +37,24 @@ final class TradingEngineTests: XCTestCase {
         XCTAssertThrowsError(try execute(.swap(btc, btc, 1, 0), swapped, bitcoin: 200))
     }
 
+    func testMarketNotionalUsesConfirmationQuoteAndPreservesExactCashDelta() throws {
+        let ledger = Ledger.fresh(cash: 1_000, date: start)
+        let bought = try execute(.marketNotional(.buy, btc, 100, decimal("0.01")), ledger, bitcoin: decimal("63.17"))
+        XCTAssertEqual(bought.portfolios[0].cash, 899)
+        XCTAssertEqual(bought.portfolios[0].entries.last?.usd, 100)
+        let units = try XCTUnwrap(bought.portfolios[0].positions[btc]?.units)
+        XCTAssertEqual(units, try MoneyMath.divide(100, decimal("63.17")))
+    }
+
+    func testOfflinePositionEditRecordsUnitsWithoutFabricatingValue() throws {
+        let ledger = Ledger.fresh(cash: 100, date: start)
+        let edited = try TradingEngine.apply(.setPosition(btc, 1, 25), to: ledger, at: start.addingTimeInterval(1))
+        XCTAssertEqual(edited.portfolios[0].positions[btc]?.basis, 25)
+        XCTAssertEqual(edited.portfolios[0].entries.last?.valuationUnavailable, true)
+        XCTAssertEqual(edited.portfolios[0].history.count, 1)
+        XCTAssertNil(try edited.portfolios[0].daily(now: start.addingTimeInterval(2), prices: [btc: 50]))
+    }
+
     func testLimitReservationsEligibilityFillAndCancellation() throws {
         let original = Ledger.fresh(cash: 500, date: start)
         let ordered = try execute(.limit(.buy, btc, 2, 100, decimal("0.01")), original, bitcoin: 110)

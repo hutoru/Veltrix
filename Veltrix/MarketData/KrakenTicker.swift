@@ -17,7 +17,8 @@ struct KrakenTicker {
         defer { socket.cancel(with: .goingAway, reason: nil) }
         try await withTaskCancellationHandler {
             let request = Subscription(params: .init(symbol: Self.assets.map { $0.ticker + "/USD" }))
-            try await socket.send(.data(JSONEncoder().encode(request)))
+            let encoded = try JSONEncoder().encode(request)
+            try await socket.send(.string(String(decoding: encoded, as: UTF8.self)))
             var delivered = Date.distantPast
             var pending: [String: TickerTick] = [:]
             while !Task.isCancelled {

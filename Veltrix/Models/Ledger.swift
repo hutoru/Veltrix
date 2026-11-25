@@ -25,6 +25,7 @@ struct Entry: Codable, Identifiable, Equatable, Sendable {
     var cardID: UUID?
     var reference: UUID?
     var externalFlow: Decimal = 0
+    var valuationUnavailable: Bool?
 }
 
 enum OrderSide: String, Codable, CaseIterable, Sendable { case buy, sell }
@@ -96,6 +97,7 @@ struct Portfolio: Codable, Identifiable, Equatable, Sendable {
         let cutoff = now.addingTimeInterval(-86_400)
         guard let start = history.last(where: { $0.date <= cutoff }) ?? history.first, start.date < now else { return nil }
         let changes = entries.filter { $0.date > start.date && $0.date <= now }
+        guard !changes.contains(where: { $0.valuationUnavailable == true }) else { return nil }
         let net = try changes.map(\.externalFlow).reduce(Decimal.zero, MoneyMath.add)
         let value = try MoneyMath.subtract(MoneyMath.subtract(self.value(prices: prices), start.value), net)
         let basis = try MoneyMath.add(start.value, max(0, net))

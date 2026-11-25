@@ -61,6 +61,7 @@ jobs:
             build/Veltrix.ipa
             build/Veltrix.ipa.sha256
           if-no-files-found: error
+          retention-days: 7
 
       - uses: actions/upload-artifact@v6
         if: failure()
@@ -68,3 +69,4 @@ jobs:
           name: Veltrix-test-results
           path: build/VeltrixTests.xcresult
           if-no-files-found: ignore
+          retention-days: 3

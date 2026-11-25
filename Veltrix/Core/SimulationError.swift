@@ -7,9 +7,21 @@ enum SimulationError: String, Error, Equatable, Sendable {
 }
 
 enum MoneyMath {
-    static func add(_ a: Decimal, _ b: Decimal) throws -> Decimal { try calculate(a, b, NSDecimalAdd) }
-    static func subtract(_ a: Decimal, _ b: Decimal) throws -> Decimal { try calculate(a, b, NSDecimalSubtract) }
-    static func multiply(_ a: Decimal, _ b: Decimal) throws -> Decimal { try calculate(a, b, NSDecimalMultiply) }
+    static func add(_ a: Decimal, _ b: Decimal) throws -> Decimal {
+        let result = try calculate(a, b, NSDecimalAdd)
+        guard (b == 0 || result != a), (a == 0 || result != b) else { throw SimulationError.precision }
+        return result
+    }
+
+    static func subtract(_ a: Decimal, _ b: Decimal) throws -> Decimal {
+        let result = try calculate(a, b, NSDecimalSubtract)
+        guard (b == 0 || result != a), (a == 0 || result != -b) else { throw SimulationError.precision }
+        return result
+    }
+
+    static func multiply(_ a: Decimal, _ b: Decimal) throws -> Decimal {
+        try calculate(a, b, NSDecimalMultiply, rounded: true)
+    }
     static func divide(_ a: Decimal, _ b: Decimal) throws -> Decimal {
         guard b != 0 else { throw SimulationError.precision }
         return try calculate(a, b, NSDecimalDivide, rounded: true)
@@ -28,23 +40,7 @@ enum MoneyMath {
         guard status == .noError || (rounded && status == .lossOfPrecision), !result.isNaN else {
             throw SimulationError.precision
         }
-        if !rounded && b != 0 && result == a && operationIsInexact(a, b, operation) {
-            throw SimulationError.precision
-        }
         return result
-    }
-
-    private static func operationIsInexact(
-        _ a: Decimal, _ b: Decimal,
-        _ operation: (UnsafeMutablePointer<Decimal>, UnsafePointer<Decimal>, UnsafePointer<Decimal>, Decimal.RoundingMode) -> Decimal.CalculationError
-    ) -> Bool {
-        var lhs = a
-        var rhs = b
-        var up = Decimal.zero
-        var down = Decimal.zero
-        _ = operation(&up, &lhs, &rhs, .up)
-        _ = operation(&down, &lhs, &rhs, .down)
-        return up != down
     }
 
     static func round(_ value: Decimal, scale: Int) -> Decimal {

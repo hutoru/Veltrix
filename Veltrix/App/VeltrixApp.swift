@@ -72,7 +72,7 @@ struct VeltrixRoot: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.vxBackground.ignoresSafeArea())
         .overlay {
-            if phase == .background {
+            if phase != .active {
                 Color.vxBackground.ignoresSafeArea()
                     .overlay(VeltrixMark().fill(Color.vxHighlight).frame(width: 52, height: 52))
                     .accessibilityHidden(true)

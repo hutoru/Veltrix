@@ -65,8 +65,9 @@ struct TradeScreen: View {
                         Label("Simulation saved", systemImage: "checkmark.circle.fill").foregroundStyle(Color.vxUp)
                             .accessibilityIdentifier("trade.saved")
                         if let review {
-                            LabeledContent("Amount", value: review.summary)
-                            ShareLink(item: "VELTRIX · Simulation · \(L.text(intent.action.rawValue.capitalized)) · \(review.summary)")
+                            let summary = confirmedAmount ?? review.summary
+                            LabeledContent("Amount", value: summary)
+                            ShareLink(item: "VELTRIX · Simulation · \(L.text(intent.action.rawValue.capitalized)) · \(summary)")
                         }
                     }
                     Button("Done") { dismiss() }.buttonStyle(PrimaryButtonStyle()).listRowBackground(Color.clear)
@@ -198,11 +199,19 @@ struct TradeScreen: View {
                 price = try live(asset)
             }
             let units = useFiat && !isLimit ? try MoneyMath.divide(quantity, price) : quantity
-            let gross = try MoneyMath.multiply(units, price)
+            let gross = useFiat && !isLimit ? quantity : try MoneyMath.multiply(units, price)
             let fee = try MoneyMath.multiply(gross, model.fee)
-            let command: Command = isLimit ? .limit(side, asset, units, price, model.fee) : .market(side, asset, units, model.fee)
+            let command: Command
+            if isLimit { command = .limit(side, asset, units, price, model.fee) }
+            else if useFiat { command = .marketNotional(side, asset, quantity, model.fee) }
+            else { command = .market(side, asset, units, model.fee) }
             return TradeReview(command: command, summary: unitsText(units), estimate: gross, fee: fee, market: !isLimit)
         }
+    }
+
+    private var confirmedAmount: String? {
+        guard let entry = model.portfolio.entries.last(where: { $0.id == intent.id }) else { return nil }
+        return entry.asset == "USD" ? model.money(entry.amount) : "\(model.units(entry.amount)) \(Asset.ticker(entry.asset))"
     }
 
     private func live(_ asset: String) throws -> Decimal {

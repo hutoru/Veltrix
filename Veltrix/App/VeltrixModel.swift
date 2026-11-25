@@ -29,7 +29,7 @@ import SwiftUI
     private var stream: Task<Void, Never>?
     private var fxLoading = false
     private var inForeground = false
-    private var marketAccess = true
+    private var geckoOnline = false
     private var gecko: [String: Quote] = [:]
     private var ticks: [String: TickerTick] = [:]
     private var toastTask: Task<Void, Never>?
@@ -64,9 +64,9 @@ import SwiftUI
     var prices: [String: Decimal] { quotes.compactMapValues(\.price) }
 
     var usablePrices: [String: Decimal] {
-        guard inForeground, marketAccess else { return [:] }
+        guard inForeground else { return [:] }
         return quotes.compactMapValues { quote in
-            guard let updated = quote.updated, let price = quote.price else { return nil }
+            guard quote.exchange || geckoOnline, let updated = quote.updated, let price = quote.price else { return nil }
             let age = Date().timeIntervalSince(updated)
             return age >= -30 && age <= (quote.exchange ? 120 : 300) && price > 0 ? price : nil
         }
@@ -83,7 +83,8 @@ import SwiftUI
 
     func execute(_ command: Command, id: UUID = UUID()) -> Bool {
         do {
-            let next = try TradingEngine.apply(command, to: ledger, id: id, prices: prices, execution: usablePrices)
+            let live = usablePrices
+            let next = try TradingEngine.apply(command, to: ledger, id: id, prices: live, execution: live)
             try commit(next)
             Feedback.success()
             toast = L.text("Simulation saved")
@@ -175,7 +176,7 @@ import SwiftUI
         stream?.cancel()
         updates = nil
         stream = nil
-        marketAccess = false
+        geckoOnline = false
         ticks.removeAll()
         rebuildQuotes()
     }
@@ -188,7 +189,7 @@ import SwiftUI
         do {
             let values = try await provider.quotes()
             try Task.checkCancellation()
-            marketAccess = true
+            geckoOnline = true
             for quote in values where quote.price.map({ $0 > 0 }) ?? false { gecko[quote.id] = quote }
             quoteDate = values.compactMap(\.updated).max()
             rebuildQuotes()
@@ -198,7 +199,7 @@ import SwiftUI
         } catch is CancellationError {
         } catch {
             if !Task.isCancelled {
-                marketAccess = !ticks.isEmpty
+                geckoOnline = false
                 marketMessage = Display.error(error)
                 rebuildQuotes()
             }
@@ -211,6 +212,7 @@ import SwiftUI
     }
 
     func loadHistory(_ asset: Asset, range: ChartRange, candles: Bool) async throws -> MarketHistory {
+        guard !testing else { throw MarketError.unavailable }
         let entryKey = key(asset, range: range, candles: candles)
         let refreshAfter: TimeInterval = range == .hour || range == .day ? 180 : 1_800
         if let cached = await cache.read(MarketHistory.self, key: entryKey),
@@ -256,7 +258,6 @@ import SwiftUI
     private func receive(_ values: [TickerTick]) {
         guard inForeground else { return }
         for tick in values where tick.date > (ticks[tick.asset]?.date ?? .distantPast) { ticks[tick.asset] = tick }
-        marketAccess = true
         rebuildQuotes()
         settle()
     }
