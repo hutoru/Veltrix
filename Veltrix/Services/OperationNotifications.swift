@@ -1,5 +1,6 @@
 import SwiftUI
 import UserNotifications
+import OSLog
 
 final class NotificationDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     static let opened = Notification.Name("VeltrixOperationOpened")
@@ -90,28 +91,85 @@ final class ShortcutSceneDelegate: NSObject, UIWindowSceneDelegate {
     }
 }
 
-@MainActor enum OperationNotifications {
+@MainActor final class OperationNotifications: ObservableObject {
+    static let shared = OperationNotifications()
+
+    @Published private(set) var authorizationStatus: UNAuthorizationStatus = .notDetermined
+    @Published private(set) var alertsEnabled = false
+    @Published private(set) var soundsEnabled = false
+    @Published private(set) var lastDelivery: Delivery?
+    @Published private(set) var error: String?
+
+    enum Delivery { case queued, delivered, noAlerts }
+
+    private let center = UNUserNotificationCenter.current()
+    private let logger = Logger(subsystem: "app.veltrix.simulation", category: "Notifications")
+    private var authorizationRequest: Task<Bool, Never>?
+    private var lastID: String?
+    private var generation = 0
+
     static func eligible(_ entry: Entry) -> Bool { entry.kind != .adjustment }
 
-    static func authorize() async -> Bool {
-        (try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound])) == true
+    func refresh() async {
+        let settings = await center.notificationSettings()
+        authorizationStatus = settings.authorizationStatus
+        alertsEnabled = settings.alertSetting == .enabled && settings.alertStyle != .none
+        soundsEnabled = settings.soundSetting == .enabled
+        if let lastID, await center.deliveredNotifications().contains(where: { $0.request.identifier == lastID }) {
+            lastDelivery = .delivered
+        }
     }
 
-    static func schedule(_ entry: Entry, filled: Bool, amounts: String?) {
+    func authorize() async -> Bool {
+        if let authorizationRequest { return await authorizationRequest.value }
+        let request = Task {
+            await refresh()
+            if authorizationStatus == .notDetermined || authorizationStatus == .provisional {
+                do {
+                    _ = try await center.requestAuthorization(options: [.alert, .sound, .badge])
+                    error = nil
+                } catch {
+                    record(error)
+                }
+            }
+            await refresh()
+            return canSchedule
+        }
+        authorizationRequest = request
+        defer { authorizationRequest = nil }
+        return await request.value
+    }
+
+    private var canSchedule: Bool {
+        authorizationStatus == .authorized || authorizationStatus == .provisional || authorizationStatus == .ephemeral
+    }
+
+    static func request(for entry: Entry, filled: Bool, amounts: String?) -> UNNotificationRequest {
         let content = UNMutableNotificationContent()
         content.title = "Veltrix"
         let type = filled ? L.text("Limit order filled") : entry.kind.localized
         let operation = L.format("Local operation: %@", type)
-        content.body = amounts.map { operation + " · " + $0 } ?? operation
+        if let amounts {
+            let name = Asset.catalog.first { $0.id == entry.asset }?.name ?? entry.asset
+            content.body = operation + " · " + name + " · " + amounts
+        } else {
+            content.body = operation
+        }
         content.sound = .default
-        let request = UNNotificationRequest(identifier: entry.id.uuidString, content: content, trigger: nil)
-        UNUserNotificationCenter.current().add(request) { _ in }
+        return UNNotificationRequest(identifier: entry.id.uuidString, content: content, trigger: nil)
+    }
+
+    static func schedule(_ entry: Entry, filled: Bool, amounts: String?) {
+        let request = request(for: entry, filled: filled, amounts: amounts)
+        shared.enqueue(request, askPermission: [.buy, .sell, .swap].contains(entry.kind))
     }
 
     static func clear() {
-        let center = UNUserNotificationCenter.current()
-        center.removeAllPendingNotificationRequests()
-        center.removeAllDeliveredNotifications()
+        shared.generation += 1
+        shared.lastID = nil
+        shared.lastDelivery = nil
+        shared.center.removeAllPendingNotificationRequests()
+        shared.center.removeAllDeliveredNotifications()
     }
 
     static func schedulePriceAlert(id: UUID, body: String) {
@@ -119,7 +177,43 @@ final class ShortcutSceneDelegate: NSObject, UIWindowSceneDelegate {
         content.title = "Veltrix"
         content.body = body
         content.sound = .default
-        let request = UNNotificationRequest(identifier: "price-\(id.uuidString)", content: content, trigger: nil)
-        UNUserNotificationCenter.current().add(request) { _ in }
+        shared.enqueue(UNNotificationRequest(identifier: "price-\(id.uuidString)", content: content, trigger: nil),
+                       askPermission: false)
+    }
+
+    private func enqueue(_ request: UNNotificationRequest, askPermission: Bool) {
+        let version = generation
+        Task {
+            await refresh()
+            if askPermission && authorizationStatus == .notDetermined { _ = await authorize() }
+            guard version == generation else { return }
+            guard canSchedule else {
+                lastDelivery = .noAlerts
+                logger.notice("Local notification skipped. Authorization status: \(self.authorizationStatus.rawValue)")
+                return
+            }
+            do {
+                try await center.add(request)
+                guard version == generation else {
+                    center.removePendingNotificationRequests(withIdentifiers: [request.identifier])
+                    center.removeDeliveredNotifications(withIdentifiers: [request.identifier])
+                    return
+                }
+                error = nil
+                lastID = request.identifier
+                lastDelivery = alertsEnabled ? .queued : .noAlerts
+                logger.info("iOS accepted a local notification request")
+                try? await Task.sleep(nanoseconds: 650_000_000)
+                if version == generation { await refresh() }
+            } catch {
+                if version == generation { record(error) }
+            }
+        }
+    }
+
+    private func record(_ error: Error) {
+        let failure = error as NSError
+        logger.error("Local notification request failed: \(failure.domain, privacy: .public) (\(failure.code))")
+        self.error = L.format("Notification delivery error (%@).", String(failure.code))
     }
 }

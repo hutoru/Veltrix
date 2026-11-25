@@ -77,8 +77,8 @@ import SwiftUI
         theme = defaults.string(forKey: "theme") ?? "dark"
         fee = defaults.string(forKey: "fee").flatMap { MoneyMath.parse($0, separator: ".") } ?? Decimal(1) / 1_000
         favorites = Set(defaults.stringArray(forKey: "favorites") ?? [])
-        pushOperations = defaults.bool(forKey: "pushOperations")
-        privateNotifications = defaults.object(forKey: "privateNotifications") as? Bool ?? true
+        pushOperations = defaults.object(forKey: "pushOperations") as? Bool ?? true
+        privateNotifications = defaults.object(forKey: "privateNotifications") as? Bool ?? false
         let onSet = defaults.bool(forKey: "onSet")
         self.onSet = onSet
         quickActionIDs = defaults.stringArray(forKey: "quickActionIDs") ?? Self.standardActions.map(\.rawValue)
@@ -233,17 +233,19 @@ import SwiftUI
         hide ? "••••" : Display.number(amount, maximum: FinancialFormatter.pricePrecision(amount, minimum: 4))
     }
 
-    func execute(_ command: Command, id: UUID = UUID()) -> Bool {
+    func execute(_ command: Command, id: UUID = UUID(), showFeedback: Bool = true) -> Bool {
         do {
             let live = usablePrices
             let next = try TradingEngine.apply(command, to: ledger, id: id, prices: live, execution: live)
             try commit(next, notify: true)
-            Feedback.success()
-            toast = L.text("Operation saved")
-            toastTask?.cancel()
-            toastTask = Task { [weak self] in
-                try? await Task.sleep(nanoseconds: 2_200_000_000)
-                if !Task.isCancelled { self?.toast = nil }
+            if showFeedback {
+                Feedback.success()
+                toast = L.text("Operation saved")
+                toastTask?.cancel()
+                toastTask = Task { [weak self] in
+                    try? await Task.sleep(nanoseconds: 2_200_000_000)
+                    if !Task.isCancelled { self?.toast = nil }
+                }
             }
             if case .limit = command { settle() }
             return true
@@ -492,9 +494,9 @@ import SwiftUI
                 let filled = portfolio.orders.contains { $0.id == entry.id && $0.status == .filled }
                 var summary: String?
                 if !privateNotifications && !hide {
-                    let quantity = entry.asset == "USD" ? money(entry.amount) : "\(units(entry.amount)) \(Asset.ticker(entry.asset))"
+                    let quantity = entry.asset == "USD" ? notificationMoney(entry.amount) : "\(units(entry.amount)) \(Asset.ticker(entry.asset))"
                     if entry.asset != "USD", let usd = entry.usd {
-                        summary = quantity + " · " + money(usd)
+                        summary = quantity + " · " + notificationMoney(usd)
                     } else {
                         summary = quantity
                     }
@@ -502,6 +504,11 @@ import SwiftUI
                 notificationSink(entry, filled, summary)
             }
         }
+    }
+
+    private func notificationMoney(_ amount: Decimal) -> String {
+        let formatted = money(amount, price: true)
+        return formatted == "—" ? Display.money(amount, currency: "USD", digits: 4, minimum: 2) : formatted
     }
 
     private static func loadDemoKey() -> String? {

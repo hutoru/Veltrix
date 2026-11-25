@@ -12,8 +12,13 @@ struct VeltrixApp: App {
         let testing = ProcessInfo.processInfo.arguments.contains("--ui-testing") && _isDebugAssertConfiguration()
         let defaults = testing ? (UserDefaults(suiteName: "Veltrix-UI-Tests") ?? .standard) : .standard
         if testing { defaults.removePersistentDomain(forName: "Veltrix-UI-Tests") }
+        if testing && ProcessInfo.processInfo.arguments.contains("--locked-fixture") {
+            defaults.set(true, forKey: "deviceLockEnabled")
+        }
         self.defaults = defaults
-        _model = StateObject(wrappedValue: VeltrixModel(defaults: defaults, testing: testing))
+        let nativeNotifications: VeltrixModel.NotificationSink? = testing &&
+            ProcessInfo.processInfo.arguments.contains("--native-notifications") ? OperationNotifications.schedule : nil
+        _model = StateObject(wrappedValue: VeltrixModel(defaults: defaults, testing: testing, notificationSink: nativeNotifications))
         _lock = StateObject(wrappedValue: AppLock(defaults: defaults, testing: testing))
     }
 
@@ -110,7 +115,10 @@ struct VeltrixRoot: View {
         }
         .onChange(of: phase) { next in
             switch next {
-            case .active: lock.becomeActive(); if !lock.locked { model.start(); openPendingNotification(); openPendingShortcut() }
+            case .active:
+                lock.becomeActive()
+                if !lock.locked { model.start(); openPendingNotification(); openPendingShortcut() }
+                else { attemptAutomaticUnlock() }
             case .background: lock.enteredBackground(); model.stop()
             default: break
             }
@@ -136,17 +144,12 @@ struct VeltrixRoot: View {
         .onReceive(NotificationCenter.default.publisher(for: NotificationDelegate.opened)) { _ in openPendingNotification() }
         .onReceive(NotificationCenter.default.publisher(for: AppShortcut.opened)) { _ in openPendingShortcut() }
         .onChange(of: showSplash) { visible in
-            if !visible { openPendingNotification(); openPendingShortcut() }
+            if !visible { openPendingNotification(); openPendingShortcut(); attemptAutomaticUnlock() }
         }
         .onChange(of: model.onSet) { enabled in if !enabled { openPendingNotification() } }
-        .onAppear { if phase == .active && !lock.locked { model.start(); openPendingNotification(); openPendingShortcut() } }
-        .task {
-            #if DEBUG
-            let arguments = ProcessInfo.processInfo.arguments
-            if arguments.contains("--ui-testing") && arguments.contains("--locked-fixture") && !lock.hasPIN {
-                if await lock.updatePIN(current: "", new: "2468") { lock.lockNow() }
-            }
-            #endif
+        .onAppear {
+            if phase == .active && !lock.locked { model.start(); openPendingNotification(); openPendingShortcut() }
+            else { attemptAutomaticUnlock() }
         }
         .sheet(item: $notificationEntry) { entry in
             NavigationStack {
@@ -155,6 +158,13 @@ struct VeltrixRoot: View {
             }
         }
         .fullScreenCover(isPresented: $shortcutScanner) { QRScanner() }
+    }
+
+    private func attemptAutomaticUnlock() {
+        guard !showSplash, phase == .active, lock.locked, lock.enabled, !model.storageError else { return }
+        Task {
+            await lock.tryAutomaticUnlock()
+        }
     }
 
     private func openPendingShortcut() {
@@ -264,63 +274,5 @@ private struct LaunchScreen: View {
             .opacity(appeared || reduceMotion ? 1 : 0)
         }
         .onAppear { withAnimation(reduceMotion ? nil : .easeOut(duration: 0.5)) { appeared = true } }
-    }
-}
-
-private struct LockScreen: View {
-    @EnvironmentObject private var lock: AppLock
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @AppStorage("profileName") private var name = ""
-    @State private var pin = ""
-    @State private var shake = false
-
-    var body: some View {
-        ScrollView {
-            VStack(spacing: 16) {
-                ProfileAvatar(size: 72)
-                Text("Welcome back").font(.largeTitle.weight(.semibold))
-                Text(verbatim: name.isEmpty ? L.text("My profile") : name).font(.headline).foregroundStyle(Color.vxMuted)
-                if lock.hasPIN {
-                    HStack(spacing: 12) {
-                        ForEach(0..<max(4, pin.count), id: \.self) { index in
-                            Circle().fill(index < pin.count ? Color.vxText : Color.vxSeparator).frame(width: 9, height: 9)
-                        }
-                    }
-                    .frame(height: 28)
-                    .offset(x: shake && !reduceMotion ? 8 : 0)
-                    .accessibilityElement()
-                    .accessibilityLabel(Text("PIN"))
-                    .accessibilityValue(Text(verbatim: String(pin.count)))
-                    NumericPad(allowsDecimal: false, onInput: { digit in
-                        if pin.count < 8 { pin.append(digit) }
-                    }, onDelete: { if !pin.isEmpty { pin.removeLast() } }).disabled(lock.busy)
-                    Button("Unlock") {
-                        Task {
-                            await lock.unlock(pin: pin)
-                            pin = ""
-                            if !lock.locked { Feedback.success() }
-                            else {
-                                Feedback.failure()
-                                withAnimation(reduceMotion ? nil : .easeOut(duration: 0.08)) { shake = true }
-                                try? await Task.sleep(nanoseconds: 80_000_000)
-                                withAnimation(reduceMotion ? nil : .spring(response: 0.24, dampingFraction: 0.36)) { shake = false }
-                            }
-                        }
-                    }.buttonStyle(PrimaryButtonStyle()).disabled(pin.count < 4 || lock.busy)
-                    if let retryAt = lock.retryAt, retryAt > Date() {
-                        Text(retryAt, style: .timer).font(.footnote.monospacedDigit())
-                    }
-                }
-                if lock.biometrics {
-                    Button {
-                        Task { await lock.unlockWithDevice(); if !lock.locked { Feedback.success() } }
-                    } label: { Label("Use device authentication", systemImage: "faceid") }
-                    .buttonStyle(.bordered).disabled(lock.busy)
-                }
-                if let error = lock.error { Text(verbatim: error).font(.footnote).foregroundStyle(Color.vxDown) }
-            }
-            .frame(maxWidth: 370).padding(24)
-            .frame(maxWidth: .infinity)
-        }
     }
 }

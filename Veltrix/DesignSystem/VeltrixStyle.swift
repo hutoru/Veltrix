@@ -220,6 +220,7 @@ struct PageScroll<Content: View>: View {
 struct NumericPad: View {
     let allowsDecimal: Bool
     var keyHeight: CGFloat = 44
+    var digitSize: CGFloat = 22
     let onInput: (String) -> Void
     let onDelete: () -> Void
     private var separator: String { Locale.current.decimalSeparator ?? "." }
@@ -236,7 +237,7 @@ struct NumericPad: View {
                             if key == "delete" { Image(systemName: "delete.left") }
                             else { Text(verbatim: key) }
                         }
-                        .font(.system(size: 22, weight: .medium).monospacedDigit())
+                        .font(.system(size: key == "delete" ? 22 : digitSize, weight: .regular).monospacedDigit())
                         .frame(maxWidth: .infinity, minHeight: keyHeight)
                         .contentShape(Rectangle())
                     }

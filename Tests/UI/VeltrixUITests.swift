@@ -147,22 +147,36 @@ final class VeltrixUITests: XCTestCase {
         }
     }
 
-    func testLaunchAndUnlockWithPIN() {
+    func testLaunchShowsSystemAuthenticationGate() {
         let app = launch(["--capture-launch", "--locked-fixture"])
         capture(app, name: "Splash")
         XCTAssertTrue(app.staticTexts["Welcome back"].waitForExistence(timeout: 8))
-        let digit = app.buttons["keypad.1"]
-        let visible = XCTNSPredicateExpectation(predicate: NSPredicate(format: "hittable == true"), object: digit)
-        XCTAssertEqual(XCTWaiter.wait(for: [visible], timeout: 5), .completed)
+        XCTAssertTrue(app.buttons["lock.unlock"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["keypad.1"].exists)
+        XCTAssertFalse(app.buttons["tab.portfolio"].exists)
         capture(app, name: "Lock Screen")
-        for digit in ["1", "2", "3", "4"] { app.buttons["keypad." + digit].tap() }
-        XCTAssertTrue(app.buttons["Unlock"].isEnabled, app.debugDescription)
-        app.buttons["Unlock"].tap()
-        XCTAssertTrue(app.staticTexts["Incorrect PIN"].waitForExistence(timeout: 5))
-        for digit in ["2", "4", "6", "8"] { app.buttons["keypad." + digit].tap() }
-        XCTAssertTrue(app.buttons["Unlock"].isEnabled, app.debugDescription)
-        app.buttons["Unlock"].tap()
-        XCTAssertTrue(app.buttons["tab.portfolio"].waitForExistence(timeout: 5))
+    }
+
+    func testSavedTradeReachesIOSNotificationCenter() {
+        let app = launch(["--native-notifications"])
+        app.buttons["trade.buy"].tap()
+        app.buttons["keypad.1"].tap()
+        app.buttons["trade.review"].tap()
+        app.buttons["trade.confirm"].tap()
+
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        let allow = springboard.alerts.buttons["Allow"]
+        if allow.waitForExistence(timeout: 5) { allow.tap() }
+        XCTAssertTrue(app.staticTexts["trade.saved"].waitForExistence(timeout: 8))
+        app.buttons["Done"].tap()
+        app.buttons["tab.profile"].tap()
+        app.buttons["profile.settings"].tap()
+        let delivery = app.staticTexts["notifications.delivery"]
+        for _ in 0..<6 where !delivery.isHittable { app.swipeUp() }
+        let delivered = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@", "Last notification delivered"),
+                                                 object: delivery)
+        XCTAssertEqual(XCTWaiter.wait(for: [delivered], timeout: 8), .completed, app.debugDescription)
+        capture(app, name: "iOS Notification Diagnostics")
     }
 
     func testQRScannerOpensAndCanBeDismissed() {

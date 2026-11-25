@@ -87,6 +87,7 @@ final class PersistenceTests: XCTestCase {
             notifications.append((entry, amount))
         }
         model.pushOperations = true
+        model.privateNotifications = true
         let operation = UUID()
         XCTAssertTrue(model.execute(.deposit(100), id: operation))
         XCTAssertFalse(model.execute(.deposit(100), id: operation))

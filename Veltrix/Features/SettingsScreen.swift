@@ -4,6 +4,8 @@ import UniformTypeIdentifiers
 struct SettingsScreen: View {
     @EnvironmentObject private var model: VeltrixModel
     @EnvironmentObject private var lock: AppLock
+    @Environment(\.scenePhase) private var notificationPhase
+    @ObservedObject private var systemNotifications = OperationNotifications.shared
     @Environment(\.openURL) private var openURL
     @AppStorage("profileName") private var profileName = ""
     @AppStorage("profileUsername") private var username = ""
@@ -46,6 +48,23 @@ struct SettingsScreen: View {
             Section("Notifications") {
                 Toggle("iOS notifications", isOn: Binding(get: { model.pushOperations }, set: updateNotifications))
                 Toggle("Hide amounts in notifications", isOn: $model.privateNotifications)
+                if model.pushOperations {
+                    if systemNotifications.authorizationStatus == .notDetermined {
+                        Button("Allow notifications") { requestNotificationPermission() }
+                    } else if !systemNotifications.alertsEnabled || !systemNotifications.soundsEnabled {
+                        settingsButton("Open iOS notification settings", "bell.badge") { openNotificationSettings() }
+                    }
+                    Text(notificationStatus).font(.footnote).foregroundStyle(Color.vxMuted)
+                        .accessibilityIdentifier("notifications.authorization")
+                    if let error = systemNotifications.error {
+                        Text(verbatim: error).font(.footnote).foregroundStyle(Color.vxDown)
+                    } else if let delivery = systemNotifications.lastDelivery {
+                        Text(delivery == .delivered ? "Last notification delivered" :
+                             (delivery == .queued ? "Last notification accepted by iOS" : "Notification alerts are unavailable"))
+                            .font(.caption).foregroundStyle(Color.vxMuted)
+                            .accessibilityIdentifier("notifications.delivery")
+                    }
+                }
                 NavigationLink("Price alerts") { PriceAlertsScreen() }
             }.disabled(model.onSet)
             Section("Cards") { NavigationLink("Cards") { CardsScreen() } }
@@ -88,12 +107,15 @@ struct SettingsScreen: View {
             }
         }
         .navigationTitle("Settings")
+        .task(id: notificationPhase) {
+            if notificationPhase == .active { await systemNotifications.refresh() }
+        }
         .scrollContentBackground(.hidden)
         .background(Color.vxBackground)
         .sheet(item: $panel) { SettingsForm(panel: $0) }
         .alert("Notifications are disabled", isPresented: $notificationPermission) {
             Button("Open Settings") {
-                if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
+                openNotificationSettings()
             }
             Button("Cancel", role: .cancel) {}
         }
@@ -127,14 +149,32 @@ struct SettingsScreen: View {
     }
 
     private func updateNotifications(_ enabled: Bool) {
+        model.pushOperations = enabled
         if enabled {
-            Task {
-                model.pushOperations = await OperationNotifications.authorize()
-                notificationPermission = !model.pushOperations
-            }
+            requestNotificationPermission()
         } else {
-            model.pushOperations = false
             OperationNotifications.clear()
+        }
+    }
+
+    private func requestNotificationPermission() {
+        Task {
+            _ = await systemNotifications.authorize()
+            notificationPermission = systemNotifications.authorizationStatus == .denied
+        }
+    }
+
+    private func openNotificationSettings() {
+        if let url = URL(string: UIApplication.openNotificationSettingsURLString) { openURL(url) }
+    }
+
+    private var notificationStatus: LocalizedStringKey {
+        switch systemNotifications.authorizationStatus {
+        case .notDetermined: return "Notification permission has not been requested"
+        case .denied: return "Notifications are blocked by iOS"
+        default:
+            if !systemNotifications.alertsEnabled { return "Banners are off in iOS Settings" }
+            return systemNotifications.soundsEnabled ? "Alerts and sound enabled" : "Alerts enabled, sound off"
         }
     }
 
@@ -195,11 +235,12 @@ struct SettingsScreen: View {
     private var security: some View {
         VStack(alignment: .leading, spacing: 11) {
             heading("Privacy and lock")
-            Toggle("Face ID / Touch ID", isOn: .init(get: { lock.biometrics }, set: { next in
-                Task { await lock.changeBiometrics(next) }
+            Toggle("Require device authentication", isOn: .init(get: { lock.enabled }, set: { next in
+                Task { await lock.setEnabled(next) }
             }))
             .disabled(lock.busy)
-            settingsButton(lock.hasPIN ? "Change or remove PIN" : "Set PIN", "lock") { panel = .pin }
+            Text("Unlock using Face ID, Touch ID or your iPhone passcode.")
+                .font(.caption).foregroundStyle(Color.vxMuted)
             Picker("Lock after leaving the app", selection: .init(get: { lock.timeout }, set: { lock.setTimeout($0) })) {
                 Text("Immediately").tag(0)
                 Text("30 seconds").tag(30)
@@ -208,7 +249,7 @@ struct SettingsScreen: View {
                 Text("15 minutes").tag(900)
             }
             .pickerStyle(.menu)
-            if lock.hasPIN || lock.biometrics { settingsButton("Lock now", "lock.fill") { lock.lockNow() } }
+            if lock.enabled { settingsButton("Lock now", "lock.fill") { lock.lockNow() } }
             if let error = lock.error { Text(verbatim: error).font(.caption).foregroundStyle(Color.vxDown) }
         }
 
@@ -288,7 +329,7 @@ private struct QuickActionsSettings: View {
 }
 
 enum SettingsPanel: String, Identifiable {
-    case newPortfolio, cash, positions, fee, pin, key
+    case newPortfolio, cash, positions, fee, key
     var id: String { rawValue }
     var title: LocalizedStringKey {
         switch self {
@@ -296,7 +337,6 @@ enum SettingsPanel: String, Identifiable {
         case .cash: return "Set cash balance"
         case .positions: return "Edit holdings"
         case .fee: return "Trading fee"
-        case .pin: return "App PIN"
         case .key: return "Optional CoinGecko API key"
         }
     }
@@ -304,32 +344,28 @@ enum SettingsPanel: String, Identifiable {
 
 struct SettingsForm: View {
     @EnvironmentObject private var model: VeltrixModel
-    @EnvironmentObject private var lock: AppLock
     @Environment(\.dismiss) private var dismiss
     let panel: SettingsPanel
     @State private var name = ""
     @State private var amount = ""
     @State private var average = ""
     @State private var asset = "bitcoin"
-    @State private var current = ""
     @State private var secret = ""
-    @State private var confirmation = ""
     @State private var message: String?
     @State private var processing = false
     @State private var removeHolding = false
-    @State private var removePIN = false
     @State private var operation = UUID()
 
     var body: some View {
         NavigationStack {
             Form {
                 Section { fields }
-                if let error = message ?? (panel == .pin ? lock.error : nil) {
+                if let error = message {
                     Text(verbatim: error).font(.footnote).foregroundStyle(Color.vxDown)
                 }
                 Button("Save") { submit() }
                     .buttonStyle(PrimaryButtonStyle()).listRowBackground(Color.clear)
-                    .disabled(processing || (panel == .pin && lock.busy))
+                    .disabled(processing)
             }
             .scrollContentBackground(.hidden).background(Color.vxBackground)
             .navigationTitle(panel.title)
@@ -340,10 +376,6 @@ struct SettingsForm: View {
         .onChange(of: asset) { _ in fillHolding() }
         .confirmationDialog("Remove this holding?", isPresented: $removeHolding, titleVisibility: .visible) {
             Button("Remove holding", role: .destructive) { execute(.setPosition(asset, 0, 0)) }
-            Button("Cancel", role: .cancel) {}
-        }
-        .confirmationDialog("Remove the app PIN?", isPresented: $removePIN, titleVisibility: .visible) {
-            Button("Remove PIN", role: .destructive) { changePIN(nil) }
             Button("Cancel", role: .cancel) {}
         }
     }
@@ -366,14 +398,6 @@ struct SettingsForm: View {
             TextField("Fee (%)", text: $amount).keyboardType(.decimalPad)
             Text("The fee applies to market and limit orders and swaps.")
                 .font(.caption).foregroundStyle(Color.vxMuted)
-        case .pin:
-            if lock.hasPIN {
-                SecureField("Current PIN", text: $current).keyboardType(.numberPad)
-            }
-            SecureField("New PIN", text: $secret).keyboardType(.numberPad)
-            SecureField("Repeat new PIN", text: $confirmation).keyboardType(.numberPad)
-            Text("Use 4–8 digits.").font(.caption).foregroundStyle(Color.vxMuted)
-            if lock.hasPIN { Button("Remove PIN", role: .destructive) { removePIN = true }.disabled(lock.busy) }
         case .key:
             SecureField("CoinGecko Demo key", text: $secret).textInputAutocapitalization(.never).autocorrectionDisabled()
             Text("Leave blank and save to use the public feed without a key.")
@@ -387,7 +411,6 @@ struct SettingsForm: View {
         case .cash: amount = Display.input(model.portfolio.cash)
         case .positions: fillHolding()
         case .fee: amount = Display.input(model.fee * 100)
-        case .pin: lock.error = nil
         case .key: break
         }
     }
@@ -401,9 +424,6 @@ struct SettingsForm: View {
     private func submit() {
         message = nil
         switch panel {
-        case .pin:
-            guard secret == confirmation else { message = L.text("The new PINs do not match."); return }
-            changePIN(secret)
         case .key:
             processing = true
             Task {
@@ -430,11 +450,6 @@ struct SettingsForm: View {
             default: break
             }
         }
-    }
-
-    private func changePIN(_ next: String?) {
-        message = nil
-        Task { if await lock.updatePIN(current: current, new: next) { dismiss() } }
     }
 
     private func execute(_ command: Command) {

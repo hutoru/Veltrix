@@ -4,16 +4,17 @@ import UIKit
 
 struct ProfileAvatar: View {
     var size: CGFloat
+    var monochrome = false
     @AppStorage("profileAvatar") private var avatar = Data()
     var body: some View {
         Group {
             if let picture = UIImage(data: avatar) {
                 Image(uiImage: picture).resizable().scaledToFill()
             } else {
-                VeltrixMark().fill(Color.vxHighlight).padding(size * 0.25)
+                VeltrixMark().fill(monochrome ? .white : Color.vxHighlight).padding(size * 0.25)
             }
         }
-        .frame(width: size, height: size).background(Color.vxSurface).clipShape(Circle())
+        .frame(width: size, height: size).background(monochrome ? .white.opacity(0.08) : Color.vxSurface).clipShape(Circle())
         .accessibilityHidden(true)
     }
 }
