@@ -1,14 +1,14 @@
 import Charts
 import SwiftUI
 
-struct ChartPanel: View {
+struct VeltrixChart: View {
     let samples: [ChartSample]
     @Binding var range: ChartRange
     @Binding var candles: Bool
     let allowsCandles: Bool
     var height: CGFloat = 190
     var ranges = ChartRange.allCases
-    var rangeLabel: (ChartRange) -> String = { $0.rawValue }
+    var rangeLabel: (ChartRange) -> String = { $0.displayTitle }
     var format: (Decimal) -> String
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var phase
@@ -64,8 +64,8 @@ struct ChartPanel: View {
                     .accessibilityAddTraits(range == value ? .isSelected : [])
                 }
             }
-            .padding(3)
-            .background(Color.vxSurface, in: RoundedRectangle(cornerRadius: 12))
+            .padding(.vertical, 4)
+            .overlay(alignment: .top) { Rectangle().fill(Color.vxSeparator).frame(height: 1) }
 
             HStack(spacing: 12) {
                 if allowsCandles {
@@ -157,18 +157,18 @@ struct ChartPanel: View {
                             .foregroundStyle(shade).symbolSize(8)
                     }
                 } else {
-                    if plotted.count >= 3 { AreaMark(x: .value("Date", sample.date), yStart: .value("Floor", minimum - padding),
+                    if plotted.count >= 2 { AreaMark(x: .value("Date", sample.date), yStart: .value("Floor", minimum - padding),
                              yEnd: .value("Price", double(sample.close)))
-                        .interpolationMethod(.monotone)
+                        .interpolationMethod(.linear)
                         .foregroundStyle(LinearGradient(colors: [trend.opacity(0.19), trend.opacity(0.01)],
                                                         startPoint: .top, endPoint: .bottom)) }
-                    if plotted.count >= 3 {
+                    if plotted.count >= 2 {
                         LineMark(x: .value("Date", sample.date), y: .value("Price", double(sample.close)))
                             .foregroundStyle(trend)
-                            .interpolationMethod(.monotone)
-                            .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round))
+                            .interpolationMethod(.linear)
+                            .lineStyle(StrokeStyle(lineWidth: 1.8, lineCap: .round, lineJoin: .round))
                     }
-                    if data.count == 1 || plotted.count < 3 {
+                    if data.count == 1 {
                         PointMark(x: .value("Date", sample.date), y: .value("Price", double(sample.close)))
                             .foregroundStyle(Color.vxHighlight).symbolSize(30)
                     }
@@ -221,6 +221,19 @@ struct ChartPanel: View {
                         .updating($pinch) { value, state, _ in state = value }
                         .onEnded { zoom = min(20, max(1, zoom * $0)) })
                     .accessibilityHidden(true)
+                if replay == nil, selected == nil, let latest = plotted.last,
+                   let x = proxy.position(forX: latest.date), let y = proxy.position(forY: double(latest.close)) {
+                    TimelineView(.animation(minimumInterval: 1 / 24, paused: reduceMotion || phase != .active)) { timeline in
+                        let pulse = reduceMotion ? 0.0 : (sin(timeline.date.timeIntervalSinceReferenceDate * 4) + 1) / 2
+                        Canvas { context, _ in
+                            let center = CGPoint(x: plot.minX + x, y: plot.minY + y)
+                            let radius = 4 + pulse * 3
+                            let halo = CGRect(x: center.x - radius, y: center.y - radius, width: radius * 2, height: radius * 2)
+                            context.fill(Path(ellipseIn: halo), with: .color(trend.opacity(0.2)))
+                            context.fill(Path(ellipseIn: CGRect(x: center.x - 3, y: center.y - 3, width: 6, height: 6)), with: .color(trend))
+                        }
+                    }.allowsHitTesting(false).accessibilityHidden(true)
+                }
             }
         }
         .animation(reduceMotion ? nil : .easeOut(duration: 0.25), value: samples.count)

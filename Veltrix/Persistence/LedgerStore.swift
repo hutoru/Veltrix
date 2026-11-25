@@ -34,7 +34,7 @@ import CoreData
 final class CoreDataLedgerStore: LedgerStore {
     private let context: NSManagedObjectContext
 
-    init(inMemory: Bool = false, url: URL? = nil) throws {
+    init(inMemory: Bool = false, url: URL? = nil, onSet: Bool = false) throws {
         let entity = NSEntityDescription()
         entity.name = "SimulationState"
         entity.managedObjectClassName = NSStringFromClass(NSManagedObject.self)
@@ -58,7 +58,7 @@ final class CoreDataLedgerStore: LedgerStore {
         } else {
             let directory = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
                                                         appropriateFor: nil, create: true)
-            diskURL = url ?? directory.appendingPathComponent("Veltrix.sqlite")
+            diskURL = url ?? directory.appendingPathComponent(onSet ? "VeltrixOnSet.sqlite" : "Veltrix.sqlite")
         }
         #if os(iOS)
         let options: [AnyHashable: Any]? = inMemory ? nil : [

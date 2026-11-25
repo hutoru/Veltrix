@@ -29,4 +29,80 @@ final class PersistenceTests: XCTestCase {
             XCTAssertEqual($0 as? SimulationError, .invalidBackup)
         }
     }
+
+    @MainActor func testOnSetPortfolioKeepsLedgerAndActivitySeparate() async throws {
+        let name = "Veltrix-OnSet-" + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+        let storage = try CoreDataLedgerStore(inMemory: true)
+        let model = VeltrixModel(defaults: defaults, store: storage, testing: true)
+        XCTAssertTrue(model.execute(.deposit(125)))
+        let main = model.ledger
+        XCTAssertEqual(model.notificationEntries.count, 1)
+
+        model.setOnSet(true)
+        XCTAssertTrue(model.onSet)
+        XCTAssertNotEqual(model.ledger.selected, main.selected)
+        XCTAssertTrue(model.notificationEntries.isEmpty)
+        XCTAssertTrue(model.execute(.deposit(30)))
+        XCTAssertTrue(model.execute(.createCard(.black, "On-set card", nil)))
+        model.clearNotifications()
+        let filming = model.ledger
+
+        model.setOnSet(false)
+        XCTAssertFalse(model.onSet)
+        XCTAssertEqual(model.ledger, main)
+        XCTAssertEqual(try storage.load(), main)
+        XCTAssertEqual(model.notificationEntries.count, 1)
+        XCTAssertTrue(model.cards.isEmpty)
+
+        model.setOnSet(true)
+        XCTAssertEqual(model.ledger, filming)
+        XCTAssertEqual(model.cards.first?.name, "On-set card")
+        XCTAssertTrue(model.notificationEntries.isEmpty)
+    }
+
+    func testCardDesignRoundTripKeepsExistingCardsReadable() throws {
+        let old = try TradingEngine.apply(.createCard(.platinum, "Original", 100), to: Ledger.fresh())
+        let existing = try XCTUnwrap(old.cards.first)
+        let originalBackup = try SimulationBackup.export(old)
+        XCTAssertNil(try SimulationBackup.load(originalBackup).cards.first?.design)
+        let design = CardDesign(material: .holographic, texture: .engraved, tint: 0x7955FF)
+        let revised = try TradingEngine.apply(.configureCard(existing.id, "Edited", 100, tier: .custom, design: design), to: old)
+        let restored = try SimulationBackup.load(SimulationBackup.export(revised))
+        XCTAssertEqual(restored.cards.first?.id, existing.id)
+        XCTAssertEqual(restored.cards.first?.design, design)
+        XCTAssertEqual(restored.cards.first?.tier, .custom)
+    }
+
+    @MainActor func testNotificationsFollowSuccessfulSaveAndHonorPrivacy() async throws {
+        let name = "Veltrix-Notifications-" + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+        let storage = try CoreDataLedgerStore(inMemory: true)
+        var notifications: [(Entry, String?)] = []
+        let model = VeltrixModel(defaults: defaults, store: storage, testing: true) { entry, _, amount in
+            let saved = try? storage.load()
+            XCTAssertTrue(saved?.portfolios.first?.entries.contains(where: { $0.id == entry.id }) == true)
+            notifications.append((entry, amount))
+        }
+        model.pushOperations = true
+        model.privateNotifications = true
+        let operation = UUID()
+        XCTAssertTrue(model.execute(.deposit(100), id: operation))
+        XCTAssertFalse(model.execute(.deposit(100), id: operation))
+        XCTAssertFalse(model.execute(.deposit(0)))
+        XCTAssertEqual(notifications.map { $0.0.id }, [operation])
+        XCTAssertNil(notifications.first?.1)
+
+        model.privateNotifications = false
+        XCTAssertTrue(model.execute(.deposit(20)))
+        XCTAssertEqual(notifications.count, 2)
+        XCTAssertNotNil(notifications.last?.1)
+
+        model.hide = true
+        XCTAssertTrue(model.execute(.deposit(25)))
+        XCTAssertEqual(notifications.count, 3)
+        XCTAssertNil(notifications.last?.1)
+    }
 }

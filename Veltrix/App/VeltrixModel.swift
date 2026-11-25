@@ -2,6 +2,7 @@ import Foundation
 import SwiftUI
 
 @MainActor final class VeltrixModel: ObservableObject {
+    typealias NotificationSink = @MainActor (Entry, Bool, String?) -> Void
     @Published private(set) var ledger: Ledger
     @Published private(set) var quotes: [String: Quote] = [:]
     @Published private(set) var rates: [String: FXRate] = [:]
@@ -18,13 +19,29 @@ import SwiftUI
     @Published var theme: String { didSet { defaults.set(theme, forKey: "theme") } }
     @Published private(set) var fee: Decimal { didSet { defaults.set(DisplayStored.string(fee), forKey: "fee") } }
     @Published var favorites: Set<String> { didSet { defaults.set(Array(favorites), forKey: "favorites") } }
+    @Published var pushOperations: Bool { didSet { defaults.set(pushOperations, forKey: "pushOperations") } }
+    @Published var privateNotifications: Bool { didSet { defaults.set(privateNotifications, forKey: "privateNotifications") } }
+    @Published private(set) var onSet: Bool { didSet { defaults.set(onSet, forKey: "onSet") } }
+    @Published var quickActionIDs: [String] { didSet { defaults.set(quickActionIDs, forKey: "quickActionIDs") } }
+    @Published private(set) var priceAlerts: [PriceAlert] {
+        didSet { defaults.set(try? JSONEncoder().encode(priceAlerts), forKey: "priceAlerts") }
+    }
+    @Published private(set) var recentAssetIDs: [String] {
+        didSet { defaults.set(recentAssetIDs, forKey: "recentAssetIDs") }
+    }
+    @Published private var notificationsCleared: Date { didSet { defaults.set(notificationsCleared, forKey: notificationKey("notificationsCleared")) } }
+    @Published private var notificationsReadDate: Date { didSet { defaults.set(notificationsReadDate, forKey: notificationKey("notificationsReadDate")) } }
+    @Published private var notificationsRead: Set<String> { didSet { defaults.set(Array(notificationsRead), forKey: notificationKey("notificationsRead")) } }
 
     private var store: (any LedgerStore)?
+    private var mainStore: (any LedgerStore)?
+    private var onSetStore: (any LedgerStore)?
     private var provider: any MarketDataProvider
     private let http: HTTPClient
     private let cache: MarketCache
     private let defaults: UserDefaults
     private let testing: Bool
+    private let notificationSink: NotificationSink?
     private var updates: Task<Void, Never>?
     private var stream: Task<Void, Never>?
     private var fxLoading = false
@@ -33,11 +50,21 @@ import SwiftUI
     private var gecko: [String: Quote] = [:]
     private var ticks: [String: TickerTick] = [:]
     private var toastTask: Task<Void, Never>?
+    #if DEBUG
+    private var uiSamples: [ChartSample] = []
+    #endif
 
     init(defaults: UserDefaults = .standard, store suppliedStore: (any LedgerStore)? = nil,
-         provider suppliedProvider: (any MarketDataProvider)? = nil, testing: Bool = false) {
+         provider suppliedProvider: (any MarketDataProvider)? = nil, testing: Bool = false,
+         notificationSink: NotificationSink? = nil) {
         self.defaults = defaults
         self.testing = testing
+        if testing {
+            self.notificationSink = notificationSink
+        } else {
+            let native: NotificationSink = OperationNotifications.schedule
+            self.notificationSink = notificationSink ?? native
+        }
         let client = HTTPClient()
         http = client
         provider = suppliedProvider ?? PublicMarketProvider(http: client, demoKey: testing ? nil : Self.loadDemoKey())
@@ -50,21 +77,130 @@ import SwiftUI
         theme = defaults.string(forKey: "theme") ?? "dark"
         fee = defaults.string(forKey: "fee").flatMap { MoneyMath.parse($0, separator: ".") } ?? Decimal(1) / 1_000
         favorites = Set(defaults.stringArray(forKey: "favorites") ?? [])
+        pushOperations = defaults.object(forKey: "pushOperations") as? Bool ?? true
+        privateNotifications = defaults.object(forKey: "privateNotifications") as? Bool ?? false
+        let onSet = defaults.bool(forKey: "onSet")
+        self.onSet = onSet
+        quickActionIDs = defaults.stringArray(forKey: "quickActionIDs") ?? Self.standardActions.map(\.rawValue)
+        priceAlerts = defaults.data(forKey: "priceAlerts")
+            .flatMap { try? JSONDecoder().decode([PriceAlert].self, from: $0) } ?? []
+        recentAssetIDs = defaults.stringArray(forKey: "recentAssetIDs") ?? []
+        let prefix = onSet ? "onSet." : ""
+        notificationsCleared = defaults.object(forKey: prefix + "notificationsCleared") as? Date ?? .distantPast
+        notificationsReadDate = defaults.object(forKey: prefix + "notificationsReadDate") as? Date ?? Date()
+        notificationsRead = Set(defaults.stringArray(forKey: prefix + "notificationsRead") ?? [])
         do {
-            let storage = try suppliedStore ?? CoreDataLedgerStore(inMemory: testing)
-            if let loaded = try storage.load() { ledger = loaded } else { try storage.save(ledger) }
+            mainStore = suppliedStore
+            let storage = try (onSet ? onSetStore : mainStore) ?? CoreDataLedgerStore(inMemory: testing, onSet: onSet)
+            ledger = try Self.loadLedger(from: storage)
+            if onSet { onSetStore = storage } else { mainStore = storage }
             store = storage
         } catch {
             storageError = true
         }
+        #if DEBUG
+        if testing { loadTestMarket() }
+        #endif
     }
 
     var portfolio: Portfolio { ledger.portfolios.first { $0.id == ledger.selected } ?? ledger.portfolios[0] }
     var cards: [VirtualCard] { ledger.cards.filter { $0.owner == ledger.selected } }
     var prices: [String: Decimal] { quotes.compactMapValues(\.price) }
+    static let standardActions: [TradeAction] = [.buy, .sell, .send, .receive, .swap]
+
+    var quickActions: [TradeAction] {
+        var seen: Set<String> = []
+        let actions = quickActionIDs.compactMap { id in
+            seen.insert(id).inserted ? TradeAction(rawValue: id) : nil
+        }
+        return actions.isEmpty ? Self.standardActions : Array(actions.prefix(5))
+    }
+
+    func setOnSet(_ enabled: Bool) {
+        guard onSet != enabled else { return }
+        do {
+            let storage = try (enabled ? onSetStore : mainStore) ?? CoreDataLedgerStore(inMemory: testing, onSet: enabled)
+            let next = try Self.loadLedger(from: storage)
+            if enabled { onSetStore = storage } else { mainStore = storage }
+            store = storage
+            ledger = next
+            onSet = enabled
+            notificationsCleared = defaults.object(forKey: notificationKey("notificationsCleared")) as? Date ?? .distantPast
+            notificationsReadDate = defaults.object(forKey: notificationKey("notificationsReadDate")) as? Date ?? Date()
+            notificationsRead = Set(defaults.stringArray(forKey: notificationKey("notificationsRead")) ?? [])
+            toastTask?.cancel()
+            toast = nil
+        } catch {
+            self.error = L.text("Local storage unavailable")
+        }
+    }
+
+    private static func loadLedger(from storage: any LedgerStore) throws -> Ledger {
+        if let loaded = try storage.load() { return loaded }
+        let fresh = Ledger.fresh(name: L.text("Main portfolio"))
+        try storage.save(fresh)
+        return fresh
+    }
+
+    private func notificationKey(_ key: String) -> String { onSet ? "onSet." + key : key }
+
+    var recentAssets: [Asset] {
+        recentAssetIDs.compactMap { id in Asset.catalog.first { $0.id == id } }
+    }
+
+    func recordAsset(_ asset: Asset) {
+        guard recentAssetIDs.first != asset.id else { return }
+        recentAssetIDs = Array(([asset.id] + recentAssetIDs.filter { $0 != asset.id }).prefix(8))
+    }
+
+    func addPriceAlert(_ alert: PriceAlert) {
+        priceAlerts.append(alert)
+        checkPriceAlerts()
+    }
+
+    func removePriceAlert(_ id: UUID) { priceAlerts.removeAll { $0.id == id } }
+
+    var notificationEntries: [Entry] {
+        portfolio.entries.filter { $0.date > notificationsCleared && OperationNotifications.eligible($0) }
+            .sorted { $0.date > $1.date }
+    }
+
+    var hasUnreadNotifications: Bool {
+        portfolio.entries.reversed().contains { $0.date > notificationsCleared && OperationNotifications.eligible($0) && isUnread($0) }
+    }
+
+    func isUnread(_ entry: Entry) -> Bool {
+        entry.date > notificationsReadDate && !notificationsRead.contains(entry.id.uuidString)
+    }
+
+    func readNotification(_ entry: Entry) {
+        if isUnread(entry) { notificationsRead.insert(entry.id.uuidString) }
+    }
+
+    func readNotifications() {
+        notificationsReadDate = .now
+        notificationsRead = []
+    }
+
+    func clearNotifications() {
+        notificationsCleared = .now
+        readNotifications()
+        if !onSet { OperationNotifications.clear() }
+    }
+
+    func openNotification(_ id: UUID) -> Entry? {
+        guard let owner = ledger.portfolios.first(where: { $0.entries.contains { $0.id == id } }),
+              let entry = owner.entries.first(where: { $0.id == id }) else { return nil }
+        if owner.id != ledger.selected && !execute(.selectPortfolio(owner.id)) { return nil }
+        readNotification(entry)
+        return entry
+    }
 
     var usablePrices: [String: Decimal] {
         guard inForeground else { return [:] }
+        #if DEBUG
+        if testing && !uiSamples.isEmpty { return prices }
+        #endif
         return quotes.compactMapValues { quote in
             guard quote.exchange || geckoOnline, let updated = quote.updated, let price = quote.price else { return nil }
             let age = Date().timeIntervalSince(updated)
@@ -75,23 +211,41 @@ import SwiftUI
     func money(_ amount: Decimal?, privateValue: Bool = true, price: Bool = false) -> String {
         if hide && privateValue { return "••••••" }
         guard let amount, let converted = try? Fiat.convert(amount, currency: currency, rates: rates) else { return "—" }
-        let places = price && abs(converted) < 1 && converted != 0 ? max(10, digits) : digits
+        let places = price ? FinancialFormatter.pricePrecision(converted, minimum: digits) : digits
         return Display.money(converted, currency: currency, digits: places, minimum: digits)
     }
 
-    func units(_ amount: Decimal) -> String { hide ? "••••" : Display.number(amount, maximum: 16) }
+    func signedMoney(_ amount: Decimal?) -> String {
+        let text = money(amount)
+        return !hide && text != "—" && (amount ?? 0) > 0 ? "+" + text : text
+    }
 
-    func execute(_ command: Command, id: UUID = UUID()) -> Bool {
+    func compactMarketValue(_ amount: Decimal?) -> String {
+        guard let amount, let value = try? Fiat.convert(amount, currency: currency, rates: rates) else { return "—" }
+        let scales: [(Decimal, String)] = [(1_000_000_000_000, "T"), (1_000_000_000, "B"), (1_000_000, "M"), (1_000, "K")]
+        if let (scale, suffix) = scales.first(where: { abs(value) >= $0.0 }) {
+            return Display.money(value / scale, currency: currency, digits: 2, minimum: 0) + suffix
+        }
+        return Display.money(value, currency: currency, digits: 2, minimum: 0)
+    }
+
+    func units(_ amount: Decimal) -> String {
+        hide ? "••••" : Display.number(amount, maximum: FinancialFormatter.pricePrecision(amount, minimum: 4))
+    }
+
+    func execute(_ command: Command, id: UUID = UUID(), showFeedback: Bool = true) -> Bool {
         do {
             let live = usablePrices
             let next = try TradingEngine.apply(command, to: ledger, id: id, prices: live, execution: live)
-            try commit(next)
-            Feedback.success()
-            toast = L.text("Operation saved")
-            toastTask?.cancel()
-            toastTask = Task { [weak self] in
-                try? await Task.sleep(nanoseconds: 2_200_000_000)
-                if !Task.isCancelled { self?.toast = nil }
+            try commit(next, notify: true)
+            if showFeedback {
+                Feedback.success()
+                toast = L.text("Operation saved")
+                toastTask?.cancel()
+                toastTask = Task { [weak self] in
+                    try? await Task.sleep(nanoseconds: 2_200_000_000)
+                    if !Task.isCancelled { self?.toast = nil }
+                }
             }
             if case .limit = command { settle() }
             return true
@@ -100,6 +254,11 @@ import SwiftUI
             Feedback.failure()
             return false
         }
+    }
+
+    func validateTrade(_ command: Command, id: UUID) throws {
+        let live = usablePrices
+        _ = try TradingEngine.apply(command, to: ledger, id: id, prices: live, execution: live)
     }
 
     func setFee(_ value: Decimal?) -> Bool {
@@ -193,6 +352,7 @@ import SwiftUI
             for quote in values where quote.price.map({ $0 > 0 }) ?? false { gecko[quote.id] = quote }
             quoteDate = values.compactMap(\.updated).max()
             rebuildQuotes()
+            checkPriceAlerts()
             marketMessage = nil
             await cache.write(Array(gecko.values), key: "quotes")
             if !Task.isCancelled { settle() }
@@ -212,6 +372,12 @@ import SwiftUI
     }
 
     func loadHistory(_ asset: Asset, range: ChartRange, candles: Bool) async throws -> MarketHistory {
+        #if DEBUG
+        if testing && asset.id == "bitcoin", let latest = uiSamples.last {
+            let cutoff = range.start(from: latest.date) ?? .distantPast
+            return MarketHistory(samples: uiSamples.filter { $0.date >= cutoff }, source: "Kraken")
+        }
+        #endif
         guard !testing else { throw MarketError.unavailable }
         let entryKey = key(asset, range: range, candles: candles)
         let refreshAfter: TimeInterval = range == .hour || range == .day ? 180 : 1_800
@@ -259,7 +425,37 @@ import SwiftUI
         guard inForeground else { return }
         for tick in values where tick.date > (ticks[tick.asset]?.date ?? .distantPast) { ticks[tick.asset] = tick }
         rebuildQuotes()
+        checkPriceAlerts()
         settle()
+    }
+
+    private func checkPriceAlerts() {
+        let live = usablePrices
+        guard !onSet, !live.isEmpty, !priceAlerts.isEmpty else { return }
+        var alerts = priceAlerts
+        var triggered: [(PriceAlert, Decimal)] = []
+        for index in alerts.indices {
+            let alert = alerts[index]
+            guard alert.triggeredAt == nil, let price = live[alert.asset],
+                  (alert.above ? price >= alert.threshold : price <= alert.threshold) else { continue }
+            alerts[index].triggeredAt = .now
+            triggered.append((alert, price))
+        }
+        guard !triggered.isEmpty else { return }
+        priceAlerts = alerts
+        for (alert, price) in triggered {
+            let message = L.format("Price alert · %@", Asset.ticker(alert.asset))
+            if pushOperations && !testing && !onSet {
+                let body = privateNotifications || hide ? message : message + " · " + money(price, privateValue: false, price: true)
+                OperationNotifications.schedulePriceAlert(id: alert.id, body: body)
+            }
+            toast = message
+        }
+        toastTask?.cancel()
+        toastTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 2_200_000_000)
+            if !Task.isCancelled { self?.toast = nil }
+        }
     }
 
     private func rebuildQuotes() {
@@ -279,21 +475,72 @@ import SwiftUI
         guard !live.isEmpty, !storageError else { return }
         do {
             let next = try TradingEngine.settle(ledger, execution: live, prices: live, at: Date())
-            if next != ledger { try commit(next) }
+            if next != ledger { try commit(next, notify: true) }
         } catch {
             self.error = Display.error(error)
         }
     }
 
-    private func commit(_ next: Ledger) throws {
+    private func commit(_ next: Ledger, notify: Bool = false) throws {
         guard let store else { throw SimulationError.invalidBackup }
+        let previous = ledger
         try store.save(next)
         ledger = next
+        guard notify, pushOperations, !onSet, let notificationSink else { return }
+        for portfolio in next.portfolios {
+            let count = previous.portfolios.first { $0.id == portfolio.id }?.entries.count ?? 0
+            guard portfolio.entries.count > count else { continue }
+            for entry in portfolio.entries.dropFirst(count) where OperationNotifications.eligible(entry) {
+                let filled = portfolio.orders.contains { $0.id == entry.id && $0.status == .filled }
+                var summary: String?
+                if !privateNotifications && !hide {
+                    let quantity = entry.asset == "USD" ? notificationMoney(entry.amount) : "\(units(entry.amount)) \(Asset.ticker(entry.asset))"
+                    if entry.asset != "USD", let usd = entry.usd {
+                        summary = quantity + " · " + notificationMoney(usd)
+                    } else {
+                        summary = quantity
+                    }
+                }
+                notificationSink(entry, filled, summary)
+            }
+        }
+    }
+
+    private func notificationMoney(_ amount: Decimal) -> String {
+        let formatted = money(amount, price: true)
+        return formatted == "—" ? Display.money(amount, currency: "USD", digits: 4, minimum: 2) : formatted
     }
 
     private static func loadDemoKey() -> String? {
         (try? Keychain.read("coingecko")).flatMap { String(data: $0, encoding: .utf8) }
     }
+
+    #if DEBUG
+    private func loadTestMarket() {
+        let fixtures = ProcessInfo.processInfo.environment
+        if let json = fixtures["VELTRIX_XCUITEST_QUOTES"],
+           let rows = try? JSONDecoder().decode([Quote].self, from: Data(json.utf8)) {
+            gecko = Dictionary(uniqueKeysWithValues: rows.map { ($0.id, $0) })
+        }
+        guard let json = fixtures["VELTRIX_XCUITEST_OHLC"],
+              let rows = try? JSONDecoder().decode([[Decimal]].self, from: Data(json.utf8)) else { return }
+        uiSamples = rows.compactMap { row in
+            guard row.count == 5 else { return nil }
+            return ChartSample(date: Date(timeIntervalSince1970: NSDecimalNumber(decimal: row[0]).doubleValue),
+                               close: row[4], open: row[1], high: row[2], low: row[3])
+        }
+        guard let first = uiSamples.first, let last = uiSamples.last, first.close > 0 else { return }
+        var bitcoin = gecko["bitcoin"] ?? Quote(id: "bitcoin")
+        bitcoin.price = last.close
+        bitcoin.change = (last.close / first.close - 1) * 100
+        bitcoin.updated = last.date
+        bitcoin.exchange = true
+        bitcoin.sparkline = uiSamples.map(\.close)
+        gecko["bitcoin"] = bitcoin
+        quoteDate = gecko.values.compactMap(\.updated).max()
+        rebuildQuotes()
+    }
+    #endif
 }
 
 private enum DisplayStored {

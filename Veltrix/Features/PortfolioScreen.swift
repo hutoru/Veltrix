@@ -2,6 +2,17 @@ import SwiftUI
 import UIKit
 
 struct PortfolioScreen: View {
+    private enum HoldingSort: String, CaseIterable {
+        case value, name, change
+        var label: LocalizedStringKey {
+            switch self {
+            case .value: return "Portfolio value"
+            case .name: return "Name"
+            case .change: return "24h change"
+            }
+        }
+    }
+
     @EnvironmentObject private var model: VeltrixModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var range = ChartRange.week
@@ -9,10 +20,14 @@ struct PortfolioScreen: View {
     @State private var trade: TradeIntent?
     @AppStorage("profileName") private var profileName = ""
     @AppStorage("profileUsername") private var username = ""
+    @AppStorage("holdingSort") private var sort = HoldingSort.value
+    @AppStorage("favoriteHoldings") private var favoriteHoldings = false
+    @AppStorage("hideZeroHoldings") private var hideZero = true
     @State private var more = false
     @State private var addAsset = false
     @State private var chart = false
     @State private var share = false
+    @State private var scanner = false
 
     private var portfolio: Portfolio { model.portfolio }
     private var value: Decimal? { try? portfolio.value(prices: model.prices) }
@@ -33,23 +48,40 @@ struct PortfolioScreen: View {
                         ProfileAvatar(size: 36)
                         VStack(alignment: .leading) {
                             Text(verbatim: profileName.isEmpty ? L.text("My profile") : profileName).font(.subheadline.bold())
+                                .lineLimit(1).minimumScaleFactor(0.7)
                             Text(verbatim: username.isEmpty ? portfolio.name : "@" + username)
                                 .font(.caption2).foregroundStyle(Color.vxMuted).lineLimit(1)
                         }
                     }
                 }
-                Spacer()
+                Spacer(minLength: 4)
+                IconButton(icon: "qrcode.viewfinder", label: "Scan QR code") { Feedback.tap(); scanner = true }
+                NavigationLink {
+                    NotificationScreen()
+                } label: {
+                    Image(systemName: "bell").font(.body.weight(.medium))
+                        .frame(width: 44, height: 44)
+                        .background(Color.vxCard, in: Circle())
+                        .overlay(alignment: .topTrailing) {
+                            if model.hasUnreadNotifications {
+                                Circle().fill(Color.vxAccent).frame(width: 7, height: 7).offset(x: -7, y: 7)
+                            }
+                        }
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(Text("Notifications"))
                 IconButton(icon: "plus", label: "Add holding") { addAsset = true }
             }
             balanceCard
-            HStack {
-                Label(portfolio.name, systemImage: "wallet.bifold")
-                    .lineLimit(1)
-                Spacer()
-                Text(verbatim: L.text("Trades") + " · " + String(tradeCount)).monospacedDigit()
-            }.font(.caption).foregroundStyle(Color.vxMuted)
-            positions
             actions
+            positions
+            Divider().overlay(Color.vxSeparator)
+            HStack {
+                NavigationLink { CardsScreen() } label: { Label("Cards", systemImage: "creditcard") }
+                Spacer()
+                Button { more = true } label: { Label("More", systemImage: "ellipsis") }
+                    .accessibilityIdentifier("trade.more")
+            }.font(.subheadline.weight(.medium))
             MarketStatus()
             if !model.hide {
                 HStack {
@@ -61,20 +93,22 @@ struct PortfolioScreen: View {
         }
         .refreshable { await model.refresh() }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.userDidTakeScreenshotNotification)) { _ in
-            if !model.hide, !chart, trade == nil { share = true }
+            if !model.hide, !chart, !scanner, trade == nil,
+               !ProcessInfo.processInfo.arguments.contains("--ui-testing") { share = true }
         }
         .sheet(isPresented: $addAsset) { SettingsForm(panel: .positions) }
         .confirmationDialog("More", isPresented: $more, titleVisibility: .visible) {
-            ForEach([TradeAction.send, .receive, .deposit]) { action in
+            ForEach([TradeAction.deposit]) { action in
                 Button(action.title) { trade = TradeIntent(action: action) }
             }
         }
         .fullScreenCover(item: $trade) { TradeScreen(intent: $0) }
+        .fullScreenCover(isPresented: $scanner) { QRScanner() }
         .sheet(isPresented: $share) { PortfolioShare(portfolio: portfolio) }
         .fullScreenCover(isPresented: $chart) {
             NavigationStack {
                 PageScroll {
-                    ChartPanel(samples: samples, range: $range, candles: $candles, allowsCandles: true, height: 320) {
+                    VeltrixChart(samples: samples, range: $range, candles: $candles, allowsCandles: true, height: 320) {
                         model.money($0)
                     }
                 }
@@ -85,51 +119,51 @@ struct PortfolioScreen: View {
         }
     }
 
-    private var tradeCount: Int {
-        portfolio.entries.filter { [.buy, .sell, .swap].contains($0.kind) }.count
-    }
-
     private var samples: [ChartSample] { portfolio.chart(range: range, candles: candles) }
 
     private var balanceCard: some View {
-        VStack(spacing: 6) {
-            Text("Portfolio value").font(.caption).foregroundStyle(Color.vxMuted)
-            Button {
-                withAnimation(reduceMotion ? nil : .spring(response: 0.28)) { model.hide.toggle() }
-                Feedback.tap()
-            } label: {
-                CountValue(text: model.money(value))
-                    .font(.system(size: 42, weight: .semibold, design: .rounded))
-                    .lineLimit(1).minimumScaleFactor(0.4)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 4) {
+                Text("Portfolio value").font(.subheadline).foregroundStyle(Color.vxMuted)
+                Button {
+                    withAnimation(reduceMotion ? nil : .easeOut(duration: 0.22)) { model.hide.toggle() }
+                    Feedback.tap()
+                } label: {
+                    Image(systemName: model.hide ? "eye.slash" : "eye")
+                        .font(.footnote).foregroundStyle(Color.vxMuted).frame(width: 44, height: 44)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(Text(model.hide ? "Show balances" : "Hide balances"))
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel(Text(model.hide ? "Show balances" : "Hide balances"))
+            CountValue(text: model.money(value))
+                .font(.system(size: 48, weight: .semibold))
+                .tracking(-2).lineLimit(1).minimumScaleFactor(0.24)
+                .accessibilityIdentifier("portfolio.total")
             HStack(spacing: 6) {
                 Text("24h P&L").foregroundStyle(Color.vxMuted)
-                Text(verbatim: model.money(daily?.value))
+                Text(verbatim: model.signedMoney(daily?.value))
                 if !model.hide { ChangeText(change: daily?.percent) }
             }.font(.caption.monospacedDigit())
-        }.frame(maxWidth: .infinity).padding(.vertical, 6)
+        }.frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 8)
     }
 
     private var actions: some View {
         HStack(spacing: 6) {
-            ForEach([TradeAction.buy, .sell, .swap]) { action in
+            ForEach(model.quickActions) { action in
                 Button { trade = TradeIntent(action: action); Feedback.tap() } label: {
                     shortcut(action.title, action.icon)
                 }.accessibilityIdentifier("trade." + action.rawValue)
             }
-            Button { more = true; Feedback.tap() } label: { shortcut("More", "ellipsis") }
-                .accessibilityIdentifier("trade.more")
         }.buttonStyle(.plain)
     }
 
     private func shortcut(_ title: LocalizedStringKey, _ icon: String) -> some View {
-        VStack(spacing: 5) {
+        VStack(spacing: 8) {
             Image(systemName: icon).font(.system(size: 17, weight: .medium))
-            Text(title).font(.caption.weight(.medium))
-        }.frame(maxWidth: .infinity, minHeight: 55)
-            .background(Color.vxSurface, in: RoundedRectangle(cornerRadius: 14))
+                .frame(width: 44, height: 44)
+                .background(Color.vxCard, in: Circle())
+            Text(title).font(.caption.weight(.medium)).lineLimit(1).minimumScaleFactor(0.65)
+        }.frame(maxWidth: .infinity)
     }
 
     private var positions: some View {
@@ -139,30 +173,47 @@ struct PortfolioScreen: View {
                 Spacer()
                 VStack(alignment: .trailing, spacing: 1) {
                     Text("Available cash").font(.caption2).foregroundStyle(Color.vxMuted)
-                    Text(verbatim: model.money(try? portfolio.freeCash())).font(.caption.monospacedDigit())
+                    Text(verbatim: model.money(try? portfolio.freeCash()))
+                        .font(.caption.monospacedDigit()).lineLimit(1).minimumScaleFactor(0.45)
                 }
+                Menu {
+                    Picker("Sort by", selection: $sort) {
+                        ForEach(HoldingSort.allCases, id: \.self) { Text($0.label).tag($0) }
+                    }
+                    Toggle("Favorites", isOn: $favoriteHoldings)
+                    Toggle("Hide zero balances", isOn: $hideZero)
+                } label: {
+                    Image(systemName: "line.3.horizontal.decrease").frame(width: 44, height: 44)
+                }
+                .accessibilityLabel(Text("Sort holdings"))
             }
             if holdings.isEmpty {
-                EmptyPanel(icon: "square.stack.3d.up", title: "No positions yet", detail: "Simulate a buy or add holdings in Settings.")
+                EmptyPanel(icon: "square.stack.3d.up", title: "No positions yet", detail: "Add a holding to track it here.")
             } else {
                 ForEach(holdings) { asset in
-                    if let pos = portfolio.positions[asset.id] {
+                    let units = portfolio.positions[asset.id]?.units ?? 0
                         NavigationLink(value: asset) {
                             HStack(spacing: 10) {
                                 CoinIcon(asset: asset, url: model.quotes[asset.id]?.image)
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text(verbatim: asset.name).font(.subheadline.weight(.semibold))
-                                    Text(verbatim: model.units(pos.units) + " " + asset.ticker).font(.caption).foregroundStyle(Color.vxMuted)
+                                    Text(verbatim: model.units(units) + " " + asset.ticker).font(.caption).foregroundStyle(Color.vxMuted)
                                 }
                                 Spacer(minLength: 4)
                                 VStack(alignment: .trailing, spacing: 4) {
                                     CountValue(text: model.money(positionValue(asset))).font(.subheadline.bold())
                                     ChangeText(change: model.quotes[asset.id]?.change)
                                 }
-                            }.lineLimit(1).minimumScaleFactor(0.7).padding(.horizontal, 12)
-                                .frame(height: 64).background(Color.vxCard, in: RoundedRectangle(cornerRadius: 15))
+                            }.lineLimit(1).minimumScaleFactor(0.7)
+                                .frame(minHeight: 56).contentShape(Rectangle())
                         }.buttonStyle(.plain)
-                    }
+                        .contextMenu {
+                            Button(model.favorites.contains(asset.id) ? "Remove from favorites" : "Add to favorites") {
+                                if model.favorites.contains(asset.id) { model.favorites.remove(asset.id) }
+                                else { model.favorites.insert(asset.id) }
+                            }
+                        }
+                    Divider().overlay(Color.vxSeparator)
                 }
                 LabeledContent("Realized P&L", value: model.money(try? portfolio.realized()))
                 LabeledContent("Unrealized P&L", value: model.money(try? portfolio.unrealized(prices: model.prices)))
@@ -171,15 +222,22 @@ struct PortfolioScreen: View {
     }
 
     private func positionValue(_ asset: Asset) -> Decimal? {
-        guard let price = model.prices[asset.id], let pos = portfolio.positions[asset.id] else { return nil }
+        guard let pos = portfolio.positions[asset.id] else { return 0 }
+        guard let price = model.prices[asset.id] else { return nil }
         return try? MoneyMath.multiply(price, pos.units)
     }
 
     private var holdings: [Asset] {
-        Asset.catalog.filter { portfolio.positions[$0.id] != nil }.sorted {
-            let a = positionValue($0) ?? -1
-            let b = positionValue($1) ?? -1
-            return a == b ? $0.ticker < $1.ticker : a > b
+        Asset.catalog.filter {
+            (!hideZero || portfolio.positions[$0.id] != nil) && (!favoriteHoldings || model.favorites.contains($0.id))
+        }.sorted { left, right in
+            let a = sort == .change ? model.quotes[left.id]?.change : positionValue(left)
+            let b = sort == .change ? model.quotes[right.id]?.change : positionValue(right)
+            if sort != .name, a != b {
+                if let a, let b { return a > b }
+                return a != nil
+            }
+            return left.name.localizedCaseInsensitiveCompare(right.name) == .orderedAscending
         }
     }
 }

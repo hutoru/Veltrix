@@ -66,6 +66,16 @@ struct ChartSample: Codable, Equatable, Identifiable, Sendable {
 enum ChartRange: String, CaseIterable, Sendable {
     case hour = "1H", day = "24H", week = "7D", month = "30D", quarter = "90D", year = "1Y", all = "ALL"
 
+    var displayTitle: String {
+        switch self {
+        case .day: return "1D"
+        case .week: return "1W"
+        case .month: return "1M"
+        case .quarter: return "3M"
+        default: return rawValue
+        }
+    }
+
     var days: Int? {
         switch self {
         case .hour, .day: return 1
