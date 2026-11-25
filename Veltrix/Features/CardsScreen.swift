@@ -42,7 +42,9 @@ struct CardsScreen: View {
         }
         .navigationTitle("Cards")
         .navigationBarTitleDisplayMode(.inline)
-        .sheet(item: $editor, onDismiss: configureMotion) { CardForm(intent: $0).onAppear { motion.stop() } }
+        .sheet(item: $editor, onDismiss: configureMotion) { intent in
+            CardForm(intent: intent, onCreate: select).onAppear { motion.stop() }
+        }
         .confirmationDialog("Delete card?", isPresented: $delete, titleVisibility: .visible) {
             if let card {
                 Button("Delete card", role: .destructive) { _ = model.execute(.deleteCard(card.id)) }
@@ -74,6 +76,8 @@ struct CardsScreen: View {
                     Feedback.tap()
                 } label: {
                     MotionCardFace(motion: motion, card: card, balance: model.money(card.balance), flipped: flipped)
+                        .id(card.id)
+                        .transition(reduceMotion ? .identity : .opacity.combined(with: .scale(scale: 0.96)))
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(Text("Flip \(card.name) card"))
@@ -215,7 +219,7 @@ private struct CardFace: View, Animatable {
         let typeface: Font.Design = design.typeface == .classic ? .serif : (design.typeface == .mono ? .monospaced : .default)
         return ZStack {
             RoundedRectangle(cornerRadius: 21)
-                .fill(LinearGradient(colors: [.init(cardRGB: design.tint ?? light), .init(cardRGB: dark)],
+                .fill(LinearGradient(colors: [.init(cardRGB: design.tint ?? light), .init(cardRGB: design.shade ?? dark)],
                                      startPoint: .topLeading, endPoint: .bottomTrailing))
             if let portrait = design.portrait {
                 CardPortrait(bytes: portrait).equatable()
@@ -340,6 +344,7 @@ private struct CardIntent: Identifiable {
 
 private struct CardForm: View {
     let intent: CardIntent
+    let onCreate: (UUID) -> Void
     @EnvironmentObject private var model: VeltrixModel
     @Environment(\.dismiss) private var dismiss
     @State private var tier = CardTier.classic
@@ -360,7 +365,9 @@ private struct CardForm: View {
                         studio
                     case .topUp, .returnFunds, .pay:
                         if case .pay = intent.mode {
-                            Text("Local operation").font(.caption.weight(.semibold)).foregroundStyle(Color.vxMuted)
+                            if !model.onSet {
+                                Text("Local operation").font(.caption.weight(.semibold)).foregroundStyle(Color.vxMuted)
+                            }
                             TextField("Merchant", text: $name).panel(padding: 12)
                         }
                         TextField("Amount (USD)", text: $amount).keyboardType(.decimalPad).panel(padding: 12)
@@ -442,6 +449,8 @@ private struct CardForm: View {
             }
             ColorPicker("Base color", selection: Binding(get: { Color(cardRGB: design.tint ?? tier.finish.2) },
                                                         set: { design.tint = $0.cardRGB }), supportsOpacity: false)
+            ColorPicker("Edge color", selection: Binding(get: { Color(cardRGB: design.shade ?? tier.finish.3) },
+                                                        set: { design.shade = $0.cardRGB }), supportsOpacity: false)
             Text("Reflection").font(.subheadline)
             Slider(value: $design.sheen, in: 0...1) { Text("Reflection") }
             PhotosPicker(selection: $photo, matching: .images) { Label("Choose card image", systemImage: "photo") }
@@ -465,8 +474,13 @@ private struct CardForm: View {
     private func save() {
         do {
             let command = try makeCommand()
-            if model.execute(command, id: intent.id) { dismiss() }
-            else { error = model.error; model.error = nil }
+            if model.execute(command, id: intent.id) {
+                if case .create = intent.mode, let card = model.cards.last { onCreate(card.id) }
+                dismiss()
+            } else {
+                error = model.error
+                model.error = nil
+            }
         } catch {
             self.error = Display.error(error)
         }

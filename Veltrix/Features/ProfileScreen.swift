@@ -19,6 +19,12 @@ struct ProfileAvatar: View {
 }
 
 struct ProfileScreen: View {
+    private struct Allocation: Identifiable {
+        let asset: Asset
+        let weight: Decimal
+        var id: String { asset.id }
+    }
+
     @EnvironmentObject private var model: VeltrixModel
     @AppStorage("profileName") private var name = ""
     @AppStorage("profileUsername") private var username = ""
@@ -149,20 +155,22 @@ struct ProfileScreen: View {
 
     @ViewBuilder private var allocation: some View {
         if let total = try? portfolio.value(prices: model.prices), total > 0 {
-            let weights = Asset.catalog.compactMap { asset -> (Asset, Decimal)? in
+            let weights = Asset.catalog.compactMap { asset -> Allocation? in
                 guard let position = portfolio.positions[asset.id], let price = model.prices[asset.id],
                       let weight = try? MoneyMath.divide(MoneyMath.multiply(price, position.units), total) else { return nil }
-                return (asset, weight)
-            }.sorted { $0.1 > $1.1 }
+                return Allocation(asset: asset, weight: weight)
+            }.sorted { $0.weight > $1.weight }
             if !weights.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Portfolio allocation").font(.headline)
-                    ForEach(Array(weights.prefix(5)), id: \.0) { asset, weight in
+                    ForEach(Array(weights.prefix(5))) { allocation in
+                        let asset = allocation.asset
+                        let weight = allocation.weight
                         HStack(spacing: 12) {
                             CoinIcon(asset: asset, url: model.quotes[asset.id]?.image, size: 24)
                             Text(verbatim: asset.ticker).font(.caption.weight(.semibold)).frame(width: 46, alignment: .leading)
                             ProgressView(value: min(1, max(0, NSDecimalNumber(decimal: weight).doubleValue)))
-                            Text(verbatim: Display.percent(weight * 100)).font(.caption.monospacedDigit())
+                            Text(verbatim: Display.number(weight * 100, maximum: 1) + "%").font(.caption.monospacedDigit())
                                 .frame(minWidth: 55, alignment: .trailing)
                         }
                     }

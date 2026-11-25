@@ -65,6 +65,7 @@ struct VeltrixRoot: View {
     @State private var trade: TradeIntent?
     @State private var notificationEntry: Entry?
     @State private var shortcutScanner = false
+    @State private var navigationReset = UUID()
 
     var body: some View {
         Group {
@@ -81,9 +82,12 @@ struct VeltrixRoot: View {
                 content
             }
         }
+        .allowsHitTesting(!showSplash)
+        .accessibilityHidden(showSplash)
         .overlay {
             if showSplash {
                 LaunchScreen()
+                    .allowsHitTesting(false)
                     .transition(reduceMotion ? .identity : .opacity)
                     .accessibilityIdentifier("launch.screen")
                     .task {
@@ -94,7 +98,6 @@ struct VeltrixRoot: View {
                     }
             }
         }
-        .accessibilityHidden(showSplash && phase != .active)
         .animation(reduceMotion || lock.locked ? nil : .easeOut(duration: 0.25), value: lock.locked)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.vxBackground.ignoresSafeArea())
@@ -158,12 +161,12 @@ struct VeltrixRoot: View {
         UserDefaults.standard.removeObject(forKey: AppShortcut.defaultsKey)
         switch shortcut {
         case .scan: shortcutScanner = true
-        case .explore: tab = .markets
+        case .explore: tab = .markets; navigationReset = UUID()
         }
     }
 
     private func openPendingNotification() {
-        guard !lock.locked, phase == .active, !model.storageError,
+        guard !lock.locked, phase == .active, !model.storageError, !model.onSet,
               let value = UserDefaults.standard.string(forKey: "pendingOperationNotification"),
               let id = UUID(uuidString: value) else { return }
         UserDefaults.standard.removeObject(forKey: "pendingOperationNotification")
@@ -196,7 +199,7 @@ struct VeltrixRoot: View {
                 .animation(reduceMotion ? nil : .spring(response: 0.28, dampingFraction: 0.8), value: model.toast)
             }
         }
-        .id(tab)
+        .id(tab.rawValue + String(model.onSet) + navigationReset.uuidString)
         .confirmationDialog("Trade", isPresented: $tradeMenu, titleVisibility: .visible) {
             ForEach(TradeAction.allCases) { action in
                 Button(action.title) { trade = TradeIntent(action: action) }
@@ -294,6 +297,7 @@ private struct LockScreen: View {
                             pin = ""
                             if !lock.locked { Feedback.success() }
                             else {
+                                Feedback.failure()
                                 withAnimation(reduceMotion ? nil : .easeOut(duration: 0.08)) { shake = true }
                                 try? await Task.sleep(nanoseconds: 80_000_000)
                                 withAnimation(reduceMotion ? nil : .spring(response: 0.24, dampingFraction: 0.36)) { shake = false }

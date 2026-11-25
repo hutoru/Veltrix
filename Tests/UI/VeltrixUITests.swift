@@ -108,7 +108,7 @@ final class VeltrixUITests: XCTestCase {
         let app = launch()
         for (action, unit) in [("Buy", "USD"), ("Sell", "BTC"), ("Swap", "BTC")] {
             app.buttons["tab.trade"].tap()
-            app.buttons[action].tap()
+            app.sheets["Trade"].buttons[action].tap()
             let amount = app.staticTexts["trade.amount"]
             XCTAssertTrue(amount.waitForExistence(timeout: 5))
             capture(app, name: action)
@@ -138,9 +138,11 @@ final class VeltrixUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Welcome back"].waitForExistence(timeout: 8))
         capture(app, name: "Lock Screen")
         for digit in ["1", "2", "3", "4"] { app.buttons["keypad." + digit].tap() }
+        XCTAssertTrue(app.buttons["Unlock"].isEnabled, app.debugDescription)
         app.buttons["Unlock"].tap()
         XCTAssertTrue(app.staticTexts["Incorrect PIN"].waitForExistence(timeout: 5))
         for digit in ["2", "4", "6", "8"] { app.buttons["keypad." + digit].tap() }
+        XCTAssertTrue(app.buttons["Unlock"].isEnabled, app.debugDescription)
         app.buttons["Unlock"].tap()
         XCTAssertTrue(app.buttons["tab.portfolio"].waitForExistence(timeout: 5))
     }

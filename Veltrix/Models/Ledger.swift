@@ -153,6 +153,7 @@ struct CardDesign: Codable, Equatable, Sendable {
     var texture: CardTexture
     var typeface: CardTypeface = .modern
     var tint: UInt32?
+    var shade: UInt32?
     var sheen = 0.5
     var markX = 0.18
     var markY = 0.23
@@ -160,7 +161,8 @@ struct CardDesign: Codable, Equatable, Sendable {
 
     var isValid: Bool {
         (0...1).contains(sheen) && (0.13...0.87).contains(markX) && (0.14...0.82).contains(markY)
-            && (tint.map { $0 <= 0xFFFFFF } ?? true) && (portrait?.count ?? 0) <= 360_000
+            && (tint.map { $0 <= 0xFFFFFF } ?? true) && (shade.map { $0 <= 0xFFFFFF } ?? true)
+            && (portrait?.count ?? 0) <= 360_000
     }
 }
 

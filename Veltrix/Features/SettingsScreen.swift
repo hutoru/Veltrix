@@ -35,11 +35,19 @@ struct SettingsScreen: View {
                 }
             }
             Section { simulation }
+            Section("Home") {
+                NavigationLink("Quick actions") { QuickActionsSettings() }
+            }
+            Section("Filming") {
+                Toggle("On-set portfolio", isOn: Binding(get: { model.onSet }, set: model.setOnSet))
+                Text("The on-set portfolio has separate balances, cards and activity. Its operations stay in the app.")
+                    .font(.caption).foregroundStyle(Color.vxMuted)
+            }
             Section("Notifications") {
                 Toggle("iOS notifications", isOn: Binding(get: { model.pushOperations }, set: updateNotifications))
                 Toggle("Hide amounts in notifications", isOn: $model.privateNotifications)
                 NavigationLink("Price alerts") { PriceAlertsScreen() }
-            }
+            }.disabled(model.onSet)
             Section("Cards") { NavigationLink("Cards") { CardsScreen() } }
             Section { security }
             Section { backups }
@@ -250,6 +258,32 @@ struct SettingsScreen: View {
         }
         .buttonStyle(.plain)
         .foregroundStyle(destructive ? Color.vxDown : Color.vxHighlight)
+    }
+}
+
+private struct QuickActionsSettings: View {
+    @EnvironmentObject private var model: VeltrixModel
+
+    var body: some View {
+        PageScroll {
+            ForEach(TradeAction.allCases) { action in
+                let selected = model.quickActions.contains(action)
+                Toggle(isOn: Binding(get: { selected }, set: { enabled in
+                    var actions = model.quickActions
+                    if enabled { actions.append(action) }
+                    else { actions.removeAll { $0 == action } }
+                    model.quickActionIDs = actions.map(\.rawValue)
+                })) {
+                    Label(action.title, systemImage: action.icon)
+                }
+                .disabled(selected ? model.quickActions.count == 1 : model.quickActions.count >= 5)
+                Divider().overlay(Color.vxSeparator)
+            }
+            Button("Restore default actions") { model.quickActionIDs = VeltrixModel.standardActions.map(\.rawValue) }
+                .buttonStyle(.bordered)
+        }
+        .navigationTitle("Quick actions")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 

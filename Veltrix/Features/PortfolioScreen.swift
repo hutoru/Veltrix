@@ -147,7 +147,7 @@ struct PortfolioScreen: View {
 
     private var actions: some View {
         HStack(spacing: 6) {
-            ForEach([TradeAction.buy, .sell, .send, .receive, .swap]) { action in
+            ForEach(model.quickActions) { action in
                 Button { trade = TradeIntent(action: action); Feedback.tap() } label: {
                     shortcut(action.title, action.icon)
                 }.accessibilityIdentifier("trade." + action.rawValue)

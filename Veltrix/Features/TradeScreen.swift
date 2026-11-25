@@ -69,7 +69,7 @@ struct TradeScreen: View {
                     } else {
                         editor
                     }
-                    if let error {
+                    if let error, review != nil {
                         Text(verbatim: error).font(.footnote).foregroundStyle(Color.vxDown)
                     }
                 }
@@ -143,9 +143,20 @@ struct TradeScreen: View {
                 if !amount.isEmpty { amount.removeLast() }
                 error = nil
             })
+            if let error {
+                Text(verbatim: error).font(.footnote).foregroundStyle(Color.vxDown)
+            }
             Button("Continue") {
-                do { review = try makeReview(); error = nil; Feedback.tap() }
-                catch { self.error = Display.error(error) }
+                do {
+                    let draft = try makeReview()
+                    try model.validateTrade(draft.command, id: intent.id)
+                    review = draft
+                    error = nil
+                    Feedback.tap()
+                } catch {
+                    self.error = Display.error(error)
+                    Feedback.failure()
+                }
             }
             .buttonStyle(PrimaryButtonStyle())
             .accessibilityIdentifier("trade.review")
@@ -224,7 +235,12 @@ struct TradeScreen: View {
                 .pickerStyle(.menu)
                 .tint(.vxHighlight)
         } label: {
-            Text(title).foregroundStyle(Color.vxMuted)
+            HStack(spacing: 8) {
+                if let coin = Asset.catalog.first(where: { $0.id == selection.wrappedValue }) {
+                    CoinIcon(asset: coin, url: model.quotes[coin.id]?.image, size: 26)
+                }
+                Text(title).foregroundStyle(Color.vxMuted)
+            }
         }
         .font(.subheadline)
         .frame(minHeight: 44)
@@ -317,9 +333,9 @@ struct TradeScreen: View {
             }
             Text(verbatim: review.summary).font(.system(size: 38, weight: .semibold).monospacedDigit())
                 .lineLimit(1).minimumScaleFactor(0.4)
-            Text("Local operation")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(Color.vxMuted)
+            if !model.onSet {
+                Text("Local operation").font(.caption.weight(.semibold)).foregroundStyle(Color.vxMuted)
+            }
             VStack(spacing: 12) {
                 if isTrading {
                     if intent.action != .swap {
@@ -492,7 +508,7 @@ private enum TransferNetwork: String, CaseIterable {
     static func available(for asset: String) -> [TransferNetwork] {
         switch asset {
         case "bitcoin": return [.bitcoin]
-        case "ethereum", "chainlink", "wrapped-bitcoin": return [.ethereum]
+        case "ethereum", "chainlink": return [.ethereum]
         case "solana": return [.solana]
         case "tether", "usd-coin": return [.ethereum, .solana]
         default: return []

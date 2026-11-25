@@ -20,17 +20,21 @@ import SwiftUI
     @Published var favorites: Set<String> { didSet { defaults.set(Array(favorites), forKey: "favorites") } }
     @Published var pushOperations: Bool { didSet { defaults.set(pushOperations, forKey: "pushOperations") } }
     @Published var privateNotifications: Bool { didSet { defaults.set(privateNotifications, forKey: "privateNotifications") } }
+    @Published private(set) var onSet: Bool { didSet { defaults.set(onSet, forKey: "onSet") } }
+    @Published var quickActionIDs: [String] { didSet { defaults.set(quickActionIDs, forKey: "quickActionIDs") } }
     @Published private(set) var priceAlerts: [PriceAlert] {
         didSet { defaults.set(try? JSONEncoder().encode(priceAlerts), forKey: "priceAlerts") }
     }
     @Published private(set) var recentAssetIDs: [String] {
         didSet { defaults.set(recentAssetIDs, forKey: "recentAssetIDs") }
     }
-    @Published private var notificationsCleared: Date { didSet { defaults.set(notificationsCleared, forKey: "notificationsCleared") } }
-    @Published private var notificationsReadDate: Date { didSet { defaults.set(notificationsReadDate, forKey: "notificationsReadDate") } }
-    @Published private var notificationsRead: Set<String> { didSet { defaults.set(Array(notificationsRead), forKey: "notificationsRead") } }
+    @Published private var notificationsCleared: Date { didSet { defaults.set(notificationsCleared, forKey: notificationKey("notificationsCleared")) } }
+    @Published private var notificationsReadDate: Date { didSet { defaults.set(notificationsReadDate, forKey: notificationKey("notificationsReadDate")) } }
+    @Published private var notificationsRead: Set<String> { didSet { defaults.set(Array(notificationsRead), forKey: notificationKey("notificationsRead")) } }
 
     private var store: (any LedgerStore)?
+    private var mainStore: (any LedgerStore)?
+    private var onSetStore: (any LedgerStore)?
     private var provider: any MarketDataProvider
     private let http: HTTPClient
     private let cache: MarketCache
@@ -66,15 +70,21 @@ import SwiftUI
         favorites = Set(defaults.stringArray(forKey: "favorites") ?? [])
         pushOperations = defaults.bool(forKey: "pushOperations")
         privateNotifications = defaults.object(forKey: "privateNotifications") as? Bool ?? true
+        let onSet = defaults.bool(forKey: "onSet")
+        self.onSet = onSet
+        quickActionIDs = defaults.stringArray(forKey: "quickActionIDs") ?? Self.standardActions.map(\.rawValue)
         priceAlerts = defaults.data(forKey: "priceAlerts")
             .flatMap { try? JSONDecoder().decode([PriceAlert].self, from: $0) } ?? []
         recentAssetIDs = defaults.stringArray(forKey: "recentAssetIDs") ?? []
-        notificationsCleared = defaults.object(forKey: "notificationsCleared") as? Date ?? .distantPast
-        notificationsReadDate = defaults.object(forKey: "notificationsReadDate") as? Date ?? Date()
-        notificationsRead = Set(defaults.stringArray(forKey: "notificationsRead") ?? [])
+        let prefix = onSet ? "onSet." : ""
+        notificationsCleared = defaults.object(forKey: prefix + "notificationsCleared") as? Date ?? .distantPast
+        notificationsReadDate = defaults.object(forKey: prefix + "notificationsReadDate") as? Date ?? Date()
+        notificationsRead = Set(defaults.stringArray(forKey: prefix + "notificationsRead") ?? [])
         do {
-            let storage = try suppliedStore ?? CoreDataLedgerStore(inMemory: testing)
-            if let loaded = try storage.load() { ledger = loaded } else { try storage.save(ledger) }
+            mainStore = suppliedStore
+            let storage = try (onSet ? onSetStore : mainStore) ?? CoreDataLedgerStore(inMemory: testing, onSet: onSet)
+            ledger = try Self.loadLedger(from: storage)
+            if onSet { onSetStore = storage } else { mainStore = storage }
             store = storage
         } catch {
             storageError = true
@@ -87,6 +97,43 @@ import SwiftUI
     var portfolio: Portfolio { ledger.portfolios.first { $0.id == ledger.selected } ?? ledger.portfolios[0] }
     var cards: [VirtualCard] { ledger.cards.filter { $0.owner == ledger.selected } }
     var prices: [String: Decimal] { quotes.compactMapValues(\.price) }
+    static let standardActions: [TradeAction] = [.buy, .sell, .send, .receive, .swap]
+
+    var quickActions: [TradeAction] {
+        var seen: Set<String> = []
+        let actions = quickActionIDs.compactMap { id in
+            seen.insert(id).inserted ? TradeAction(rawValue: id) : nil
+        }
+        return actions.isEmpty ? Self.standardActions : Array(actions.prefix(5))
+    }
+
+    func setOnSet(_ enabled: Bool) {
+        guard onSet != enabled else { return }
+        do {
+            let storage = try (enabled ? onSetStore : mainStore) ?? CoreDataLedgerStore(inMemory: testing, onSet: enabled)
+            let next = try Self.loadLedger(from: storage)
+            if enabled { onSetStore = storage } else { mainStore = storage }
+            store = storage
+            ledger = next
+            onSet = enabled
+            notificationsCleared = defaults.object(forKey: notificationKey("notificationsCleared")) as? Date ?? .distantPast
+            notificationsReadDate = defaults.object(forKey: notificationKey("notificationsReadDate")) as? Date ?? Date()
+            notificationsRead = Set(defaults.stringArray(forKey: notificationKey("notificationsRead")) ?? [])
+            toastTask?.cancel()
+            toast = nil
+        } catch {
+            self.error = L.text("Local storage unavailable")
+        }
+    }
+
+    private static func loadLedger(from storage: any LedgerStore) throws -> Ledger {
+        if let loaded = try storage.load() { return loaded }
+        let fresh = Ledger.fresh(name: L.text("Main portfolio"))
+        try storage.save(fresh)
+        return fresh
+    }
+
+    private func notificationKey(_ key: String) -> String { onSet ? "onSet." + key : key }
 
     var recentAssets: [Asset] {
         recentAssetIDs.compactMap { id in Asset.catalog.first { $0.id == id } }
@@ -105,7 +152,8 @@ import SwiftUI
     func removePriceAlert(_ id: UUID) { priceAlerts.removeAll { $0.id == id } }
 
     var notificationEntries: [Entry] {
-        portfolio.entries.reversed().filter { $0.date > notificationsCleared && OperationNotifications.eligible($0) }
+        portfolio.entries.filter { $0.date > notificationsCleared && OperationNotifications.eligible($0) }
+            .sorted { $0.date > $1.date }
     }
 
     var hasUnreadNotifications: Bool {
@@ -128,7 +176,7 @@ import SwiftUI
     func clearNotifications() {
         notificationsCleared = .now
         readNotifications()
-        OperationNotifications.clear()
+        if !onSet { OperationNotifications.clear() }
     }
 
     func openNotification(_ id: UUID) -> Entry? {
@@ -186,6 +234,11 @@ import SwiftUI
             Feedback.failure()
             return false
         }
+    }
+
+    func validateTrade(_ command: Command, id: UUID) throws {
+        let live = usablePrices
+        _ = try TradingEngine.apply(command, to: ledger, id: id, prices: live, execution: live)
     }
 
     func setFee(_ value: Decimal?) -> Bool {
@@ -358,7 +411,7 @@ import SwiftUI
 
     private func checkPriceAlerts() {
         let live = usablePrices
-        guard !live.isEmpty, !priceAlerts.isEmpty else { return }
+        guard !onSet, !live.isEmpty, !priceAlerts.isEmpty else { return }
         var alerts = priceAlerts
         var triggered: [(PriceAlert, Decimal)] = []
         for index in alerts.indices {
@@ -372,7 +425,7 @@ import SwiftUI
         priceAlerts = alerts
         for (alert, price) in triggered {
             let message = L.format("Price alert · %@", Asset.ticker(alert.asset))
-            if pushOperations && !testing {
+            if pushOperations && !testing && !onSet {
                 let body = privateNotifications || hide ? message : message + " · " + money(price, privateValue: false, price: true)
                 OperationNotifications.schedulePriceAlert(id: alert.id, body: body)
             }
@@ -413,7 +466,7 @@ import SwiftUI
         let previous = ledger
         try store.save(next)
         ledger = next
-        guard notify, pushOperations, !testing else { return }
+        guard notify, pushOperations, !testing, !onSet else { return }
         for portfolio in next.portfolios {
             let count = previous.portfolios.first { $0.id == portfolio.id }?.entries.count ?? 0
             guard portfolio.entries.count > count else { continue }
