@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct MarketStatus: View {
     @EnvironmentObject private var model: VeltrixModel
@@ -30,22 +31,29 @@ struct MarketStatus: View {
 }
 
 struct CoinIcon: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let asset: Asset
     let url: URL?
     var size: CGFloat = 39
 
     var body: some View {
-        AsyncImage(url: url, transaction: Transaction(animation: .easeOut(duration: 0.18))) { phase in
-            if let image = phase.image {
-                image.resizable().scaledToFit()
+        Group {
+            if let bundled = UIImage(named: "coin-" + asset.id) {
+                Image(uiImage: bundled).resizable().scaledToFit()
             } else {
-                Text(verbatim: String(asset.ticker.prefix(2)))
-                    .font(.system(size: size * 0.33, weight: .bold, design: .rounded))
-                    .foregroundStyle(Color.vxHighlight)
+                AsyncImage(url: url, transaction: Transaction(animation: reduceMotion ? nil : .easeOut(duration: 0.18))) { phase in
+                    if let image = phase.image {
+                        image.resizable().scaledToFit()
+                    } else {
+                        Text(verbatim: String(asset.ticker.prefix(2)))
+                            .font(.system(size: size * 0.33, weight: .bold))
+                            .foregroundStyle(Color.vxText)
+                    }
+                }
             }
         }
         .frame(width: size, height: size)
-        .background(Color.vxAccent.opacity(0.12), in: Circle())
+        .background(Color.vxSurface, in: Circle())
         .clipShape(Circle())
         .accessibilityHidden(true)
     }

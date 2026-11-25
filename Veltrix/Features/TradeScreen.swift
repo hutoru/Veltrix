@@ -80,6 +80,9 @@ struct TradeScreen: View {
             }
             .background(Color.vxBackground.ignoresSafeArea())
             .scrollDismissesKeyboard(.interactively)
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                if !processing { footer }
+            }
             .navigationTitle(Text(verbatim: navigationTitle))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -146,21 +149,41 @@ struct TradeScreen: View {
             if let error {
                 Text(verbatim: error).font(.footnote).foregroundStyle(Color.vxDown)
             }
-            Button("Continue") {
-                do {
-                    let draft = try makeReview()
-                    try model.validateTrade(draft.command, id: intent.id)
-                    review = draft
-                    error = nil
-                    Feedback.tap()
-                } catch {
-                    self.error = Display.error(error)
-                    Feedback.failure()
-                }
-            }
-            .buttonStyle(PrimaryButtonStyle())
-            .accessibilityIdentifier("trade.review")
         }
+    }
+
+    private var footer: some View {
+        Group {
+            if done {
+                Button("Done") { dismiss() }
+            } else if let review {
+                Button { submit(review) } label: {
+                    Text(intent.action == .deposit ? "Confirm operation" : intent.action.title)
+                }
+                .accessibilityIdentifier("trade.confirm")
+            } else {
+                Button("Continue") {
+                    do {
+                        let draft = try makeReview()
+                        try model.validateTrade(draft.command, id: intent.id)
+                        review = draft
+                        error = nil
+                        Feedback.tap()
+                    } catch {
+                        self.error = Display.error(error)
+                        Feedback.failure()
+                    }
+                }
+                .accessibilityIdentifier("trade.review")
+            }
+        }
+        .buttonStyle(PrimaryButtonStyle(height: 52))
+        .frame(maxWidth: 490)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity)
+        .background(Color.vxBackground)
+        .overlay(alignment: .top) { Rectangle().fill(Color.vxSeparator).frame(height: 1).allowsHitTesting(false) }
     }
 
     private var isTrading: Bool { [.buy, .sell, .swap].contains(intent.action) }
@@ -251,7 +274,7 @@ struct TradeScreen: View {
             CountValue(text: (amount.isEmpty ? "0" : amount) + " " + amountUnit)
                 .font(.system(size: isTrading ? 62 : 51, weight: .semibold))
                 .lineLimit(1)
-                .minimumScaleFactor(0.36)
+                .minimumScaleFactor(0.24)
                 .accessibilityIdentifier("trade.amount")
             Text(verbatim: equivalent ?? " ")
                 .font(.footnote)
@@ -367,9 +390,6 @@ struct TradeScreen: View {
                 Text("The final price uses the latest available quote at confirmation.")
                     .font(.caption).foregroundStyle(Color.vxMuted)
             }
-            Button { submit(review) } label: { Text(intent.action == .deposit ? "Confirm operation" : intent.action.title) }
-                .buttonStyle(PrimaryButtonStyle())
-                .accessibilityIdentifier("trade.confirm")
         }
     }
 
@@ -405,7 +425,6 @@ struct TradeScreen: View {
                     Text(verbatim: summary).font(.largeTitle.monospacedDigit()).lineLimit(1).minimumScaleFactor(0.4)
                     ShareLink(item: "VELTRIX · \(L.text("Virtual operation")) · \(L.text(intent.action.rawValue.capitalized)) · \(summary)")
                 }
-                Button("Done") { dismiss() }.buttonStyle(PrimaryButtonStyle())
             }
         }.padding(.vertical, 44)
     }

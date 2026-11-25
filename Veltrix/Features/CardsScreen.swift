@@ -432,7 +432,9 @@ private struct CardForm: View {
                 collection = value
                 if let first = value.tiers.first { choose(first) }
             })) {
-                ForEach(CardCollection.allCases, id: \.self) { Text($0.title).tag($0) }
+                ForEach(CardCollection.allCases, id: \.self) {
+                    Text($0.segmentTitle).accessibilityLabel(Text($0.title)).tag($0)
+                }
             }.pickerStyle(.segmented)
             Picker("Design", selection: Binding(get: { tier }, set: choose)) {
                 ForEach(collection.tiers, id: \.self) { Text($0.title).tag($0) }

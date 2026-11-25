@@ -135,7 +135,10 @@ struct VeltrixRoot: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: NotificationDelegate.opened)) { _ in openPendingNotification() }
         .onReceive(NotificationCenter.default.publisher(for: AppShortcut.opened)) { _ in openPendingShortcut() }
-        .onChange(of: showSplash) { visible in if !visible { openPendingShortcut() } }
+        .onChange(of: showSplash) { visible in
+            if !visible { openPendingNotification(); openPendingShortcut() }
+        }
+        .onChange(of: model.onSet) { enabled in if !enabled { openPendingNotification() } }
         .onAppear { if phase == .active && !lock.locked { model.start(); openPendingNotification(); openPendingShortcut() } }
         .task {
             #if DEBUG
@@ -166,7 +169,7 @@ struct VeltrixRoot: View {
     }
 
     private func openPendingNotification() {
-        guard !lock.locked, phase == .active, !model.storageError, !model.onSet,
+        guard !showSplash, !lock.locked, phase == .active, !model.storageError, !model.onSet,
               let value = UserDefaults.standard.string(forKey: "pendingOperationNotification"),
               let id = UUID(uuidString: value) else { return }
         UserDefaults.standard.removeObject(forKey: "pendingOperationNotification")

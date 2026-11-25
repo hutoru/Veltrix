@@ -48,6 +48,7 @@ struct PortfolioScreen: View {
                         ProfileAvatar(size: 36)
                         VStack(alignment: .leading) {
                             Text(verbatim: profileName.isEmpty ? L.text("My profile") : profileName).font(.subheadline.bold())
+                                .lineLimit(1).minimumScaleFactor(0.7)
                             Text(verbatim: username.isEmpty ? portfolio.name : "@" + username)
                                 .font(.caption2).foregroundStyle(Color.vxMuted).lineLimit(1)
                         }
@@ -136,7 +137,7 @@ struct PortfolioScreen: View {
             }
             CountValue(text: model.money(value))
                 .font(.system(size: 48, weight: .semibold))
-                .tracking(-2).lineLimit(1).minimumScaleFactor(0.4)
+                .tracking(-2).lineLimit(1).minimumScaleFactor(0.24)
             HStack(spacing: 6) {
                 Text("24h P&L").foregroundStyle(Color.vxMuted)
                 Text(verbatim: model.signedMoney(daily?.value))
@@ -171,7 +172,8 @@ struct PortfolioScreen: View {
                 Spacer()
                 VStack(alignment: .trailing, spacing: 1) {
                     Text("Available cash").font(.caption2).foregroundStyle(Color.vxMuted)
-                    Text(verbatim: model.money(try? portfolio.freeCash())).font(.caption.monospacedDigit())
+                    Text(verbatim: model.money(try? portfolio.freeCash()))
+                        .font(.caption.monospacedDigit()).lineLimit(1).minimumScaleFactor(0.45)
                 }
                 Menu {
                     Picker("Sort by", selection: $sort) {

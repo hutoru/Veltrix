@@ -277,7 +277,9 @@ struct EntryScreen: View {
                 if let other = entry.counterAmount, let asset = entry.counterAsset {
                     LabeledContent("Receive asset", value: "\(model.units(other)) \(Asset.ticker(asset))")
                 }
-                if !entry.note.isEmpty { LabeledContent("Details", value: entry.note) }
+                if !entry.note.isEmpty {
+                    LabeledContent("Details") { Text(verbatim: entry.note).textSelection(.enabled) }
+                }
             }
             .font(.subheadline)
             .panel()
@@ -290,7 +292,7 @@ struct EntryScreen: View {
             }
             if !model.hide {
                 ShareLink(item: "VELTRIX · \(L.text("Virtual operation")) · \(entry.kind.localized) · \(summary) · \(entry.date.formatted())") {
-                    Label("Share confirmation", systemImage: "square.and.arrow.up")
+                    Label("Share operation", systemImage: "square.and.arrow.up")
                 }
                 .buttonStyle(.bordered)
             }

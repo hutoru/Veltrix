@@ -7,13 +7,14 @@ final class VeltrixUITests: XCTestCase {
         app.launchArguments += ["--ui-testing", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         app.launchArguments += arguments
         app.launchEnvironment["VELTRIX_XCUITEST_OHLC"] = MarketFixture.bitcoinOHLC
+        app.launchEnvironment["VELTRIX_XCUITEST_QUOTES"] = MarketFixture.quotes
         app.launch()
         return app
     }
 
     func testDepositThroughReviewAndSeeItInActivity() {
         let app = launch()
-        capture(app, name: "Home")
+        capture(app, name: "Home Empty")
         let more = app.buttons["trade.more"]
         if !more.isHittable { app.swipeUp() }
         more.tap()
@@ -26,10 +27,10 @@ final class VeltrixUITests: XCTestCase {
         if !app.buttons["trade.review"].isHittable { app.swipeUp() }
         app.buttons["trade.review"].tap()
         XCTAssertTrue(app.staticTexts["Local operation"].exists)
-        capture(app, name: "Review Order")
+        capture(app, name: "Deposit Review")
         app.buttons["trade.confirm"].tap()
         XCTAssertTrue(app.staticTexts["trade.saved"].waitForExistence(timeout: 5))
-        capture(app, name: "Operation Saved")
+        capture(app, name: "Deposit Saved")
         app.buttons["Done"].tap()
         app.buttons["Notifications"].tap()
         XCTAssertTrue(app.descendants(matching: .any)["activity.deposit"].waitForExistence(timeout: 5))
@@ -61,6 +62,7 @@ final class VeltrixUITests: XCTestCase {
     func testCreateCardAndHideItsBalanceThroughSettings() {
         let app = launch()
         app.buttons["tab.profile"].tap()
+        XCTAssertTrue(app.buttons["profile.settings"].waitForExistence(timeout: 5))
         capture(app, name: "Profile")
         app.buttons["profile.cards"].tap()
         let create = app.buttons["card.create"]
@@ -126,7 +128,19 @@ final class VeltrixUITests: XCTestCase {
                 if !app.buttons["trade.review"].isHittable { app.swipeUp() }
                 app.buttons["trade.review"].tap()
                 XCTAssertTrue(app.staticTexts["Local operation"].waitForExistence(timeout: 5))
+                capture(app, name: "Review Order")
                 app.buttons["Edit"].tap()
+                app.buttons["Market"].tap()
+                if !app.buttons["trade.review"].isHittable { app.swipeUp() }
+                app.buttons["trade.review"].tap()
+                app.buttons["trade.confirm"].tap()
+                XCTAssertTrue(app.staticTexts["trade.saved"].waitForExistence(timeout: 5))
+                capture(app, name: "Operation Saved")
+                app.buttons["Done"].tap()
+                XCTAssertTrue(app.buttons["tab.trade"].waitForExistence(timeout: 5))
+                XCTAssertTrue(app.staticTexts["Bitcoin"].waitForExistence(timeout: 5))
+                capture(app, name: "Home")
+                continue
             }
             app.buttons["Close"].tap()
         }
@@ -136,6 +150,9 @@ final class VeltrixUITests: XCTestCase {
         let app = launch(["--capture-launch", "--locked-fixture"])
         capture(app, name: "Splash")
         XCTAssertTrue(app.staticTexts["Welcome back"].waitForExistence(timeout: 8))
+        let digit = app.buttons["keypad.1"]
+        let visible = XCTNSPredicateExpectation(predicate: NSPredicate(format: "hittable == true"), object: digit)
+        XCTAssertEqual(XCTWaiter.wait(for: [visible], timeout: 5), .completed)
         capture(app, name: "Lock Screen")
         for digit in ["1", "2", "3", "4"] { app.buttons["keypad." + digit].tap() }
         XCTAssertTrue(app.buttons["Unlock"].isEnabled, app.debugDescription)

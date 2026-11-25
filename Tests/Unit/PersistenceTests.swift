@@ -74,4 +74,34 @@ final class PersistenceTests: XCTestCase {
         XCTAssertEqual(restored.cards.first?.design, design)
         XCTAssertEqual(restored.cards.first?.tier, .custom)
     }
+
+    @MainActor func testNotificationsFollowSuccessfulSaveAndHonorPrivacy() async throws {
+        let name = "Veltrix-Notifications-" + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+        let storage = try CoreDataLedgerStore(inMemory: true)
+        var notifications: [(Entry, String?)] = []
+        let model = VeltrixModel(defaults: defaults, store: storage, testing: true) { entry, _, amount in
+            let saved = try? storage.load()
+            XCTAssertTrue(saved?.portfolios.first?.entries.contains(where: { $0.id == entry.id }) == true)
+            notifications.append((entry, amount))
+        }
+        model.pushOperations = true
+        let operation = UUID()
+        XCTAssertTrue(model.execute(.deposit(100), id: operation))
+        XCTAssertFalse(model.execute(.deposit(100), id: operation))
+        XCTAssertFalse(model.execute(.deposit(0)))
+        XCTAssertEqual(notifications.map { $0.0.id }, [operation])
+        XCTAssertNil(notifications.first?.1)
+
+        model.privateNotifications = false
+        XCTAssertTrue(model.execute(.deposit(20)))
+        XCTAssertEqual(notifications.count, 2)
+        XCTAssertNotNil(notifications.last?.1)
+
+        model.hide = true
+        XCTAssertTrue(model.execute(.deposit(25)))
+        XCTAssertEqual(notifications.count, 3)
+        XCTAssertNil(notifications.last?.1)
+    }
 }

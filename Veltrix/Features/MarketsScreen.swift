@@ -168,7 +168,7 @@ struct MarketsScreen: View {
                     CoinIcon(asset: asset, url: quote?.image)
                     VStack(alignment: .leading, spacing: 4) {
                         Text(verbatim: asset.name).font(.subheadline.weight(.semibold)).lineLimit(1)
-                        Text(verbatim: asset.ticker + " · " + model.money(quote?.marketCap, privateValue: false))
+                        Text(verbatim: asset.ticker + " · " + model.compactMarketValue(quote?.marketCap))
                             .font(.caption2.monospacedDigit()).lineLimit(1).foregroundStyle(Color.vxMuted)
                     }
                     Spacer(minLength: 4)

@@ -13,6 +13,8 @@ enum CardCollection: String, CaseIterable {
         }
     }
 
+    var segmentTitle: LocalizedStringKey { self == .exclusive ? "Exclusive" : title }
+
     var tiers: [CardTier] {
         switch self {
         case .origin: return [.classic, .gold, .platinum, .signature, .infinite]

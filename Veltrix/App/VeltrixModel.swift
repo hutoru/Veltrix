@@ -2,6 +2,7 @@ import Foundation
 import SwiftUI
 
 @MainActor final class VeltrixModel: ObservableObject {
+    typealias NotificationSink = @MainActor (Entry, Bool, String?) -> Void
     @Published private(set) var ledger: Ledger
     @Published private(set) var quotes: [String: Quote] = [:]
     @Published private(set) var rates: [String: FXRate] = [:]
@@ -40,6 +41,7 @@ import SwiftUI
     private let cache: MarketCache
     private let defaults: UserDefaults
     private let testing: Bool
+    private let notificationSink: NotificationSink?
     private var updates: Task<Void, Never>?
     private var stream: Task<Void, Never>?
     private var fxLoading = false
@@ -53,9 +55,13 @@ import SwiftUI
     #endif
 
     init(defaults: UserDefaults = .standard, store suppliedStore: (any LedgerStore)? = nil,
-         provider suppliedProvider: (any MarketDataProvider)? = nil, testing: Bool = false) {
+         provider suppliedProvider: (any MarketDataProvider)? = nil, testing: Bool = false,
+         notificationSink: NotificationSink? = nil) {
         self.defaults = defaults
         self.testing = testing
+        self.notificationSink = notificationSink ?? (testing ? nil : { entry, filled, amounts in
+            OperationNotifications.schedule(entry, filled: filled, amounts: amounts)
+        })
         let client = HTTPClient()
         http = client
         provider = suppliedProvider ?? PublicMarketProvider(http: client, demoKey: testing ? nil : Self.loadDemoKey())
@@ -209,6 +215,15 @@ import SwiftUI
     func signedMoney(_ amount: Decimal?) -> String {
         let text = money(amount)
         return !hide && text != "—" && (amount ?? 0) > 0 ? "+" + text : text
+    }
+
+    func compactMarketValue(_ amount: Decimal?) -> String {
+        guard let amount, let value = try? Fiat.convert(amount, currency: currency, rates: rates) else { return "—" }
+        let scales: [(Decimal, String)] = [(1_000_000_000_000, "T"), (1_000_000_000, "B"), (1_000_000, "M"), (1_000, "K")]
+        if let (scale, suffix) = scales.first(where: { abs(value) >= $0.0 }) {
+            return Display.money(value / scale, currency: currency, digits: 2, minimum: 0) + suffix
+        }
+        return Display.money(value, currency: currency, digits: 2, minimum: 0)
     }
 
     func units(_ amount: Decimal) -> String {
@@ -466,7 +481,7 @@ import SwiftUI
         let previous = ledger
         try store.save(next)
         ledger = next
-        guard notify, pushOperations, !testing, !onSet else { return }
+        guard notify, pushOperations, !onSet, let notificationSink else { return }
         for portfolio in next.portfolios {
             let count = previous.portfolios.first { $0.id == portfolio.id }?.entries.count ?? 0
             guard portfolio.entries.count > count else { continue }
@@ -481,7 +496,7 @@ import SwiftUI
                         summary = quantity
                     }
                 }
-                OperationNotifications.schedule(entry, filled: filled, amounts: summary)
+                notificationSink(entry, filled, summary)
             }
         }
     }
@@ -492,7 +507,12 @@ import SwiftUI
 
     #if DEBUG
     private func loadTestMarket() {
-        guard let json = ProcessInfo.processInfo.environment["VELTRIX_XCUITEST_OHLC"],
+        let fixtures = ProcessInfo.processInfo.environment
+        if let json = fixtures["VELTRIX_XCUITEST_QUOTES"],
+           let rows = try? JSONDecoder().decode([Quote].self, from: Data(json.utf8)) {
+            gecko = Dictionary(uniqueKeysWithValues: rows.map { ($0.id, $0) })
+        }
+        guard let json = fixtures["VELTRIX_XCUITEST_OHLC"],
               let rows = try? JSONDecoder().decode([[Decimal]].self, from: Data(json.utf8)) else { return }
         uiSamples = rows.compactMap { row in
             guard row.count == 5 else { return nil }
@@ -500,10 +520,14 @@ import SwiftUI
                                close: row[4], open: row[1], high: row[2], low: row[3])
         }
         guard let first = uiSamples.first, let last = uiSamples.last, first.close > 0 else { return }
-        quoteDate = last.date
-        gecko["bitcoin"] = Quote(id: "bitcoin", price: last.close,
-                               change: (last.close / first.close - 1) * 100, updated: last.date,
-                               exchange: true, sparkline: uiSamples.map(\.close))
+        var bitcoin = gecko["bitcoin"] ?? Quote(id: "bitcoin")
+        bitcoin.price = last.close
+        bitcoin.change = (last.close / first.close - 1) * 100
+        bitcoin.updated = last.date
+        bitcoin.exchange = true
+        bitcoin.sparkline = uiSamples.map(\.close)
+        gecko["bitcoin"] = bitcoin
+        quoteDate = gecko.values.compactMap(\.updated).max()
         rebuildQuotes()
     }
     #endif
