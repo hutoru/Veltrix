@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="background" x2="1" y2="1" gradientUnits="objectBoundingBox">
+      <stop stop-color="#161021"/><stop offset="0.56" stop-color="#100C1A"/><stop offset="1" stop-color="#0B0B0D"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.74" cy="0.17" r="0.82">
+      <stop stop-color="#7955FF" stop-opacity="0.47"/><stop offset="1" stop-color="#7955FF" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="symbol" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#FFFFFF"/><stop offset="0.45" stop-color="#D5C6FF"/><stop offset="1" stop-color="#7955FF"/>
+    </linearGradient>
+  </defs>
+  <path fill="url(#background)" d="M0 0h1024v1024H0z"/>
+  <path fill="url(#glow)" d="M0 0h1024v1024H0z"/>
+  <g fill="none" stroke="#B7A4FB" opacity=".19">
+    <circle cx="768" cy="270" r="352"/>
+    <circle cx="768" cy="270" r="388"/>
+    <circle cx="768" cy="270" r="424"/>
+    <circle cx="768" cy="270" r="460"/>
+    <circle cx="768" cy="270" r="496"/>
+    <circle cx="768" cy="270" r="532"/>
+    <circle cx="768" cy="270" r="568"/>
+    <circle cx="768" cy="270" r="604"/>
+  </g>
+  <g fill="url(#symbol)" transform="translate(211 192) scale(1.16)">
+    <path d="M15.36 87.04h122.88l158.72 286.72-56.32 107.52Z"/>
+    <path d="M184.32 87.04h312.32L332.8 337.92l-61.44-107.52 71.68-97.28H209.92Z"/>
+  </g>
+</svg>

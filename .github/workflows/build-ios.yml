@@ -1,0 +1,70 @@
+name: Build iOS IPA
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: veltrix-ios-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ios:
+    runs-on: macos-15
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install XcodeGen
+        run: brew list xcodegen >/dev/null 2>&1 || brew install xcodegen
+
+      - name: Select Xcode and generate project
+        shell: bash
+        run: |
+          set -euo pipefail
+          for candidate in /Applications/Xcode_26.3.app /Applications/Xcode_26.2.app /Applications/Xcode_16.4.app; do
+            if [[ -d "$candidate" ]]; then
+              sudo xcode-select -s "$candidate/Contents/Developer"
+              break
+            fi
+          done
+          xcodebuild -version
+          xcodegen --version
+          xcrun --sdk iphoneos --show-sdk-version
+          xcodegen generate --spec project.yml
+          xcodebuild -resolvePackageDependencies -project Veltrix.xcodeproj -scheme Veltrix
+
+      - name: Run unit and UI tests on an installed iPhone simulator
+        shell: bash
+        run: |
+          set -euo pipefail
+          simulator="$(bash scripts/select-simulator.sh)"
+          mkdir -p build
+          xcodebuild test -project Veltrix.xcodeproj -scheme Veltrix \
+            -destination "platform=iOS Simulator,id=$simulator" \
+            -derivedDataPath build/TestDerived -resultBundlePath build/VeltrixTests.xcresult \
+            -parallel-testing-enabled NO CODE_SIGNING_ALLOWED=NO
+
+      - name: Build and validate unsigned ARM64 IPA
+        run: bash scripts/build-ipa.sh
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: Veltrix-unsigned-ipa
+          path: |
+            build/Veltrix.ipa
+            build/Veltrix.ipa.sha256
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v6
+        if: failure()
+        with:
+          name: Veltrix-test-results
+          path: build/VeltrixTests.xcresult
+          if-no-files-found: ignore

@@ -1,0 +1,73 @@
+name: Veltrix
+options:
+  deploymentTarget:
+    iOS: "16.0"
+  developmentLanguage: en
+  groupSortPosition: top
+  generateEmptyDirectories: false
+settings:
+  base:
+    IPHONEOS_DEPLOYMENT_TARGET: "16.0"
+    SWIFT_VERSION: "5.0"
+    TARGETED_DEVICE_FAMILY: "1"
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+targets:
+  Veltrix:
+    type: application
+    platform: iOS
+    sources:
+      - path: Veltrix
+        excludes:
+          - Resources/Info.plist
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.veltrix.simulation
+        PRODUCT_NAME: Veltrix
+        INFOPLIST_FILE: Veltrix/Resources/Info.plist
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        CURRENT_PROJECT_VERSION: 1
+        MARKETING_VERSION: "1.0.0"
+        SUPPORTED_PLATFORMS: "iphoneos iphonesimulator"
+        SUPPORTS_MACCATALYST: NO
+        SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
+        "ARCHS[sdk=iphoneos*]": arm64
+      configs:
+        Debug:
+          ENABLE_TESTABILITY: YES
+  VeltrixUnitTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [Tests/Unit]
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: app.veltrix.simulation.tests
+    dependencies:
+      - target: Veltrix
+  VeltrixUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [Tests/UI]
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: app.veltrix.simulation.uitests
+        TEST_TARGET_NAME: Veltrix
+    dependencies:
+      - target: Veltrix
+schemes:
+  Veltrix:
+    build:
+      targets:
+        Veltrix: all
+        VeltrixUnitTests: [test]
+        VeltrixUITests: [test]
+    test:
+      config: Debug
+      targets:
+        - VeltrixUnitTests
+        - VeltrixUITests
+    run:
+      config: Debug
+    archive:
+      config: Release
