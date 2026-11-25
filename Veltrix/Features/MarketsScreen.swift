@@ -294,9 +294,9 @@ struct AssetScreen: View {
         .safeAreaInset(edge: .bottom, spacing: 0) {
             HStack(spacing: 10) {
                 Button("Sell") { Feedback.tap(); trade = TradeIntent(action: .sell, asset: asset.id) }
-                    .buttonStyle(PrimaryButtonStyle(tint: .vxDown, ink: Color.black))
+                    .buttonStyle(PrimaryButtonStyle(tint: .vxDown, ink: Color.black, height: 54))
                 Button("Buy") { Feedback.tap(); trade = TradeIntent(action: .buy, asset: asset.id) }
-                    .buttonStyle(PrimaryButtonStyle(tint: .vxUp, ink: Color.black))
+                    .buttonStyle(PrimaryButtonStyle(tint: .vxUp, ink: Color.black, height: 54))
             }.padding(.horizontal, 18).padding(.vertical, 8).background(Color.vxBackground)
         }
         .navigationTitle(Text(verbatim: asset.name))
@@ -339,17 +339,7 @@ struct AssetScreen: View {
     private func chartBody(height: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             if loading && history == nil { Skeleton().frame(height: 78) }
-            ChartPanel(samples: history?.samples ?? [], range: $range, candles: $candles, allowsCandles: true, height: height,
-                       ranges: ChartRange.allCases,
-                       rangeLabel: { value in
-                           switch value {
-                           case .day: return "1D"
-                           case .week: return "1W"
-                           case .month: return "1M"
-                           case .quarter: return "3M"
-                           default: return value.rawValue
-                           }
-                       }) {
+            VeltrixChart(samples: history?.samples ?? [], range: $range, candles: $candles, allowsCandles: true, height: height) {
                 model.money($0, privateValue: false, price: true)
             }
             if let history {

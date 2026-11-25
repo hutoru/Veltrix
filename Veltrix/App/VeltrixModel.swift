@@ -44,6 +44,9 @@ import SwiftUI
     private var gecko: [String: Quote] = [:]
     private var ticks: [String: TickerTick] = [:]
     private var toastTask: Task<Void, Never>?
+    #if DEBUG
+    private var uiSamples: [ChartSample] = []
+    #endif
 
     init(defaults: UserDefaults = .standard, store suppliedStore: (any LedgerStore)? = nil,
          provider suppliedProvider: (any MarketDataProvider)? = nil, testing: Bool = false) {
@@ -76,6 +79,9 @@ import SwiftUI
         } catch {
             storageError = true
         }
+        #if DEBUG
+        if testing { loadTestMarket() }
+        #endif
     }
 
     var portfolio: Portfolio { ledger.portfolios.first { $0.id == ledger.selected } ?? ledger.portfolios[0] }
@@ -135,6 +141,9 @@ import SwiftUI
 
     var usablePrices: [String: Decimal] {
         guard inForeground else { return [:] }
+        #if DEBUG
+        if testing && !uiSamples.isEmpty { return prices }
+        #endif
         return quotes.compactMapValues { quote in
             guard quote.exchange || geckoOnline, let updated = quote.updated, let price = quote.price else { return nil }
             let age = Date().timeIntervalSince(updated)
@@ -290,6 +299,12 @@ import SwiftUI
     }
 
     func loadHistory(_ asset: Asset, range: ChartRange, candles: Bool) async throws -> MarketHistory {
+        #if DEBUG
+        if testing && asset.id == "bitcoin", let latest = uiSamples.last {
+            let cutoff = range.start(from: latest.date) ?? .distantPast
+            return MarketHistory(samples: uiSamples.filter { $0.date >= cutoff }, source: "Kraken")
+        }
+        #endif
         guard !testing else { throw MarketError.unavailable }
         let entryKey = key(asset, range: range, candles: candles)
         let refreshAfter: TimeInterval = range == .hour || range == .day ? 180 : 1_800
@@ -421,6 +436,24 @@ import SwiftUI
     private static func loadDemoKey() -> String? {
         (try? Keychain.read("coingecko")).flatMap { String(data: $0, encoding: .utf8) }
     }
+
+    #if DEBUG
+    private func loadTestMarket() {
+        guard let json = ProcessInfo.processInfo.environment["VELTRIX_XCUITEST_OHLC"],
+              let rows = try? JSONDecoder().decode([[Decimal]].self, from: Data(json.utf8)) else { return }
+        uiSamples = rows.compactMap { row in
+            guard row.count == 5 else { return nil }
+            return ChartSample(date: Date(timeIntervalSince1970: NSDecimalNumber(decimal: row[0]).doubleValue),
+                               close: row[4], open: row[1], high: row[2], low: row[3])
+        }
+        guard let first = uiSamples.first, let last = uiSamples.last, first.close > 0 else { return }
+        quoteDate = last.date
+        gecko["bitcoin"] = Quote(id: "bitcoin", price: last.close,
+                               change: (last.close / first.close - 1) * 100, updated: last.date,
+                               exchange: true, sparkline: uiSamples.map(\.close))
+        rebuildQuotes()
+    }
+    #endif
 }
 
 private enum DisplayStored {

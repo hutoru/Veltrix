@@ -67,11 +67,16 @@ struct ProfileScreen: View {
             }
             CountValue(text: model.money(try? portfolio.value(prices: model.prices)))
                 .font(.system(size: 42, weight: .semibold)).lineLimit(1).minimumScaleFactor(0.4)
-            LabeledContent("Available cash", value: model.money(try? portfolio.freeCash())).panel(padding: 12)
+            HStack(spacing: 12) {
+                metric("Available cash", value: model.money(try? portfolio.freeCash()))
+                metric("Unrealized P&L", value: model.signedMoney(try? portfolio.unrealized(prices: model.prices)))
+            }
+            Divider().overlay(Color.vxSeparator)
             if !model.hide {
-                ChartPanel(samples: samples, range: $range, candles: $candles, allowsCandles: true,
+                VeltrixChart(samples: samples, range: $range, candles: $candles, allowsCandles: true,
                            ranges: [.day, .week, .month, .all]) { model.money($0) }
-                LabeledContent("Realized P&L", value: model.money(periodProfit))
+                LabeledContent("Realized P&L", value: model.signedMoney(periodProfit))
+                allocation
             }
             Text("Open positions").font(.headline)
             if portfolio.positions.isEmpty {
@@ -84,8 +89,9 @@ struct ProfileScreen: View {
                         Text(verbatim: coin.name)
                         Spacer()
                         if let position = portfolio.positions[coin.id] { Text(verbatim: model.units(position.units)) }
-                    }.panel(padding: 10)
+                    }.frame(minHeight: 48).contentShape(Rectangle())
                 }.buttonStyle(.plain)
+                Divider().overlay(Color.vxSeparator)
             }
             let closed = Asset.catalog.filter { coin in
                 portfolio.positions[coin.id] == nil && realizedTrades.contains { $0.asset == coin.id }
@@ -100,8 +106,9 @@ struct ProfileScreen: View {
                             Text(verbatim: coin.name)
                             Spacer()
                             Text(verbatim: model.money(profit)).monospacedDigit()
-                        }.panel(padding: 10)
+                        }.frame(minHeight: 48).contentShape(Rectangle())
                     }.buttonStyle(.plain)
+                    Divider().overlay(Color.vxSeparator)
                 }
             }
             if !realizedTrades.isEmpty {
@@ -133,9 +140,39 @@ struct ProfileScreen: View {
         .alert("Photo unavailable", isPresented: $photoError) { Button("OK", role: .cancel) {} }
     }
 
+    private func metric(_ label: LocalizedStringKey, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(label).font(.caption).foregroundStyle(Color.vxMuted)
+            CountValue(text: value).font(.headline).lineLimit(1).minimumScaleFactor(0.5)
+        }.frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder private var allocation: some View {
+        if let total = try? portfolio.value(prices: model.prices), total > 0 {
+            let weights = Asset.catalog.compactMap { asset -> (Asset, Decimal)? in
+                guard let position = portfolio.positions[asset.id], let price = model.prices[asset.id],
+                      let weight = try? MoneyMath.divide(MoneyMath.multiply(price, position.units), total) else { return nil }
+                return (asset, weight)
+            }.sorted { $0.1 > $1.1 }
+            if !weights.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Portfolio allocation").font(.headline)
+                    ForEach(Array(weights.prefix(5)), id: \.0) { asset, weight in
+                        HStack(spacing: 12) {
+                            CoinIcon(asset: asset, url: model.quotes[asset.id]?.image, size: 24)
+                            Text(verbatim: asset.ticker).font(.caption.weight(.semibold)).frame(width: 46, alignment: .leading)
+                            ProgressView(value: min(1, max(0, NSDecimalNumber(decimal: weight).doubleValue)))
+                            Text(verbatim: Display.percent(weight * 100)).font(.caption.monospacedDigit())
+                                .frame(minWidth: 55, alignment: .trailing)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     private var periodProfit: Decimal? {
         let start = range.start(from: .now) ?? .distantPast
         return try? realizedTrades.filter { $0.date >= start }.compactMap(\.profit).reduce(0, MoneyMath.add)
     }
 }
-

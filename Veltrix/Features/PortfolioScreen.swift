@@ -107,7 +107,7 @@ struct PortfolioScreen: View {
         .fullScreenCover(isPresented: $chart) {
             NavigationStack {
                 PageScroll {
-                    ChartPanel(samples: samples, range: $range, candles: $candles, allowsCandles: true, height: 320) {
+                    VeltrixChart(samples: samples, range: $range, candles: $candles, allowsCandles: true, height: 320) {
                         model.money($0)
                     }
                 }

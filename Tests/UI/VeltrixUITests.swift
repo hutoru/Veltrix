@@ -1,10 +1,12 @@
 import XCTest
 
 final class VeltrixUITests: XCTestCase {
-    private func launch() -> XCUIApplication {
+    private func launch(_ arguments: [String] = []) -> XCUIApplication {
         continueAfterFailure = false
         let app = XCUIApplication()
         app.launchArguments += ["--ui-testing", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launchArguments += arguments
+        app.launchEnvironment["VELTRIX_XCUITEST_OHLC"] = MarketFixture.bitcoinOHLC
         app.launch()
         return app
     }
@@ -32,6 +34,7 @@ final class VeltrixUITests: XCTestCase {
         app.buttons["Notifications"].tap()
         XCTAssertTrue(app.descendants(matching: .any)["activity.deposit"].waitForExistence(timeout: 5))
         capture(app, name: "Notifications")
+        app.navigationBars["Notifications"].buttons.element(boundBy: 0).tap()
         app.buttons["tab.activity"].tap()
         XCTAssertTrue(app.staticTexts["Transactions and open orders"].waitForExistence(timeout: 5), app.debugDescription)
         XCTAssertTrue(app.descendants(matching: .any)["activity.deposit"].exists)
@@ -51,6 +54,7 @@ final class VeltrixUITests: XCTestCase {
         capture(app, name: "Market search")
         coin.tap()
         XCTAssertTrue(app.staticTexts["Price history"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["Historical chart"].firstMatch.waitForExistence(timeout: 5))
         capture(app, name: "Asset Details")
     }
 
@@ -126,6 +130,31 @@ final class VeltrixUITests: XCTestCase {
             }
             app.buttons["Close"].tap()
         }
+    }
+
+    func testLaunchAndUnlockWithPIN() {
+        let app = launch(["--capture-launch", "--locked-fixture"])
+        capture(app, name: "Splash")
+        XCTAssertTrue(app.staticTexts["Welcome back"].waitForExistence(timeout: 8))
+        capture(app, name: "Lock Screen")
+        for digit in ["1", "2", "3", "4"] { app.buttons["keypad." + digit].tap() }
+        app.buttons["Unlock"].tap()
+        XCTAssertTrue(app.staticTexts["Incorrect PIN"].waitForExistence(timeout: 5))
+        for digit in ["2", "4", "6", "8"] { app.buttons["keypad." + digit].tap() }
+        app.buttons["Unlock"].tap()
+        XCTAssertTrue(app.buttons["tab.portfolio"].waitForExistence(timeout: 5))
+    }
+
+    func testQRScannerOpensAndCanBeDismissed() {
+        let app = launch()
+        app.buttons["Scan QR code"].tap()
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        let allow = springboard.alerts.buttons["Allow"]
+        if allow.waitForExistence(timeout: 2) { allow.tap() }
+        XCTAssertTrue(app.buttons["Close"].waitForExistence(timeout: 5))
+        capture(app, name: "QR Scanner")
+        app.buttons["Close"].tap()
+        XCTAssertTrue(app.buttons["Scan QR code"].waitForExistence(timeout: 5))
     }
 
     private func capture(_ app: XCUIApplication, name: String) {

@@ -226,7 +226,7 @@ private struct CardFace: View, Animatable {
             switch design.material {
             case .holographic:
                 AngularGradient(colors: [.cyan, .purple, .pink, .mint, .cyan], center: center,
-                                angle: .degrees(18 + tilt.width * 30))
+                                angle: .degrees(18 + Double(tilt.width) * 30))
                     .blendMode(.screen).opacity(design.sheen * 0.62)
             case .glass:
                 RadialGradient(colors: [.white.opacity(0.9), .cyan.opacity(0.17), .clear], center: center,
@@ -240,12 +240,14 @@ private struct CardFace: View, Animatable {
             }
             if !rotated {
                 GeometryReader { geometry in
-                    let point = CGPoint(x: geometry.size.width * design.markX, y: geometry.size.height * design.markY)
+                    let point = CGPoint(x: geometry.size.width * CGFloat(design.markX),
+                                        y: geometry.size.height * CGFloat(design.markY))
                     if let moveMark {
                         VeltrixMark().fill(ink.opacity(0.64)).frame(width: 38, height: 38)
                             .padding(6).contentShape(Rectangle())
                             .gesture(DragGesture(coordinateSpace: .named("card.preview")).onChanged { value in
-                                moveMark(value.location.x / max(1, geometry.size.width), value.location.y / max(1, geometry.size.height))
+                                moveMark(Double(value.location.x / max(1, geometry.size.width)),
+                                         Double(value.location.y / max(1, geometry.size.height)))
                             })
                             .position(point)
                     } else {

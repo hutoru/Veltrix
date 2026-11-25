@@ -122,7 +122,7 @@ extension Color {
 }
 
 private extension CGFloat {
-    var clampedColor: CGFloat { min(255, max(0, rounded())) }
+    var clampedColor: CGFloat { Swift.min(255, Swift.max(0, rounded())) }
 }
 
 struct CardGrain: View {

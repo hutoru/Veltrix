@@ -6,11 +6,13 @@ struct VeltrixApp: App {
     @UIApplicationDelegateAdaptor(NotificationDelegate.self) private var notificationDelegate
     @StateObject private var model: VeltrixModel
     @StateObject private var lock: AppLock
+    private let defaults: UserDefaults
 
     init() {
         let testing = ProcessInfo.processInfo.arguments.contains("--ui-testing") && _isDebugAssertConfiguration()
         let defaults = testing ? (UserDefaults(suiteName: "Veltrix-UI-Tests") ?? .standard) : .standard
         if testing { defaults.removePersistentDomain(forName: "Veltrix-UI-Tests") }
+        self.defaults = defaults
         _model = StateObject(wrappedValue: VeltrixModel(defaults: defaults, testing: testing))
         _lock = StateObject(wrappedValue: AppLock(defaults: defaults, testing: testing))
     }
@@ -20,6 +22,7 @@ struct VeltrixApp: App {
             VeltrixRoot()
                 .environmentObject(model)
                 .environmentObject(lock)
+                .defaultAppStorage(defaults)
                 .preferredColorScheme(model.theme == "system" ? nil : (model.theme == "light" ? .light : .dark))
                 .tint(.vxHighlight)
         }
@@ -55,11 +58,13 @@ struct VeltrixRoot: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var tab = Destination.portfolio
     @State private var keyboardVisible = false
-    @State private var showSplash = !ProcessInfo.processInfo.arguments.contains("--ui-testing")
+    @State private var showSplash = !_isDebugAssertConfiguration()
+        || !ProcessInfo.processInfo.arguments.contains("--ui-testing")
         || ProcessInfo.processInfo.arguments.contains("--capture-launch")
     @State private var tradeMenu = false
     @State private var trade: TradeIntent?
     @State private var notificationEntry: Entry?
+    @State private var shortcutScanner = false
 
     var body: some View {
         Group {
@@ -82,7 +87,8 @@ struct VeltrixRoot: View {
                     .transition(reduceMotion ? .identity : .opacity)
                     .accessibilityIdentifier("launch.screen")
                     .task {
-                        try? await Task.sleep(nanoseconds: reduceMotion ? 300_000_000 : 950_000_000)
+                        let capture = _isDebugAssertConfiguration() && ProcessInfo.processInfo.arguments.contains("--capture-launch")
+                        try? await Task.sleep(nanoseconds: capture ? 3_500_000_000 : (reduceMotion ? 300_000_000 : 950_000_000))
                         guard !Task.isCancelled else { return }
                         withAnimation(reduceMotion ? nil : .easeOut(duration: 0.24)) { showSplash = false }
                     }
@@ -101,14 +107,22 @@ struct VeltrixRoot: View {
         }
         .onChange(of: phase) { next in
             switch next {
-            case .active: lock.becomeActive(); if !lock.locked { model.start(); openPendingNotification() }
+            case .active: lock.becomeActive(); if !lock.locked { model.start(); openPendingNotification(); openPendingShortcut() }
             case .background: lock.enteredBackground(); model.stop()
             default: break
             }
         }
         .onChange(of: lock.locked) { value in
-            if value { model.stop() }
-            else if phase == .active { model.start(); openPendingNotification() }
+            if value {
+                model.stop()
+                trade = nil
+                notificationEntry = nil
+                shortcutScanner = false
+            } else if phase == .active {
+                model.start()
+                openPendingNotification()
+                openPendingShortcut()
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
             keyboardVisible = true
@@ -117,12 +131,34 @@ struct VeltrixRoot: View {
             keyboardVisible = false
         }
         .onReceive(NotificationCenter.default.publisher(for: NotificationDelegate.opened)) { _ in openPendingNotification() }
-        .onAppear { if phase == .active && !lock.locked { model.start(); openPendingNotification() } }
+        .onReceive(NotificationCenter.default.publisher(for: AppShortcut.opened)) { _ in openPendingShortcut() }
+        .onChange(of: showSplash) { visible in if !visible { openPendingShortcut() } }
+        .onAppear { if phase == .active && !lock.locked { model.start(); openPendingNotification(); openPendingShortcut() } }
+        .task {
+            #if DEBUG
+            let arguments = ProcessInfo.processInfo.arguments
+            if arguments.contains("--ui-testing") && arguments.contains("--locked-fixture") && !lock.hasPIN {
+                if await lock.updatePIN(current: "", new: "2468") { lock.lockNow() }
+            }
+            #endif
+        }
         .sheet(item: $notificationEntry) { entry in
             NavigationStack {
                 EntryScreen(entry: entry)
                     .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { notificationEntry = nil } } }
             }
+        }
+        .fullScreenCover(isPresented: $shortcutScanner) { QRScanner() }
+    }
+
+    private func openPendingShortcut() {
+        guard !showSplash, !lock.locked, phase == .active, !model.storageError,
+              let raw = UserDefaults.standard.string(forKey: AppShortcut.defaultsKey),
+              let shortcut = AppShortcut(rawValue: raw) else { return }
+        UserDefaults.standard.removeObject(forKey: AppShortcut.defaultsKey)
+        switch shortcut {
+        case .scan: shortcutScanner = true
+        case .explore: tab = .markets
         }
     }
 

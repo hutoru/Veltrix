@@ -68,10 +68,11 @@ struct PrimaryButtonStyle: ButtonStyle {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var tint: Color = .vxAccent
     var ink: Color = .white
+    var height: CGFloat = 48
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.headline)
-            .frame(maxWidth: .infinity, minHeight: 44)
+            .frame(maxWidth: .infinity, minHeight: height)
             .foregroundStyle(ink)
             .background(tint, in: RoundedRectangle(cornerRadius: 12))
             .opacity(configuration.isPressed ? 0.76 : 1)

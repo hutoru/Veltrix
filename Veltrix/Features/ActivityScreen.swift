@@ -122,7 +122,7 @@ struct ActivityScreen: View {
             matches([$0.kind.localized, Asset.ticker($0.asset), $0.note, $0.counterAsset.map(Asset.ticker) ?? ""])
         }
         let groups = Dictionary(grouping: entries) { Calendar.current.startOfDay(for: $0.date) }
-        return VStack(alignment: .leading, spacing: 15) {
+        return LazyVStack(alignment: .leading, spacing: 16) {
             if model.portfolio.entries.contains(where: { $0.kind == .cardPayment }) {
                 DisclosureGroup("Card spending") { spending }
                     .font(.subheadline.weight(.medium))
@@ -134,16 +134,15 @@ struct ActivityScreen: View {
                 ForEach(groups.keys.sorted(by: descending ? (>) : (<)), id: \.self) { day in
                     VStack(alignment: .leading, spacing: 8) {
                         Text(day, style: .date).font(.subheadline.weight(.semibold)).foregroundStyle(Color.vxMuted)
-                        VStack(spacing: 1) {
+                        LazyVStack(spacing: 0) {
                             ForEach(sortedEntries(groups[day] ?? [])) { entry in
                                 NavigationLink {
                                     EntryScreen(entry: entry)
                                 } label: { EntryRow(entry: entry) }
                                 .buttonStyle(.plain)
-                                Divider()
+                                Divider().overlay(Color.vxSeparator)
                             }
                         }
-                        .panel(padding: 12)
                     }
                 }
             }
@@ -298,7 +297,7 @@ struct EntryScreen: View {
         }
         .navigationTitle("Operation details")
         .navigationBarTitleDisplayMode(.inline)
-        .confirmationDialog("Refund virtual payment?", isPresented: $refund, titleVisibility: .visible) {
+        .confirmationDialog("Refund card payment?", isPresented: $refund, titleVisibility: .visible) {
             if let card = entry.cardID {
                 Button("Refund") { _ = model.execute(.refund(card, entry.id)) }
             }
