@@ -20,6 +20,18 @@ jobs:
       - name: Extract uploaded sources
         working-directory: .
         run: unzip -q veltrix-8.3.0-build-input.zip -d source-8.3
+      - name: Type featured assets explicitly
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          file = Path('Veltrix/Features/MarketsScreen.swift')
+          source = file.read_text()
+          old = 'ForEach(ids.compactMap { id in Asset.catalog.first { $0.id == id } }) { asset in'
+          anchor = '        let ids = ["bitcoin", "ethereum", "solana", "binancecoin", "ripple"]'
+          assert source.count(old) == source.count(anchor) == 1
+          source = source.replace(anchor, anchor + '\n        let featured: [Asset] = ids.compactMap { id in\n            Asset.catalog.first { $0.id == id }\n        }')
+          file.write_text(source.replace(old, 'ForEach(featured) { asset in'))
+          PY
       - name: Set up Xcode
         run: |
           set -euo pipefail
