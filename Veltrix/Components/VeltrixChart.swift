@@ -243,9 +243,12 @@ struct VeltrixChart: View {
             }
         }
         .chartYAxis {
-            if !mini && !compact {
-                let ticks: AxisMarkValues = compareAmounts && minimum == maximum ? .values([minimum]) : .automatic(desiredCount: 3)
-                AxisMarks(position: .trailing, values: ticks) { value in
+            if !mini && !compact && compareAmounts && minimum == maximum {
+                AxisMarks(position: .trailing, values: [minimum]) { _ in
+                    AxisValueLabel { Text(verbatim: format(Decimal(minimum))).font(.caption2) }
+                }
+            } else if !mini && !compact {
+                AxisMarks(position: .trailing, values: .automatic(desiredCount: 3)) { value in
                     AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [3, 4]))
                         .foregroundStyle(Color.vxMuted.opacity(0.36))
                     if let amount = value.as(Double.self), amount.isFinite {
