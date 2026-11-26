@@ -2,6 +2,10 @@ name: iOS Unit and UI Tests
 
 on:
   workflow_call:
+    inputs:
+      unit_only:
+        type: boolean
+        default: false
   workflow_dispatch:
 
 permissions:
@@ -31,14 +35,20 @@ jobs:
           xcodegen generate --spec project.yml
           xcodebuild -resolvePackageDependencies -project Veltrix.xcodeproj -scheme Veltrix
 
-      - name: Run unit and UI tests on an installed iPhone simulator
+      - name: Run tests on an installed iPhone simulator
+        env:
+          VELTRIX_UNIT_TESTS_ONLY: ${{ inputs.unit_only }}
         shell: bash
         run: |
           set -euo pipefail
           simulator="$(bash scripts/select-simulator.sh)"
           mkdir -p build
           defaults write com.apple.iphonesimulator ConnectHardwareKeyboard -bool false
-          xcodebuild test -project Veltrix.xcodeproj -scheme Veltrix \
+          scope=()
+          if [[ "$VELTRIX_UNIT_TESTS_ONLY" == "true" ]]; then
+            scope=(-only-testing:VeltrixUnitTests)
+          fi
+          xcodebuild test -project Veltrix.xcodeproj -scheme Veltrix "${scope[@]}" \
             -destination "platform=iOS Simulator,id=$simulator" \
             -derivedDataPath build/TestDerived -resultBundlePath build/VeltrixTests.xcresult \
             -test-timeouts-enabled YES -default-test-execution-time-allowance 180 \

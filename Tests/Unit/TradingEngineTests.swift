@@ -206,8 +206,15 @@ final class TradingEngineTests: XCTestCase {
         XCTAssertEqual(try Fiat.convert(123, currency: "USD", rates: [:]), 123)
         XCTAssertThrowsError(try Fiat.convert(123, currency: "RUB", rates: rates))
         XCTAssertGreaterThan(Set(Fiat.currencies).count, 50)
-        XCTAssertEqual(Asset.ids.count, 30)
-        XCTAssertEqual(Set(KrakenSymbols.pairs.keys), Set(Asset.catalog.map(\.ticker)))
+    }
+
+    func testCatalogKeepsExchangeCryptoPairsAndTokenizedStocksDistinct() {
+        XCTAssertEqual(Asset.cryptoCatalog.count, 30)
+        XCTAssertEqual(Set(KrakenSymbols.pairs.keys), Set(Asset.cryptoCatalog.map(\.ticker)))
+        XCTAssertEqual(Asset.ids.count, Asset.catalog.count)
+        XCTAssertEqual(Set(Asset.tokenizedStocks.map(\.ticker)),
+                       ["AAPLx", "NVDAx", "MSFTx", "TSLAx", "AMZNx", "GOOGLx", "METAx"])
+        XCTAssertTrue(Asset.tokenizedStocks.allSatisfy(\.isTokenizedStock))
     }
 
     func testSubscriptionPaymentAndRefundSurviveBackup() throws {
