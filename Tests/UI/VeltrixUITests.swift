@@ -1,14 +1,17 @@
 import XCTest
 
 final class VeltrixUITests: XCTestCase {
-    private func launch(_ arguments: [String] = [], language: String = "en", locale: String = "en_US") -> XCUIApplication {
+    private func launch(_ arguments: [String] = [], language: String = "en", locale: String = "en_US",
+                        tokenizedMarket: Bool = false) -> XCUIApplication {
         continueAfterFailure = false
         let app = XCUIApplication()
         app.launchArguments += ["--ui-testing", "-AppleLanguages", "(\(language))", "-AppleLocale", locale]
         app.launchArguments += arguments
         app.launchEnvironment["UITEST_MODE"] = "1"
         app.launchEnvironment["VELTRIX_XCUITEST_OHLC"] = MarketFixture.bitcoinOHLC
-        app.launchEnvironment["VELTRIX_XCUITEST_QUOTES"] = MarketFixture.quotes
+        app.launchEnvironment["VELTRIX_XCUITEST_QUOTES"] = tokenizedMarket
+            ? String(MarketFixture.quotes.dropLast()) + "," + MarketFixture.tokenizedQuote + "]"
+            : MarketFixture.quotes
         app.launch()
         return app
     }
@@ -40,6 +43,25 @@ final class VeltrixUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Transactions and open orders"].waitForExistence(timeout: 5), app.debugDescription)
         XCTAssertTrue(app.descendants(matching: .any)["activity.deposit"].exists)
         capture(app, name: "Activity")
+    }
+
+    func testOperationsCenterAndTokenizedMarket() {
+        let app = launch(tokenizedMarket: true)
+        app.buttons["tab.operations"].tap()
+        XCTAssertTrue(app.staticTexts["Operations Center"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["trade.action.buy"].isHittable)
+        XCTAssertTrue(app.buttons["trade.action.sell"].isHittable)
+        capture(app, name: "Operations Center")
+
+        app.buttons["tab.markets"].tap()
+        let tokenized = app.buttons["Tokenized stocks"]
+        XCTAssertTrue(tokenized.waitForExistence(timeout: 5))
+        tokenized.tap()
+        let apple = app.buttons["market.AAPLx"]
+        XCTAssertTrue(apple.waitForExistence(timeout: 5))
+        XCTAssertTrue(apple.isHittable)
+        XCTAssertFalse(app.buttons["market.BTC"].exists)
+        capture(app, name: "Tokenized stocks")
     }
 
     func testFloatingNavigationOpensGlobalSearch() {

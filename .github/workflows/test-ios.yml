@@ -3,9 +3,9 @@ name: iOS Unit and UI Tests
 on:
   workflow_call:
     inputs:
-      unit_only:
-        type: boolean
-        default: false
+      scope:
+        type: string
+        default: tests
   workflow_dispatch:
 
 permissions:
@@ -37,7 +37,7 @@ jobs:
 
       - name: Run tests on an installed iPhone simulator
         env:
-          VELTRIX_UNIT_TESTS_ONLY: ${{ inputs.unit_only }}
+          VELTRIX_TEST_SCOPE: ${{ inputs.scope }}
         shell: bash
         run: |
           set -euo pipefail
@@ -45,9 +45,10 @@ jobs:
           mkdir -p build
           defaults write com.apple.iphonesimulator ConnectHardwareKeyboard -bool false
           scope=()
-          if [[ "$VELTRIX_UNIT_TESTS_ONLY" == "true" ]]; then
-            scope=(-only-testing:VeltrixUnitTests)
-          fi
+          case "$VELTRIX_TEST_SCOPE" in
+            unit_tests) scope=(-only-testing:VeltrixUnitTests) ;;
+            visual_smoke) scope=(-only-testing:VeltrixUITests/VeltrixUITests/testOperationsCenterAndTokenizedMarket) ;;
+          esac
           xcodebuild test -project Veltrix.xcodeproj -scheme Veltrix "${scope[@]}" \
             -destination "platform=iOS Simulator,id=$simulator" \
             -derivedDataPath build/TestDerived -resultBundlePath build/VeltrixTests.xcresult \

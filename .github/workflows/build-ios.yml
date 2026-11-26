@@ -4,12 +4,13 @@ on:
   workflow_dispatch:
     inputs:
       task:
-        description: Build the Release IPA or run the full or unit-only simulator suite
+        description: Build the Release IPA or run a simulator test suite
         type: choice
         options:
           - release
           - tests
           - unit_tests
+          - visual_smoke
         default: release
 
 permissions:
@@ -58,7 +59,7 @@ jobs:
           retention-days: 7
 
   tests:
-    if: ${{ inputs.task == 'tests' || inputs.task == 'unit_tests' }}
+    if: ${{ inputs.task != 'release' }}
     uses: ./.github/workflows/test-ios.yml
     with:
-      unit_only: ${{ inputs.task == 'unit_tests' }}
+      scope: ${{ inputs.task }}
