@@ -1,4 +1,4 @@
-name: Build Veltrix 8.3.0
+name: Build Veltrix 8.3.1
 
 on:
   push:
@@ -20,21 +20,6 @@ jobs:
       - name: Extract uploaded sources
         working-directory: .
         run: unzip -q veltrix-8.3.0-build-input.zip -d source-8.3
-      - name: Type featured assets explicitly
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          file = Path('Veltrix/Features/MarketsScreen.swift')
-          source = file.read_text()
-          old = 'ForEach(ids.compactMap { id in Asset.catalog.first { $0.id == id } }) { asset in'
-          anchor = '        let ids = ["bitcoin", "ethereum", "solana", "binancecoin", "ripple"]'
-          assert source.count(old) == source.count(anchor) == 1
-          source = source.replace(anchor, anchor + '\n        let featured: [Asset] = ids.compactMap { id in\n            Asset.catalog.first { $0.id == id }\n        }')
-          source = source.replace(old, 'ForEach(featured) { asset in')
-          frame = '.frame(width: 165, minHeight: 64, alignment: .leading)'
-          assert source.count(frame) == 1
-          file.write_text(source.replace(frame, '.frame(width: 165, alignment: .leading)\n                            .frame(minHeight: 64, alignment: .leading)'))
-          PY
       - name: Set up Xcode
         run: |
           set -euo pipefail
@@ -51,7 +36,7 @@ jobs:
         run: bash scripts/build-ipa.sh
       - uses: actions/upload-artifact@v6
         with:
-          name: Veltrix-8.3.0-unsigned-ipa
+          name: Veltrix-8.3.1-unsigned-ipa
           path: |
             source-8.3/build/Veltrix.ipa
             source-8.3/build/Veltrix.ipa.sha256
@@ -76,7 +61,7 @@ jobs:
       - uses: actions/upload-artifact@v6
         if: always()
         with:
-          name: Veltrix-8.3.0-test-results
+          name: Veltrix-8.3.1-test-results
           path: |
             source-8.3/build/VeltrixTests.xcresult
             source-8.3/build/SimulatorAttachments
