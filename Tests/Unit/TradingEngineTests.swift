@@ -155,6 +155,7 @@ final class TradingEngineTests: XCTestCase {
         XCTAssertEqual(filled.portfolios[0].orders.first?.status, .filled)
         XCTAssertEqual(filled.portfolios[0].entries.first?.id, order.id)
         XCTAssertEqual(filled.portfolios[0].cash, decimal("318.2"))
+        XCTAssertEqual(filled.portfolios[0].entries.first?.availableCashAfterFill, decimal("318.2"))
         let second = try TradingEngine.settle(filled, execution: [btc: 88], prices: [btc: 88], at: start.addingTimeInterval(3))
         XCTAssertEqual(second.portfolios[0].entries.count, 1)
         try second.validate(assets: Asset.ids)

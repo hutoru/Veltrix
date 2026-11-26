@@ -197,6 +197,35 @@ final class VeltrixUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["activity.sell"].exists)
     }
 
+    func testSendRecordsSimulatedTransfer() {
+        let app = launch()
+        app.buttons["trade.buy"].tap()
+        XCTAssertTrue(app.buttons["25%"].waitForExistence(timeout: 5))
+        app.buttons["25%"].tap()
+        app.buttons["trade.review"].tap()
+        app.buttons["trade.confirm"].tap()
+        XCTAssertTrue(app.staticTexts["trade.saved"].waitForExistence(timeout: 5))
+        app.buttons["Done"].tap()
+
+        let send = app.buttons["trade.send"]
+        XCTAssertTrue(send.waitForExistence(timeout: 5))
+        send.tap()
+        let recipient = app.textFields["Recipient label"]
+        XCTAssertTrue(recipient.waitForExistence(timeout: 5))
+        recipient.tap()
+        recipient.typeText("Test recipient")
+        dismissKeyboard(in: app)
+        app.buttons["25%"].tap()
+        app.buttons["trade.review"].tap()
+        XCTAssertTrue(app.staticTexts["trade.review.title"].waitForExistence(timeout: 5))
+        app.buttons["trade.confirm"].tap()
+        XCTAssertTrue(app.staticTexts["trade.saved"].waitForExistence(timeout: 5))
+        capture(app, name: "Send Saved")
+        app.buttons["Done"].tap()
+        app.buttons["tab.activity"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["activity.send"].waitForExistence(timeout: 5))
+    }
+
     func testLaunchShowsSystemAuthenticationGate() {
         let app = launch(["--capture-launch", "--locked-fixture", "--capture-lock-background"])
         capture(app, name: "Splash")
@@ -273,10 +302,11 @@ final class VeltrixUITests: XCTestCase {
         amount.tap()
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 3))
         amount.typeText("1,25")
-        XCTAssertTrue(app.buttons["trade.review"].isHittable)
+        XCTAssertFalse(app.buttons["trade.review"].isHittable)
         XCTAssertTrue(app.buttons["keyboard.done"].isHittable)
         capture(app, name: "Native Keyboard Russian Light")
         dismissKeyboard(in: app)
+        XCTAssertTrue(app.buttons["trade.review"].isHittable)
         capture(app, name: "Buy Russian Light")
         app.buttons["trade.review"].tap()
         XCTAssertTrue(app.buttons["trade.confirm"].waitForExistence(timeout: 5))

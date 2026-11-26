@@ -211,9 +211,10 @@ struct VeltrixChart: View {
                             .interpolationMethod(.linear)
                             .lineStyle(StrokeStyle(lineWidth: 1.8, lineCap: .round, lineJoin: .round))
                     }
-                    if data.count == 1 || seriesSizes[sample.series ?? 0] == 1 {
+                    if data.count == 1 || seriesSizes[sample.series ?? 0] == 1 ||
+                        (compareAmounts && sample.date == plotted.last?.date) {
                         PointMark(x: .value("Date", sample.date), y: .value("Price", double(sample.close)))
-                            .foregroundStyle(Color.vxHighlight).symbolSize(30)
+                            .foregroundStyle(trend).symbolSize(30)
                     }
                 }
             }

@@ -129,8 +129,8 @@ struct TradeEditor: View {
             .fullScreenCover(isPresented: $scanner) {
                 QRScanner { value in label = value; error = nil }
             }
-            .animation(reduceMotion || UITestMode.enabled ? nil : .easeInOut(duration: 0.22), value: review != nil)
-            .animation(reduceMotion || UITestMode.enabled ? nil : .easeInOut(duration: 0.22), value: done)
+            .animation(reduceMotion ? nil : .easeInOut(duration: 0.22), value: review != nil)
+            .animation(reduceMotion ? nil : .easeInOut(duration: 0.22), value: done)
             .tint(.vxHighlight)
             .onChange(of: asset) { _ in amount = ""; exactMaxUnits = nil; error = nil }
         }

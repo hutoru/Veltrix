@@ -50,7 +50,7 @@ extension CardTier {
         case .ceramicWhite: return "Ceramic White"
         case .crystalGlass: return "Crystal Glass"
         case .holographic: return "Holographic"
-        case .purple: return "Purple Edition"
+        case .purple: return "Obsidian Legacy"
         case .custom: return "Custom Edition"
         }
     }
@@ -77,8 +77,8 @@ extension CardTier {
         case .brushedSilver: return (.silver, .brushed, 0x818C97, 0x3C4352)
         case .ceramicWhite: return (.ceramic, .none, 0xFCFBFA, 0xB7B6C2)
         case .crystalGlass: return (.glass, .engraved, 0x457781, 0x202846)
-        case .holographic: return (.holographic, .engraved, 0x50466F, 0x252E4A)
-        case .purple: return (.matte, .engraved, 0x6848A5, 0x231A45)
+        case .holographic: return (.holographic, .engraved, 0x565960, 0x202124)
+        case .purple: return (.matte, .engraved, 0x48494D, 0x18181A)
         case .custom: return (.matte, .none, 0x42404A, 0x17161C)
         }
     }
