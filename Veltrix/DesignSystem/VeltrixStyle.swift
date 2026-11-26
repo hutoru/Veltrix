@@ -1,18 +1,39 @@
 import SwiftUI
 import UIKit
 
+enum VeltrixTheme {
+    static let background = adaptive(0x080809, 0xF6F6F8)
+    static let secondaryBackground = adaptive(0x101012, 0xF0F0F2)
+    static let surface = adaptive(0x171719, 0xFFFFFF)
+    static let elevated = adaptive(0x1C1C1E, 0xEDEDEF)
+    static let border = adaptive(0x2C2C30, 0xDEDEE2)
+    static let text = adaptive(0xFFFFFF, 0x171719)
+    static let muted = adaptive(0x96969C, 0x64646B)
+    static let metallic = adaptive(0xC4C7CC, 0x52545A)
+    static let positive = adaptive(0x30D158, 0x12773B)
+    static let negative = adaptive(0xFF453A, 0xB9222C)
+    static let buttonInk = adaptive(0x080809, 0xFFFFFF)
+    static let darkBackground = Color(uiColor: UIColor(rgb: 0x080809))
+
+    private static func adaptive(_ dark: UInt32, _ light: UInt32) -> Color {
+        Color(uiColor: UIColor { traits in
+            UIColor(rgb: traits.userInterfaceStyle == .dark ? dark : light)
+        })
+    }
+}
+
 extension Color {
-    static let vxDarkBackground = Color(uiColor: UIColor(rgb: 0x080809))
-    static let vxBackground = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(rgb: 0x080809) : UIColor(rgb: 0xF6F6F8) })
-    static let vxText = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(rgb: 0xF8F8FA) : UIColor(rgb: 0x17171C) })
-    static let vxCard = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(rgb: 0x121214) : .white })
-    static let vxSurface = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(rgb: 0x1C1C1E) : UIColor(rgb: 0xEDEDEF) })
-    static let vxMuted = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(rgb: 0x929299) : UIColor(rgb: 0x64646B) })
-    static let vxSeparator = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(rgb: 0x242426) : UIColor(rgb: 0xDEDEE2) })
-    static let vxAccent = Color(uiColor: UIColor(rgb: 0x7955FF))
-    static let vxHighlight = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(rgb: 0xB69FFF) : UIColor(rgb: 0x5532CE) })
-    static let vxUp = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(rgb: 0x30D158) : UIColor(rgb: 0x12773B) })
-    static let vxDown = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(rgb: 0xFF453A) : UIColor(rgb: 0xB9222C) })
+    static let vxDarkBackground = VeltrixTheme.darkBackground
+    static let vxBackground = VeltrixTheme.background
+    static let vxText = VeltrixTheme.text
+    static let vxCard = VeltrixTheme.surface
+    static let vxSurface = VeltrixTheme.elevated
+    static let vxMuted = VeltrixTheme.muted
+    static let vxSeparator = VeltrixTheme.border
+    static let vxAccent = VeltrixTheme.text
+    static let vxHighlight = VeltrixTheme.metallic
+    static let vxUp = VeltrixTheme.positive
+    static let vxDown = VeltrixTheme.negative
 }
 
 private extension UIColor {
@@ -68,14 +89,15 @@ struct OrbitLines: View {
 struct PrimaryButtonStyle: ButtonStyle {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var tint: Color = .vxAccent
-    var ink: Color = .white
+    var ink: Color = VeltrixTheme.buttonInk
     var height: CGFloat = 48
+    var cornerRadius: CGFloat = 12
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.headline)
             .frame(maxWidth: .infinity, minHeight: height)
             .foregroundStyle(ink)
-            .background(tint, in: RoundedRectangle(cornerRadius: 12))
+            .background(tint, in: RoundedRectangle(cornerRadius: cornerRadius))
             .opacity(configuration.isPressed ? 0.76 : 1)
             .scaleEffect(configuration.isPressed && !reduceMotion ? 0.98 : 1)
             .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: configuration.isPressed)
@@ -156,8 +178,8 @@ struct Skeleton: View {
     @Environment(\.scenePhase) private var phase
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1 / 24, paused: reduceMotion || phase != .active)) { timeline in
-            let pulse = reduceMotion ? 0.5 : (sin(timeline.date.timeIntervalSinceReferenceDate * 4) + 1) / 2
+        TimelineView(.animation(minimumInterval: 1 / 24, paused: UITestMode.enabled || reduceMotion || phase != .active)) { timeline in
+            let pulse = UITestMode.enabled || reduceMotion ? 0.5 : (sin(timeline.date.timeIntervalSinceReferenceDate * 4) + 1) / 2
             RoundedRectangle(cornerRadius: 9)
                 .fill(LinearGradient(colors: [.vxSurface, .vxAccent.opacity(0.07 + 0.12 * pulse), .vxSurface],
                                      startPoint: .leading, endPoint: .trailing))
@@ -170,7 +192,7 @@ extension View {
     func panel(padding: CGFloat = 16) -> some View {
         self.padding(padding)
             .background(Color.vxCard, in: RoundedRectangle(cornerRadius: 15))
-            .overlay(RoundedRectangle(cornerRadius: 15).strokeBorder(.primary.opacity(0.06), lineWidth: 1).allowsHitTesting(false))
+            .overlay(RoundedRectangle(cornerRadius: 15).strokeBorder(Color.vxSeparator, lineWidth: 1).allowsHitTesting(false))
     }
 
     func glass(radius: CGFloat) -> some View {
@@ -196,7 +218,7 @@ private struct GlassSurface: ViewModifier {
     private func fallback(_ content: Content) -> some View {
         content
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: radius))
-            .overlay(RoundedRectangle(cornerRadius: radius).strokeBorder(.primary.opacity(0.11), lineWidth: 1))
+            .overlay(RoundedRectangle(cornerRadius: radius).strokeBorder(.primary.opacity(0.11), lineWidth: 1).allowsHitTesting(false))
     }
 }
 
@@ -218,33 +240,20 @@ struct PageScroll<Content: View>: View {
 }
 
 
-struct NumericPad: View {
-    var keyHeight: CGFloat = 44
-    var digitSize: CGFloat = 22
-    var rowSpacing: CGFloat = 7
-    let onInput: (String) -> Void
-    let onDelete: () -> Void
-    private var separator: String { Locale.current.decimalSeparator ?? "." }
-
-    var body: some View {
-        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: rowSpacing) {
-            ForEach(["1", "2", "3", "4", "5", "6", "7", "8", "9", separator, "0", "delete"], id: \.self) { key in
-                Button {
-                    if key == "delete" { onDelete() } else { onInput(key) }
-                    Feedback.tap()
-                } label: {
-                    Group {
-                        if key == "delete" { Image(systemName: "delete.left") }
-                        else { Text(verbatim: key) }
-                    }
-                    .font(.system(size: key == "delete" ? 22 : digitSize, weight: .regular).monospacedDigit())
-                    .frame(maxWidth: .infinity, minHeight: keyHeight)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(key == "delete" ? Text("Delete digit") : Text(verbatim: key))
-                .accessibilityIdentifier("keypad." + key)
+extension View {
+    @MainActor func dismissibleKeyboard() -> some View {
+        toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Done") { Keyboard.dismiss() }
+                    .accessibilityIdentifier("keyboard.done")
             }
         }
+    }
+}
+
+@MainActor enum Keyboard {
+    static func dismiss() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
 }

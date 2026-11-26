@@ -4,7 +4,7 @@ import OSLog
 
 final class NotificationDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     static let opened = Notification.Name("VeltrixOperationOpened")
-    @MainActor static weak var lockState: AppLock?
+    @MainActor static weak var lockState: AuthCoordinator?
     private var privacyWindows: [String: UIWindow] = [:]
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions options: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
@@ -29,7 +29,8 @@ final class NotificationDelegate: NSObject, UIApplicationDelegate, UNUserNotific
 
     @MainActor @objc private func shield(_ notification: Notification) {
         guard let scene = notification.object as? UIWindowScene else { return }
-        if notification.name == UIScene.willDeactivateNotification && Self.lockState?.locked == true { return }
+        if notification.name == UIScene.willDeactivateNotification,
+           let lock = Self.lockState, lock.locked || lock.busy { return }
         let id = scene.session.persistentIdentifier
         guard privacyWindows[id] == nil else { return }
         let window = UIWindow(windowScene: scene)
@@ -57,9 +58,10 @@ final class NotificationDelegate: NSObject, UIApplicationDelegate, UNUserNotific
                                 withCompletionHandler completion: @escaping () -> Void) {
         let identifier = response.notification.request.identifier
         DispatchQueue.main.async {
-            if let id = UUID(uuidString: identifier) {
+            if response.actionIdentifier == UNNotificationDefaultActionIdentifier,
+               UUID(uuidString: identifier) != nil || identifier.hasPrefix("price-") || identifier.hasPrefix("order-") {
                 UserDefaults.standard.set(identifier, forKey: "pendingOperationNotification")
-                NotificationCenter.default.post(name: Self.opened, object: id)
+                NotificationCenter.default.post(name: Self.opened, object: nil)
             }
             completion()
         }
@@ -94,12 +96,19 @@ final class ShortcutSceneDelegate: NSObject, UIWindowSceneDelegate {
     }
 }
 
-@MainActor final class OperationNotifications: ObservableObject {
-    static let shared = OperationNotifications()
+@MainActor final class NotificationService: ObservableObject {
+    struct OperationAmounts {
+        let quantity: String?
+        let amount: String?
+        let balance: String?
+    }
+
+    static let shared = NotificationService()
 
     @Published private(set) var authorizationStatus: UNAuthorizationStatus = .notDetermined
     @Published private(set) var alertsEnabled = false
     @Published private(set) var soundsEnabled = false
+    @Published private(set) var previewSetting: UNShowPreviewsSetting = .never
     @Published private(set) var lastDelivery: Delivery?
     @Published private(set) var error: String?
 
@@ -110,15 +119,17 @@ final class ShortcutSceneDelegate: NSObject, UIWindowSceneDelegate {
     private var authorizationRequest: Task<Bool, Never>?
     private var lastID: String?
     private var generation = 0
-
-    static func eligible(_ entry: Entry) -> Bool { entry.kind != .adjustment }
+    private var scheduled = Set<String>()
+    private var scheduling = Set<String>()
 
     func refresh() async {
         let settings = await center.notificationSettings()
         authorizationStatus = settings.authorizationStatus
         alertsEnabled = settings.alertSetting == .enabled && settings.alertStyle != .none
         soundsEnabled = settings.soundSetting == .enabled
-        if let lastID, await center.deliveredNotifications().contains(where: { $0.request.identifier == lastID }) {
+        previewSetting = settings.showPreviewsSetting
+        if let lastID, await center.deliveredNotifications().contains(where: { $0.request.identifier == lastID }),
+           self.lastID == lastID {
             lastDelivery = .delivered
         }
     }
@@ -129,7 +140,7 @@ final class ShortcutSceneDelegate: NSObject, UIWindowSceneDelegate {
             await refresh()
             if authorizationStatus == .notDetermined || authorizationStatus == .provisional {
                 do {
-                    _ = try await center.requestAuthorization(options: [.alert, .sound, .badge])
+                    _ = try await center.requestAuthorization(options: [.alert, .sound])
                     error = nil
                 } catch {
                     record(error)
@@ -147,24 +158,45 @@ final class ShortcutSceneDelegate: NSObject, UIWindowSceneDelegate {
         authorizationStatus == .authorized || authorizationStatus == .provisional || authorizationStatus == .ephemeral
     }
 
-    static func request(for entry: Entry, filled: Bool, amounts: String?) -> UNNotificationRequest {
+    static func request(for entry: Entry, filled: Bool, amounts: OperationAmounts?) -> UNNotificationRequest {
         let content = UNMutableNotificationContent()
-        content.title = "Veltrix"
-        let type = filled ? L.text("Limit order filled") : entry.kind.localized
-        let operation = L.format("Local operation: %@", type)
-        if let amounts {
-            let name = Asset.catalog.first { $0.id == entry.asset }?.name ?? entry.asset
-            content.body = operation + " · " + name + " · " + amounts
-        } else {
-            content.body = operation
+        content.title = "VELTRIX · CryptoApp"
+        let operation = filled ? L.format("Limit order filled: %@", entry.kind.localized) : entry.kind.localized
+        let asset = entry.asset == "USD" ? nil : Asset.ticker(entry.asset)
+        let heading = [operation, asset].compactMap { $0 }.joined(separator: " ")
+        var body = [amounts?.amount.map { L.format("%@ for %@.", heading, $0) } ?? heading]
+        if let balance = amounts?.balance { body.append(L.format("Available balance: %@", balance)) }
+        if let quantity = amounts?.quantity, quantity != amounts?.amount {
+            body.append(quantity)
         }
+        content.body = body.joined(separator: "\n")
+        content.threadIdentifier = "veltrix-operations"
         content.sound = .default
         return UNNotificationRequest(identifier: entry.id.uuidString, content: content, trigger: nil)
     }
 
-    static func schedule(_ entry: Entry, filled: Bool, amounts: String?) {
+    static func schedule(_ entry: Entry, filled: Bool, amounts: OperationAmounts?) {
         let request = request(for: entry, filled: filled, amounts: amounts)
-        shared.enqueue(request, askPermission: [.buy, .sell, .swap].contains(entry.kind))
+        shared.enqueue(request)
+    }
+
+    static func scheduleOrder(_ order: LimitOrder, balance: String?) {
+        let content = UNMutableNotificationContent()
+        content.title = "VELTRIX · CryptoApp"
+        content.sound = .default
+        content.body = L.text("Limit order placed") + " · " + Asset.ticker(order.asset)
+        if let balance {
+            content.body += "\n" + L.format("Available balance: %@", balance)
+        }
+        shared.enqueue(UNNotificationRequest(identifier: "order-" + order.id.uuidString, content: content, trigger: nil))
+    }
+
+    func sendTest() {
+        let content = UNMutableNotificationContent()
+        content.title = "Veltrix"
+        content.body = L.text("VELTRIX notifications are working")
+        content.sound = .default
+        enqueue(UNNotificationRequest(identifier: "test-\(UUID().uuidString)", content: content, trigger: nil))
     }
 
     static func clear() {
@@ -180,15 +212,17 @@ final class ShortcutSceneDelegate: NSObject, UIWindowSceneDelegate {
         content.title = "Veltrix"
         content.body = body
         content.sound = .default
-        shared.enqueue(UNNotificationRequest(identifier: "price-\(id.uuidString)", content: content, trigger: nil),
-                       askPermission: false)
+        shared.enqueue(UNNotificationRequest(identifier: "price-\(id.uuidString)", content: content, trigger: nil))
     }
 
-    private func enqueue(_ request: UNNotificationRequest, askPermission: Bool) {
+    private func enqueue(_ request: UNNotificationRequest) {
+        let identifier = request.identifier
+        guard !scheduled.contains(identifier), scheduling.insert(identifier).inserted else { return }
         let version = generation
         Task {
+            defer { scheduling.remove(identifier) }
             await refresh()
-            if askPermission && authorizationStatus == .notDetermined { _ = await authorize() }
+            if authorizationStatus == .notDetermined { _ = await authorize() }
             guard version == generation else { return }
             guard canSchedule else {
                 lastDelivery = .noAlerts
@@ -202,6 +236,7 @@ final class ShortcutSceneDelegate: NSObject, UIWindowSceneDelegate {
                     center.removeDeliveredNotifications(withIdentifiers: [request.identifier])
                     return
                 }
+                if !identifier.hasPrefix("test-") { scheduled.insert(identifier) }
                 error = nil
                 lastID = request.identifier
                 lastDelivery = alertsEnabled ? .queued : .noAlerts

@@ -7,6 +7,8 @@ enum Command: Sendable {
     case cancel(UUID)
     case swap(String, String, Decimal, Decimal)
     case transfer(receive: Bool, asset: String, units: Decimal, label: String)
+    case registerQR(LocalPaymentRequest, replacing: UUID?)
+    case payQR(UUID, from: UUID)
     case deposit(Decimal)
     case setCash(Decimal)
     case setPosition(String, Decimal, Decimal)
@@ -16,6 +18,7 @@ enum Command: Sendable {
     case createCard(CardTier, String, Decimal?, design: CardDesign? = nil)
     case configureCard(UUID, String, Decimal?, tier: CardTier? = nil, design: CardDesign? = nil)
     case freezeCard(UUID)
+    case setPrimaryCard(UUID)
     case deleteCard(UUID)
     case moveCardFunds(UUID, Decimal, toCard: Bool)
     case pay(UUID, Decimal, String)
@@ -29,7 +32,9 @@ enum TradingEngine {
     ) throws -> Ledger {
         var ledger = original
         guard ledger.operationIDs.insert(id).inserted else { throw SimulationError.duplicate }
-        guard let index = ledger.portfolios.firstIndex(where: { $0.id == ledger.selected }) else {
+        let source: UUID
+        if case let .payQR(_, from) = command { source = from } else { source = ledger.selected }
+        guard let index = ledger.portfolios.firstIndex(where: { $0.id == source }) else {
             throw SimulationError.missingRecord
         }
         var portfolio = ledger.portfolios[index]
@@ -100,6 +105,38 @@ enum TradingEngine {
                           note: label, externalFlow: receive ? value : -value)
             changedValue = true
 
+        case let .registerQR(request, previous):
+            guard request.recipient == portfolio.id, request.isValid,
+                  !ledger.operationIDs.contains(request.id) else { throw SimulationError.invalidAmount }
+            var requests = ledger.localPaymentRequests ?? [:]
+            guard requests[request.id] == nil else { throw SimulationError.duplicate }
+            if let previous, requests[previous]?.recipient == portfolio.id { requests[previous] = nil }
+            requests[request.id] = request
+            ledger.localPaymentRequests = requests
+
+        case let .payQR(requestID, _):
+            guard !original.operationIDs.contains(requestID) else { throw SimulationError.duplicate }
+            guard let request = ledger.localPaymentRequests?[requestID], request.isValid,
+                  let recipientIndex = ledger.portfolios.firstIndex(where: { $0.id == request.recipient }),
+                  recipientIndex != index else { throw SimulationError.missingRecord }
+            try requireUnits(request.units, request.asset, portfolio)
+            let value = try MoneyMath.quotedUSD(request.units, at: quote(request.asset, in: execution))
+            let basis = try remove(request.units, asset: request.asset, from: &portfolio)
+            var recipient = ledger.portfolios[recipientIndex]
+            try add(request.units, basis: basis, asset: request.asset, to: &recipient)
+            let receiptID = UUID()
+            guard ledger.operationIDs.insert(requestID).inserted, ledger.operationIDs.insert(receiptID).inserted
+            else { throw SimulationError.duplicate }
+            entry = Entry(id: id, date: date, kind: .qrPayment, asset: request.asset, amount: request.units,
+                          usd: value, note: recipient.name, reference: requestID, externalFlow: -value)
+            recipient.entries.append(Entry(id: receiptID, date: date, kind: .receive, asset: request.asset,
+                                           amount: request.units, usd: value, note: portfolio.name, reference: requestID,
+                                           externalFlow: value))
+            recipient.observe(prices: prices, at: date, force: true)
+            ledger.portfolios[recipientIndex] = recipient
+            ledger.localPaymentRequests?[requestID] = nil
+            changedValue = true
+
         case let .deposit(amount):
             try MoneyMath.quantity(amount)
             portfolio.cash = try MoneyMath.add(portfolio.cash, amount)
@@ -141,6 +178,7 @@ enum TradingEngine {
         case .resetPortfolio:
             portfolio = Portfolio(id: portfolio.id, name: portfolio.name, createdAt: date, cash: 0)
             ledger.cards.removeAll { $0.owner == portfolio.id }
+            ledger.localPaymentRequests = ledger.localPaymentRequests?.filter { $0.value.recipient != portfolio.id }
             changedValue = true
 
         case let .createCard(tier, name, limit, design):
@@ -161,10 +199,15 @@ enum TradingEngine {
             let cardIndex = try findCard(card, in: ledger)
             ledger.cards[cardIndex].frozen.toggle()
 
+        case let .setPrimaryCard(card):
+            _ = try findCard(card, in: ledger)
+            portfolio.primaryCardID = card
+
         case let .deleteCard(card):
             let cardIndex = try findCard(card, in: ledger)
             guard ledger.cards[cardIndex].balance == 0 else { throw SimulationError.cardHasBalance }
             ledger.cards.remove(at: cardIndex)
+            if portfolio.primaryCardID == card { portfolio.primaryCardID = nil }
 
         case let .moveCardFunds(card, amount, toCard):
             try MoneyMath.quantity(amount)
@@ -223,8 +266,9 @@ enum TradingEngine {
                 candidate.orders[orderIndex].status = .filled
                 candidate.orders[orderIndex].closedAt = date
                 candidate.orders[orderIndex].filledPrice = price
-                let entry = try trade(order.side, asset: order.asset, units: order.units, price: price, fee: order.feeRate,
+                var entry = try trade(order.side, asset: order.asset, units: order.units, price: price, fee: order.feeRate,
                                       id: order.id, date: date, portfolio: &candidate)
+                entry.availableCashAfterFill = try candidate.freeCash()
                 candidate.entries.append(entry)
                 candidate.observe(prices: prices, at: date, force: true)
                 portfolio = candidate

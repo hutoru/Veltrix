@@ -68,6 +68,67 @@ final class TradingEngineTests: XCTestCase {
         XCTAssertEqual(try MoneyMath.quotedUSD(1, at: tiny), tiny)
     }
 
+    func testHighPrecisionLimitCanReopenAndAlsoAcceptsLegacyReserve() throws {
+        let price = decimal("1.00000000000000009")
+        var order = try execute(.limit(.buy, btc, 1, price, 0), .fresh(cash: 100, date: start), bitcoin: 2)
+        XCTAssertEqual(order.portfolios[0].orders[0].reserved, 1)
+        XCTAssertEqual(try SimulationBackup.load(SimulationBackup.export(order)), order)
+
+        order.portfolios[0].orders[0].reserved = price
+        XCTAssertEqual(try SimulationBackup.load(SimulationBackup.export(order)), order)
+        order.portfolios[0].orders[0].reserved = 2
+        XCTAssertThrowsError(try SimulationBackup.load(SimulationBackup.export(order)))
+    }
+
+    func testLocalQRPaymentConservesPositionsAndCannotBeReplayed() throws {
+        let original = Ledger.fresh(cash: 1_000, date: start)
+        let payer = original.selected
+        let bought = try execute(.market(.buy, btc, 2, 0), original, bitcoin: 100)
+        let two = try execute(.createPortfolio("Recipient", 500), bought, bitcoin: 100)
+        let request = LocalPaymentRequest(id: UUID(), recipient: two.selected, asset: btc, network: .bitcoin, units: 1)
+        XCTAssertEqual(LocalPaymentRequest.identifier(from: request.payload), request.id)
+        XCTAssertNil(LocalPaymentRequest.identifier(from: "bitcoin:" + request.id.uuidString))
+        let registered = try execute(.registerQR(request, replacing: nil), two, bitcoin: 100)
+        let reloaded = try SimulationBackup.load(SimulationBackup.export(registered))
+        XCTAssertEqual(reloaded.localPaymentRequests?[request.id], request)
+        XCTAssertThrowsError(try execute(.payQR(request.id, from: two.selected), reloaded, bitcoin: 100))
+        let paid = try execute(.payQR(request.id, from: payer), reloaded, bitcoin: 100)
+        XCTAssertEqual(paid.selected, two.selected)
+        XCTAssertEqual(paid.portfolios.map { $0.positions[btc]?.units }, [1, 1])
+        XCTAssertEqual(paid.portfolios.map { $0.positions[btc]?.basis }, [100, 100])
+        XCTAssertEqual(paid.portfolios[0].entries.last?.kind, .qrPayment)
+        XCTAssertEqual(paid.portfolios[1].entries.last?.kind, .receive)
+        XCTAssertNil(paid.localPaymentRequests?[request.id])
+        XCTAssertEqual(try SimulationBackup.load(SimulationBackup.export(paid)), paid)
+        XCTAssertThrowsError(try execute(.payQR(request.id, from: payer), paid, bitcoin: 100)) {
+            XCTAssertEqual($0 as? SimulationError, .duplicate)
+        }
+    }
+
+    func testLocalQRInsufficientBalanceDoesNotConsumeRequestAndRefreshInvalidatesPreviousCode() throws {
+        let original = Ledger.fresh(date: start)
+        let two = try execute(.createPortfolio("Recipient", 0), original, bitcoin: 100)
+        let request = LocalPaymentRequest(id: UUID(), recipient: two.selected, asset: btc, network: .bitcoin, units: 1)
+        let registered = try execute(.registerQR(request, replacing: nil), two, bitcoin: 100)
+        XCTAssertThrowsError(try execute(.payQR(request.id, from: original.selected), registered, bitcoin: 100)) {
+            XCTAssertEqual($0 as? SimulationError, .insufficientAsset)
+        }
+        let next = LocalPaymentRequest(id: UUID(), recipient: two.selected, asset: btc, network: .bitcoin, units: 2)
+        let refreshed = try execute(.registerQR(next, replacing: request.id), registered, bitcoin: 100)
+        XCTAssertNil(refreshed.localPaymentRequests?[request.id])
+        XCTAssertEqual(refreshed.localPaymentRequests?[next.id], next)
+    }
+
+    func testPerformanceHistoryExcludesDepositsAndManualAdjustments() throws {
+        let original = Ledger.fresh(cash: 1_000, date: start)
+        let deposit = try TradingEngine.apply(.deposit(500), to: original, at: start.addingTimeInterval(1))
+        var bought = try TradingEngine.apply(.market(.buy, btc, 1, 0), to: deposit, at: start.addingTimeInterval(2),
+                                             prices: [btc: 100], execution: [btc: 100])
+        bought.portfolios[0].observe(prices: [btc: 140], at: start.addingTimeInterval(3), force: true)
+        let adjusted = try TradingEngine.apply(.setCash(1_600), to: bought, at: start.addingTimeInterval(4), prices: [btc: 140])
+        XCTAssertEqual(adjusted.portfolios[0].performanceHistory(since: start).map(\.value), [0, 0, 0, 40, 40])
+    }
+
     func testOfflinePositionEditRecordsUnitsWithoutFabricatingValue() throws {
         let ledger = Ledger.fresh(cash: 100, date: start)
         let edited = try TradingEngine.apply(.setPosition(btc, 1, 25), to: ledger, at: start.addingTimeInterval(1))
@@ -125,14 +186,17 @@ final class TradingEngineTests: XCTestCase {
         }
     }
 
-    func testDailyPerformanceExcludesDepositsAndVirtualTransfers() throws {
+    func testDailyPerformanceMatchesHistoryAndCurrentValuation() throws {
         let original = Ledger.fresh(cash: 1_000, date: start)
         let deposited = try TradingEngine.apply(.deposit(2_000), to: original, at: start.addingTimeInterval(5))
         let bought = try TradingEngine.apply(.market(.buy, btc, 1, 0), to: deposited, at: start.addingTimeInterval(10),
                                              prices: [btc: 100], execution: [btc: 100])
         let daily = try XCTUnwrap(bought.portfolios[0].daily(now: start.addingTimeInterval(20), prices: [btc: 150]))
         XCTAssertEqual(daily.value, 50)
-        XCTAssertNotNil(daily.percent)
+        XCTAssertEqual(daily.percent, 2)
+        let series = bought.portfolios[0].performance(since: start, until: start.addingTimeInterval(20), liveValue: 3_050)
+        XCTAssertEqual(series.points.last?.value, daily.value)
+        XCTAssertEqual(series.change?.percent, daily.percent)
     }
 
     func testFiatConversionDecimalAndCurrencyCoverage() throws {

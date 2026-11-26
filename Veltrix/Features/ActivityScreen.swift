@@ -3,15 +3,16 @@ import SwiftUI
 extension OperationKind {
     var title: LocalizedStringKey {
         switch self {
-        case .buy: return "Buy"
-        case .sell: return "Sell"
-        case .swap: return "Swap"
+        case .buy: return "Purchase"
+        case .sell: return "Sale"
+        case .swap: return "Exchange"
         case .send: return "Send"
         case .receive: return "Receive"
         case .deposit: return "Deposit"
         case .adjustment: return "Adjustment"
         case .cardTopUp: return "Card top-up"
         case .cardReturn: return "Card funds returned"
+        case .qrPayment: return "Local QR payment"
         case .cardPayment: return "Card payment"
         case .refund: return "Refund"
         }
@@ -28,6 +29,7 @@ extension OperationKind {
         case .adjustment: return "slider.horizontal.3"
         case .cardTopUp: return "creditcard.and.123"
         case .cardReturn: return "arrow.uturn.left"
+        case .qrPayment: return "qrcode"
         case .cardPayment: return "creditcard"
         case .refund: return "arrow.counterclockwise"
         }
@@ -35,8 +37,12 @@ extension OperationKind {
 
     var localized: String {
         switch self {
+        case .buy: return L.text("Purchase")
+        case .sell: return L.text("Sale")
+        case .swap: return L.text("Exchange")
         case .cardTopUp: return L.text("Card top-up")
         case .cardReturn: return L.text("Card funds returned")
+        case .qrPayment: return L.text("Local QR payment")
         case .cardPayment: return L.text("Card payment")
         default: return L.text(rawValue.capitalized)
         }
@@ -54,7 +60,7 @@ struct ActivityScreen: View {
 
     var body: some View {
         PageScroll {
-            PageHeader(title: "Activity", detail: "Transactions and open orders") { EmptyView() }
+            PageHeader(title: "Activity", detail: "Virtual transactions and open orders") { EmptyView() }
             Picker("Activity view", selection: $showOrders) {
                 Text("Transactions").tag(false)
                 Text("Orders").tag(true)
@@ -254,7 +260,7 @@ struct EntryRow: View {
     private var amountColor: Color {
         switch entry.kind {
         case .buy, .receive, .deposit, .refund: return .vxUp
-        case .sell, .send, .cardPayment: return .vxDown
+        case .sell, .send, .cardPayment, .qrPayment: return .vxDown
         default: return .primary
         }
     }
@@ -291,7 +297,7 @@ struct EntryScreen: View {
                 }
             }
             if !model.hide {
-                ShareLink(item: "VELTRIX · \(L.text("Virtual operation")) · \(entry.kind.localized) · \(summary) · \(entry.date.formatted())") {
+                ShareLink(item: "VELTRIX · \(L.text("Local record")) · \(entry.kind.localized) · \(summary) · \(entry.date.formatted())") {
                     Label("Share operation", systemImage: "square.and.arrow.up")
                 }
                 .buttonStyle(.bordered)
@@ -319,5 +325,23 @@ extension OrderStatus {
         case .filled: return "Filled"
         case .cancelled: return "Cancelled"
         }
+    }
+}
+
+struct LimitOrderSummary: View {
+    @EnvironmentObject private var model: VeltrixModel
+    let order: LimitOrder
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            LabeledContent(order.side == .buy ? "Purchase" : "Sale", value: Asset.ticker(order.asset))
+            LabeledContent("Quantity", value: model.units(order.units))
+            LabeledContent("Limit price", value: model.money(order.limit, privateValue: false, price: true))
+            if let filled = order.filledPrice {
+                LabeledContent("Fill price", value: model.money(filled, privateValue: false, price: true))
+            }
+            LabeledContent("Status") { Text(order.status.title) }
+            LabeledContent("Date", value: order.date.formatted(date: .abbreviated, time: .standard))
+        }.font(.subheadline).panel()
     }
 }

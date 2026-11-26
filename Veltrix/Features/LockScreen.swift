@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct LockScreen: View {
-    @EnvironmentObject private var lock: AppLock
+    @EnvironmentObject private var lock: AuthCoordinator
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage("profileName") private var name = ""
     @State private var appeared = false
@@ -11,7 +11,7 @@ struct LockScreen: View {
             ScrollView {
                 VStack(spacing: 0) {
                     HStack(spacing: 9) {
-                        VeltrixMark().fill(.white).frame(width: 19, height: 19)
+                        Image("LaunchMark").resizable().frame(width: 19, height: 19)
                         Text(verbatim: "VELTRIX").font(.caption.weight(.semibold)).tracking(5)
                     }
                     .padding(.top, 24)
@@ -19,7 +19,7 @@ struct LockScreen: View {
 
                     Spacer(minLength: 48)
                     VStack(spacing: 12) {
-                        ProfileAvatar(size: 80, monochrome: true)
+                        ProfileAvatar(size: 80)
                             .opacity(appeared ? 1 : 0)
                             .offset(y: appeared || reduceMotion ? 0 : 6)
                             .padding(.bottom, 10)
@@ -64,9 +64,9 @@ struct LockScreen: View {
                 .frame(maxWidth: .infinity)
             }
         }
-        .background(Color.vxDarkBackground.ignoresSafeArea())
+        .background(Color.black.ignoresSafeArea())
         .foregroundStyle(.white)
         .environment(\.colorScheme, .dark)
-        .onAppear { withAnimation(reduceMotion ? nil : .easeOut(duration: 0.35)) { appeared = true } }
+        .onAppear { withAnimation(reduceMotion || UITestMode.enabled ? nil : .easeOut(duration: 0.35)) { appeared = true } }
     }
 }

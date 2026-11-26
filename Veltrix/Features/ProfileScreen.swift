@@ -4,17 +4,18 @@ import UIKit
 
 struct ProfileAvatar: View {
     var size: CGFloat
-    var monochrome = false
     @AppStorage("profileAvatar") private var avatar = Data()
     var body: some View {
         Group {
             if let picture = UIImage(data: avatar) {
                 Image(uiImage: picture).resizable().scaledToFill()
             } else {
-                VeltrixMark().fill(monochrome ? .white : Color.vxHighlight).padding(size * 0.25)
+                VeltrixMark().fill(.white).padding(size * 0.25)
             }
         }
-        .frame(width: size, height: size).background(monochrome ? .white.opacity(0.08) : Color.vxSurface).clipShape(Circle())
+        .frame(width: size, height: size)
+        .background(Color.black, in: Circle())
+        .clipShape(Circle())
         .accessibilityHidden(true)
     }
 }
@@ -39,7 +40,10 @@ struct ProfileScreen: View {
     private var portfolio: Portfolio { model.portfolio }
     private var trades: [Entry] { portfolio.entries.filter { [.buy, .sell, .swap].contains($0.kind) } }
     private var realizedTrades: [Entry] { trades.filter { $0.profit != nil } }
-    private var samples: [ChartSample] { portfolio.chart(range: range, candles: candles) }
+    private var samples: [ChartSample] {
+        portfolio.chart(range: range, candles: candles, performance: true,
+                        liveValue: try? portfolio.value(prices: model.usablePrices))
+    }
 
     var body: some View {
         PageScroll {
@@ -60,7 +64,7 @@ struct ProfileScreen: View {
                 VStack(alignment: .leading, spacing: 5) {
                     Text(verbatim: name.isEmpty ? L.text("My profile") : name).font(.title2.bold())
                     if !username.isEmpty { Text(verbatim: "@" + username).font(.subheadline).foregroundStyle(Color.vxMuted) }
-                    Text(verbatim: "\(trades.count) " + L.text("Trades")).font(.caption).foregroundStyle(Color.vxMuted)
+                    Text(verbatim: L.trades(trades.count)).font(.caption).foregroundStyle(Color.vxMuted)
                     if createdAt > 0 {
                         LabeledContent("Profile created", value: Date(timeIntervalSince1970: createdAt).formatted(date: .abbreviated, time: .omitted))
                             .font(.caption2).foregroundStyle(Color.vxMuted)
@@ -81,7 +85,7 @@ struct ProfileScreen: View {
             Divider().overlay(Color.vxSeparator)
             if !model.hide {
                 VeltrixChart(samples: samples, range: $range, candles: $candles, allowsCandles: true,
-                           ranges: [.day, .week, .month, .all]) { model.money($0) }
+                           compareAmounts: true, ranges: [.day, .week, .month, .all]) { model.signedMoney($0) }
                 LabeledContent("Realized P&L", value: model.signedMoney(periodProfit))
                 allocation
             }

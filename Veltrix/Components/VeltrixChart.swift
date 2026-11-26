@@ -7,6 +7,9 @@ struct VeltrixChart: View {
     @Binding var candles: Bool
     let allowsCandles: Bool
     var height: CGFloat = 190
+    var compact = false
+    var mini = false
+    var compareAmounts = false
     var ranges = ChartRange.allCases
     var rangeLabel: (ChartRange) -> String = { $0.displayTitle }
     var format: (Decimal) -> String
@@ -29,7 +32,28 @@ struct VeltrixChart: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 13) {
-            if samples.isEmpty {
+            if mini {
+                if let focus {
+                    HStack(spacing: 6) {
+                        Text(focus.date.formatted(date: .abbreviated, time: .shortened))
+                            .foregroundStyle(Color.vxMuted)
+                        Spacer(minLength: 0)
+                        Text(verbatim: format(focus.close))
+                    }.lineLimit(1).minimumScaleFactor(0.65)
+                }
+                if samples.isEmpty {
+                    Text("No chart data").foregroundStyle(Color.vxMuted)
+                } else {
+                    plotting.frame(height: height)
+                        .accessibilityLabel(Text("Historical chart"))
+                        .accessibilityValue(accessibilityValue)
+                }
+            } else if compact {
+                if !samples.isEmpty {
+                    plotting.frame(height: height).allowsHitTesting(false)
+                        .accessibilityLabel(Text("Portfolio performance"))
+                }
+            } else if samples.isEmpty || (compareAmounts && samples.count < 2) {
                 EmptyPanel(icon: "waveform.path", title: "No chart data", detail: "History appears when values become available.")
             } else {
                 readout
@@ -48,6 +72,16 @@ struct VeltrixChart: View {
                     }
             }
 
+            if !compact && !mini { controls }
+        }
+        .onChange(of: range) { _ in clearInteraction() }
+        .onChange(of: candles) { _ in clearInteraction() }
+        .onChange(of: phase) { state in if state != .active { stopReplay() } }
+        .onDisappear { stopReplay() }
+    }
+
+    private var controls: some View {
+        VStack(alignment: .leading, spacing: 13) {
             HStack(spacing: 2) {
                 ForEach(ranges, id: \.self) { value in
                     Button {
@@ -99,10 +133,6 @@ struct VeltrixChart: View {
             .buttonStyle(.bordered)
             .tint(.vxHighlight)
         }
-        .onChange(of: range) { _ in clearInteraction() }
-        .onChange(of: candles) { _ in clearInteraction() }
-        .onChange(of: phase) { state in if state != .active { stopReplay() } }
-        .onDisappear { stopReplay() }
     }
 
     private var accessibilityValue: Text {
@@ -121,20 +151,32 @@ struct VeltrixChart: View {
                 }
             }
             Spacer()
-            if let a = anchor, let b = focus, a.close != 0,
-               let change = try? MoneyMath.multiply(MoneyMath.divide(MoneyMath.subtract(b.close, a.close), a.close), 100) {
-                Text(verbatim: Display.percent(change)).font(.subheadline.weight(.semibold).monospacedDigit())
-                    .foregroundStyle(change >= 0 ? Color.vxUp : Color.vxDown)
+            if let a = anchor, let b = focus, let difference = try? MoneyMath.subtractValuation(b.close, a.close) {
+                if compareAmounts {
+                    comparison(format(difference), value: difference)
+                } else if a.close != 0,
+                          let percent = try? MoneyMath.multiply(MoneyMath.divide(difference, a.close), 100) {
+                    comparison(Display.percent(percent), value: percent)
+                }
             }
         }
         .frame(minHeight: 38, alignment: .leading)
     }
 
+    private func comparison(_ text: String, value: Decimal) -> some View {
+        Text(verbatim: text).font(.subheadline.weight(.semibold).monospacedDigit())
+            .foregroundStyle(value >= 0 ? Color.vxUp : Color.vxDown)
+    }
+
     private var plotting: some View {
         let plotted = visible
         let data = Array(plotted.prefix(replayCount ?? plotted.count))
-        let rising = (plotted.last?.close ?? 0) >= (plotted.first?.close ?? 0)
-        let trend = rising ? Color.vxUp : Color.vxDown
+        let visibleChange = (plotted.last?.close ?? 0) - (plotted.first?.close ?? 0)
+        let periodChange = (samples.last?.close ?? 0) - (samples.first?.close ?? 0)
+        let change = MoneyMath.round(mini || compareAmounts ? periodChange : visibleChange, scale: 8)
+        let trend = change == 0 ? Color.vxHighlight : (change > 0 ? Color.vxUp : Color.vxDown)
+        let hasGaps = plotted.first?.series != plotted.last?.series
+        let seriesSizes = Dictionary(grouping: plotted) { $0.series ?? 0 }.mapValues(\.count)
         let prices = plotted.flatMap { sample -> [Double] in
             [double(sample.low ?? sample.close), double(sample.high ?? sample.close)]
         }
@@ -157,24 +199,25 @@ struct VeltrixChart: View {
                             .foregroundStyle(shade).symbolSize(8)
                     }
                 } else {
-                    if plotted.count >= 2 { AreaMark(x: .value("Date", sample.date), yStart: .value("Floor", minimum - padding),
+                    if plotted.count >= 2 && !hasGaps { AreaMark(x: .value("Date", sample.date), yStart: .value("Floor", minimum - padding),
                              yEnd: .value("Price", double(sample.close)))
                         .interpolationMethod(.linear)
                         .foregroundStyle(LinearGradient(colors: [trend.opacity(0.19), trend.opacity(0.01)],
                                                         startPoint: .top, endPoint: .bottom)) }
                     if plotted.count >= 2 {
-                        LineMark(x: .value("Date", sample.date), y: .value("Price", double(sample.close)))
+                        LineMark(x: .value("Date", sample.date), y: .value("Price", double(sample.close)),
+                                 series: .value("Series", sample.series ?? 0))
                             .foregroundStyle(trend)
                             .interpolationMethod(.linear)
                             .lineStyle(StrokeStyle(lineWidth: 1.8, lineCap: .round, lineJoin: .round))
                     }
-                    if data.count == 1 {
+                    if data.count == 1 || seriesSizes[sample.series ?? 0] == 1 {
                         PointMark(x: .value("Date", sample.date), y: .value("Price", double(sample.close)))
                             .foregroundStyle(Color.vxHighlight).symbolSize(30)
                     }
                 }
             }
-            if let latest = plotted.last, plotted.count > 2, replay == nil {
+            if !mini, let latest = plotted.last, plotted.count > 2, replay == nil {
                 RuleMark(y: .value("Latest price", double(latest.close)))
                     .foregroundStyle(trend.opacity(0.36)).lineStyle(StrokeStyle(lineWidth: 0.8, dash: [3, 4]))
             }
@@ -192,16 +235,20 @@ struct VeltrixChart: View {
         .chartYScale(domain: (minimum - padding)...(maximum + padding))
         .chartXScale(domain: first...last)
         .chartXAxis {
-            AxisMarks(values: .automatic(desiredCount: 3)) { _ in
-                AxisValueLabel().foregroundStyle(Color.vxMuted)
+            if !mini && !compact {
+                AxisMarks(values: .automatic(desiredCount: 3)) { _ in
+                    AxisValueLabel().foregroundStyle(Color.vxMuted)
+                }
             }
         }
         .chartYAxis {
-            AxisMarks(position: .trailing, values: .automatic(desiredCount: 3)) { value in
-                AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [3, 4]))
-                    .foregroundStyle(Color.vxMuted.opacity(0.36))
-                if let amount = value.as(Double.self), amount.isFinite {
-                    AxisValueLabel { Text(verbatim: format(Decimal(amount))).font(.caption2) }
+            if !mini && !compact {
+                AxisMarks(position: .trailing, values: .automatic(desiredCount: 3)) { value in
+                    AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [3, 4]))
+                        .foregroundStyle(Color.vxMuted.opacity(0.36))
+                    if let amount = value.as(Double.self), amount.isFinite {
+                        AxisValueLabel { Text(verbatim: format(Decimal(amount))).font(.caption2) }
+                    }
                 }
             }
         }
@@ -223,7 +270,7 @@ struct VeltrixChart: View {
                     .accessibilityHidden(true)
                 if replay == nil, selected == nil, let latest = plotted.last,
                    let x = proxy.position(forX: latest.date), let y = proxy.position(forY: double(latest.close)) {
-                    TimelineView(.animation(minimumInterval: 1 / 24, paused: reduceMotion || phase != .active)) { timeline in
+                    TimelineView(.animation(minimumInterval: 1 / 24, paused: UITestMode.enabled || reduceMotion || phase != .active)) { timeline in
                         let pulse = reduceMotion ? 0.0 : (sin(timeline.date.timeIntervalSinceReferenceDate * 4) + 1) / 2
                         Canvas { context, _ in
                             let center = CGPoint(x: plot.minX + x, y: plot.minY + y)

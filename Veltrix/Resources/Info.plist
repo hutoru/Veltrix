@@ -14,9 +14,9 @@
   <key>LSRequiresIPhoneOS</key><true/>
   <key>NSFaceIDUsageDescription</key><string>Unlock Veltrix and protect your portfolio.</string>
   <key>NSCameraUsageDescription</key><string>Scan QR codes and read public addresses in Veltrix.</string>
-  <key>NSMotionUsageDescription</key><string>Animate virtual card reflections when you tilt your iPhone.</string>
+  <key>NSMotionUsageDescription</key><string>Animate card reflections when you tilt your iPhone.</string>
   <key>CADisableMinimumFrameDurationOnPhone</key><true/>
-  <key>UILaunchScreen</key><dict/>
+  <key>UILaunchStoryboardName</key><string>LaunchScreen</string>
   <key>UISupportedInterfaceOrientations</key><array><string>UIInterfaceOrientationPortrait</string></array>
   <key>ITSAppUsesNonExemptEncryption</key><false/>
 </dict>

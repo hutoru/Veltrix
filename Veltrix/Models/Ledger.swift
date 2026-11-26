@@ -7,7 +7,7 @@ struct Position: Codable, Equatable, Sendable {
 }
 
 enum OperationKind: String, Codable, CaseIterable, Sendable {
-    case buy, sell, swap, send, receive, deposit, adjustment, cardTopUp, cardReturn, cardPayment, refund
+    case buy, sell, swap, send, receive, deposit, adjustment, cardTopUp, cardReturn, cardPayment, refund, qrPayment
 }
 
 struct Entry: Codable, Identifiable, Equatable, Sendable {
@@ -26,6 +26,16 @@ struct Entry: Codable, Identifiable, Equatable, Sendable {
     var reference: UUID?
     var externalFlow: Decimal = 0
     var valuationUnavailable: Bool?
+    var availableCashAfterFill: Decimal?
+
+    var settlementUSD: Decimal? {
+        guard let usd else { return nil }
+        switch kind {
+        case .buy: return try? MoneyMath.add(usd, fee)
+        case .sell, .swap: return try? MoneyMath.subtract(usd, fee)
+        default: return usd
+        }
+    }
 }
 
 enum OrderSide: String, Codable, CaseIterable, Sendable { case buy, sell }
@@ -59,6 +69,7 @@ struct Portfolio: Codable, Identifiable, Equatable, Sendable {
     var entries: [Entry] = []
     var orders: [LimitOrder] = []
     var history: [PortfolioPoint] = []
+    var primaryCardID: UUID?
 
     func freeCash() throws -> Decimal {
         try orders.filter { $0.status == .open && $0.side == .buy }
@@ -95,16 +106,49 @@ struct Portfolio: Codable, Identifiable, Equatable, Sendable {
 
     func daily(now: Date, prices: [String: Decimal]) throws -> (value: Decimal, percent: Decimal?)? {
         let cutoff = now.addingTimeInterval(-86_400)
-        let baseline = history.last(where: { $0.date <= cutoff })
-        let start = baseline ?? (createdAt > cutoff ? history.first : nil)
-        guard let start, start.date < now, start.date >= cutoff.addingTimeInterval(-3_600) else { return nil }
-        let changes = entries.filter { $0.date > start.date && $0.date <= now }
-        guard !changes.contains(where: { $0.valuationUnavailable == true }) else { return nil }
-        let net = try changes.map(\.externalFlow).reduce(Decimal.zero, MoneyMath.addValuation)
-        let value = try MoneyMath.subtractValuation(MoneyMath.subtractValuation(self.value(prices: prices), start.value), net)
-        let basis = try MoneyMath.addValuation(start.value, max(0, net))
-        let percent = basis > 0 ? try MoneyMath.multiply(MoneyMath.divide(value, basis), 100) : nil
-        return (value, percent)
+        guard !entries.contains(where: { $0.date >= cutoff && $0.date <= now && $0.valuationUnavailable == true }) else { return nil }
+        return performance(since: cutoff, until: now, liveValue: try value(prices: prices)).change
+    }
+
+    func performanceHistory(since cutoff: Date) -> [PortfolioPoint] {
+        performance(since: cutoff).points
+    }
+
+    func performance(since cutoff: Date, until end: Date = .distantFuture, liveValue: Decimal? = nil)
+        -> (points: [PortfolioPoint], change: (value: Decimal, percent: Decimal?)?) {
+        let lastUnknown = entries.last(where: { $0.date <= end && $0.valuationUnavailable == true })?.date ?? .distantPast
+        var visible = history.filter { $0.date >= cutoff && $0.date > lastUnknown && $0.date <= end }
+        if let liveValue, end > lastUnknown, end >= cutoff, end < .distantFuture {
+            let point = PortfolioPoint(date: end, value: liveValue)
+            if visible.last?.date == end { visible[visible.count - 1] = point }
+            else { visible.append(point) }
+        }
+        guard let start = visible.first else { return ([], nil) }
+        let flows = entries.filter { $0.date > start.date && $0.externalFlow != 0 }.sorted { $0.date < $1.date }
+        var flowIndex = 0
+        var net: Decimal = 0
+        var points: [PortfolioPoint] = []
+        do {
+            for point in visible {
+                while flowIndex < flows.count && flows[flowIndex].date <= point.date {
+                    net = try MoneyMath.addValuation(net, flows[flowIndex].externalFlow)
+                    flowIndex += 1
+                }
+                let change = try MoneyMath.subtractValuation(point.value, start.value)
+                points.append(PortfolioPoint(date: point.date, value: try MoneyMath.subtractValuation(change, net)))
+            }
+            guard points.count > 1, let last = points.last, last.date > start.date else { return (points, nil) }
+            // Modified Dietz weights each contribution or withdrawal by the time it was invested.
+            let duration = last.date.timeIntervalSince(start.date)
+            let basis = try flows.prefix(flowIndex).reduce(start.value) { capital, entry in
+                let weight = Decimal(last.date.timeIntervalSince(entry.date) / duration)
+                return try MoneyMath.addValuation(capital, MoneyMath.multiply(entry.externalFlow, weight))
+            }
+            let percent = basis > 0 ? try MoneyMath.multiply(MoneyMath.divide(last.value, basis), 100) : nil
+            return (points, (last.value, percent))
+        } catch {
+            return ([], nil)
+        }
     }
 
     mutating func observe(prices: [String: Decimal], at date: Date, force: Bool = false) {
@@ -183,6 +227,7 @@ struct Ledger: Codable, Equatable, Sendable {
     var selected: UUID
     var cards: [VirtualCard]
     var operationIDs: Set<UUID>
+    var localPaymentRequests: [UUID: LocalPaymentRequest]?
 
     static func fresh(name: String = "Main", cash: Decimal = 10_000, date: Date = Date()) -> Ledger {
         var portfolio = Portfolio(name: name, createdAt: date, cash: cash)
@@ -198,6 +243,7 @@ struct Ledger: Codable, Equatable, Sendable {
         var orders = Set<UUID>()
         for portfolio in portfolios {
             guard !portfolio.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                  portfolio.primaryCardID.map({ id in cards.contains { $0.id == id && $0.owner == portfolio.id } }) ?? true,
                   try portfolio.freeCash() >= 0,
                   portfolio.history.allSatisfy({ !$0.value.isNaN && $0.value >= 0 }),
                   zip(portfolio.history, portfolio.history.dropFirst()).allSatisfy({ $0.0.date < $0.1.date })
@@ -213,10 +259,17 @@ struct Ledger: Codable, Equatable, Sendable {
                       order.feeRate >= 0, order.feeRate <= 1 else { throw SimulationError.invalidBackup }
                 try MoneyMath.quantity(order.units)
                 try MoneyMath.quantity(order.limit)
-                let gross = try MoneyMath.multiply(order.units, order.limit)
-                let reserve = order.side == .buy
-                    ? try MoneyMath.add(gross, MoneyMath.multiply(gross, order.feeRate)) : order.units
-                guard reserve == order.reserved,
+                let reserveMatches: Bool
+                if order.side == .buy {
+                    let gross = try MoneyMath.quotedUSD(order.units, at: order.limit)
+                    let settled = try? MoneyMath.add(gross, MoneyMath.multiply(gross, order.feeRate))
+                    let legacyGross = try? MoneyMath.multiply(order.units, order.limit)
+                    let legacy = legacyGross.flatMap { try? MoneyMath.add($0, MoneyMath.multiply($0, order.feeRate)) }
+                    reserveMatches = order.reserved == settled || order.reserved == legacy
+                } else {
+                    reserveMatches = order.reserved == order.units
+                }
+                guard reserveMatches,
                       order.status != .open || order.side != .sell || portfolio.positions[order.asset] != nil
                 else { throw SimulationError.invalidBackup }
             }
@@ -229,6 +282,10 @@ struct Ledger: Codable, Equatable, Sendable {
                 if let usd = entry.usd { try MoneyMath.nonnegative(usd) }
                 guard !entry.externalFlow.isNaN, !(entry.profit?.isNaN ?? false) else { throw SimulationError.invalidBackup }
             }
+        }
+        for (id, request) in localPaymentRequests ?? [:] {
+            guard request.id == id, ids.contains(request.recipient), !operationIDs.contains(id),
+                  request.isValid else { throw SimulationError.invalidBackup }
         }
         for card in cards {
             guard ids.contains(card.owner), !card.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,

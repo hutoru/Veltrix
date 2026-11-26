@@ -1,11 +1,12 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import UserNotifications
 
 struct SettingsScreen: View {
     @EnvironmentObject private var model: VeltrixModel
-    @EnvironmentObject private var lock: AppLock
+    @EnvironmentObject private var lock: AuthCoordinator
     @Environment(\.scenePhase) private var notificationPhase
-    @ObservedObject private var systemNotifications = OperationNotifications.shared
+    @ObservedObject private var systemNotifications = NotificationService.shared
     @Environment(\.openURL) private var openURL
     @AppStorage("profileName") private var profileName = ""
     @AppStorage("profileUsername") private var username = ""
@@ -48,12 +49,17 @@ struct SettingsScreen: View {
             Section("Notifications") {
                 Toggle("iOS notifications", isOn: Binding(get: { model.pushOperations }, set: updateNotifications))
                 Toggle("Hide amounts in notifications", isOn: $model.privateNotifications)
+                Toggle("Hide balance in notifications", isOn: $model.hideNotificationBalance)
+                Text("iOS controls which details appear on the Lock Screen.").font(.footnote).foregroundStyle(Color.vxMuted)
                 if model.pushOperations {
                     if systemNotifications.authorizationStatus == .notDetermined {
                         Button("Allow notifications") { requestNotificationPermission() }
-                    } else if !systemNotifications.alertsEnabled || !systemNotifications.soundsEnabled {
+                    } else {
                         settingsButton("Open iOS notification settings", "bell.badge") { openNotificationSettings() }
+                        LabeledContent("Show previews", value: previewStatus)
                     }
+                    Button("Send test notification") { systemNotifications.sendTest() }
+                        .accessibilityIdentifier("notifications.test")
                     Text(notificationStatus).font(.footnote).foregroundStyle(Color.vxMuted)
                         .accessibilityIdentifier("notifications.authorization")
                     if let error = systemNotifications.error {
@@ -65,6 +71,7 @@ struct SettingsScreen: View {
                             .accessibilityIdentifier("notifications.delivery")
                     }
                 }
+                NavigationLink("Notification history") { NotificationScreen() }
                 NavigationLink("Price alerts") { PriceAlertsScreen() }
             }.disabled(model.onSet)
             Section("Cards") { NavigationLink("Cards") { CardsScreen() } }
@@ -79,7 +86,7 @@ struct SettingsScreen: View {
                     HStack(spacing: 12) {
                         Image(systemName: "paperplane.fill").foregroundStyle(Color.vxHighlight)
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(verbatim: "Veltrix News").font(.subheadline.weight(.semibold))
+                            Text(verbatim: "VELTRIX News").font(.subheadline.weight(.semibold))
                             Text("App news, updates and announcements.").font(.caption).foregroundStyle(Color.vxMuted)
                         }
                         Spacer()
@@ -102,10 +109,11 @@ struct SettingsScreen: View {
                         Text("Version \(version)")
                     }
                     Text(verbatim: "© 2026 VELTRIX")
-                    Text("VELTRIX uses virtual funds. Trades, transfers and card payments are simulated on this device.")
+                    Text("Trades, transfers and card payments are recorded on this device.")
                 }.foregroundStyle(Color.vxMuted)
             }
         }
+        .listStyle(.insetGrouped)
         .navigationTitle("Settings")
         .task(id: notificationPhase) {
             if notificationPhase == .active { await systemNotifications.refresh() }
@@ -148,12 +156,21 @@ struct SettingsScreen: View {
         }
     }
 
+    private var previewStatus: String {
+        switch systemNotifications.previewSetting {
+        case .always: return L.text("Always")
+        case .whenAuthenticated: return L.text("When unlocked")
+        case .never: return L.text("Never")
+        @unknown default: return "—"
+        }
+    }
+
     private func updateNotifications(_ enabled: Bool) {
         model.pushOperations = enabled
         if enabled {
             requestNotificationPermission()
         } else {
-            OperationNotifications.clear()
+            NotificationService.clear()
         }
     }
 
@@ -263,7 +280,7 @@ struct SettingsScreen: View {
                 catch { model.error = Display.error(error) }
             }
             settingsButton("Import backup", "square.and.arrow.down") { takeFile = true }
-            Text("The backup contains virtual balances and activity. Store it somewhere private.")
+            Text("The backup contains balances and activity. Store it somewhere private.")
                 .font(.caption).foregroundStyle(Color.vxMuted)
         }
 
@@ -368,6 +385,8 @@ struct SettingsForm: View {
                     .disabled(processing)
             }
             .scrollContentBackground(.hidden).background(Color.vxBackground)
+            .scrollDismissesKeyboard(.interactively)
+            .dismissibleKeyboard()
             .navigationTitle(panel.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } } }
@@ -399,7 +418,7 @@ struct SettingsForm: View {
             Text("The fee applies to market and limit orders and swaps.")
                 .font(.caption).foregroundStyle(Color.vxMuted)
         case .key:
-            SecureField("CoinGecko Demo key", text: $secret).textInputAutocapitalization(.never).autocorrectionDisabled()
+            SecureField("CoinGecko API key", text: $secret).textInputAutocapitalization(.never).autocorrectionDisabled()
             Text("Leave blank and save to use the public feed without a key.")
                 .font(.caption).foregroundStyle(Color.vxMuted)
         }

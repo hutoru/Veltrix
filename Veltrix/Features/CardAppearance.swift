@@ -6,27 +6,28 @@ enum CardCollection: String, CaseIterable {
 
     var title: LocalizedStringKey {
         switch self {
-        case .origin: return "Origin"
-        case .atlas: return "Atlas"
-        case .reserve: return "Reserve"
+        case .origin: return "Visa Inspired"
+        case .atlas: return "Mastercard Inspired"
+        case .reserve: return "American Express Inspired"
         case .exclusive: return "Veltrix Exclusive"
         }
     }
-
-    var segmentTitle: LocalizedStringKey { self == .exclusive ? "Exclusive" : title }
 
     var tiers: [CardTier] {
         switch self {
         case .origin: return [.classic, .gold, .platinum, .signature, .infinite]
         case .atlas: return [.standard, .atlasGold, .atlasPlatinum, .world, .worldElite]
         case .reserve: return [.green, .reserveGold, .reservePlatinum, .centurion]
-        case .exclusive: return [.black, .carbonBlack, .royalGold, .brushedSilver, .ceramicWhite, .crystalGlass, .holographic, .purple, .custom]
+        case .exclusive: return [.black, .carbonBlack, .royalGold, .brushedSilver, .ceramicWhite, .crystalGlass, .holographic, .custom]
         }
     }
 }
 
 extension CardTier {
-    var collection: CardCollection { CardCollection.allCases.first { $0.tiers.contains(self) } ?? .origin }
+    var collection: CardCollection {
+        if self == .purple { return .exclusive }
+        return CardCollection.allCases.first { $0.tiers.contains(self) } ?? .origin
+    }
 
     var title: LocalizedStringKey { LocalizedStringKey(titleKey) }
 
@@ -43,12 +44,12 @@ extension CardTier {
         case .green: return "Green"
         case .centurion: return "Centurion"
         case .black: return "Black Titanium"
-        case .carbonBlack: return "Carbon Black"
+        case .carbonBlack: return "Carbon Fiber"
         case .royalGold: return "Royal Gold"
         case .brushedSilver: return "Brushed Silver"
         case .ceramicWhite: return "Ceramic White"
         case .crystalGlass: return "Crystal Glass"
-        case .holographic: return "Holographic Edition"
+        case .holographic: return "Holographic"
         case .purple: return "Purple Edition"
         case .custom: return "Custom Edition"
         }
@@ -59,14 +60,14 @@ extension CardTier {
         case .classic: return (.matte, .none, 0x30333D, 0x12141B)
         case .gold: return (.gold, .brushed, 0x997544, 0x342215)
         case .platinum: return (.silver, .brushed, 0x667382, 0x242B36)
-        case .signature: return (.titanium, .engraved, 0x4F5872, 0x202136)
-        case .infinite: return (.carbon, .woven, 0x26324D, 0x111624)
+        case .signature: return (.matte, .none, 0x35383C, 0x0E0F11)
+        case .infinite: return (.titanium, .engraved, 0x383E43, 0x08090C)
         case .standard: return (.matte, .engraved, 0x435466, 0x172835)
         case .atlasGold: return (.gold, .engraved, 0xBA8747, 0x3D231A)
-        case .atlasPlatinum: return (.titanium, .brushed, 0x526579, 0x172831)
-        case .world: return (.glass, .engraved, 0x276777, 0x112D3C)
-        case .worldElite: return (.carbon, .woven, 0x39446C, 0x16182D)
-        case .green: return (.ceramic, .engraved, 0x2F694F, 0x153327)
+        case .atlasPlatinum: return (.silver, .brushed, 0x8B96A2, 0x293037)
+        case .world: return (.matte, .engraved, 0x4F5357, 0x151719)
+        case .worldElite: return (.carbon, .woven, 0x34383C, 0x08090A)
+        case .green: return (.ceramic, .engraved, 0x267957, 0x0D3328)
         case .reserveGold: return (.gold, .engraved, 0x9B7244, 0x49321E)
         case .reservePlatinum: return (.silver, .engraved, 0x738888, 0x313B46)
         case .centurion: return (.titanium, .engraved, 0x383C42, 0x17181B)
@@ -199,5 +200,77 @@ struct CardPortrait: View, Equatable {
                     .clipped()
             }
         }.accessibilityHidden(true)
+    }
+}
+
+struct CardEngraving: View {
+    let tier: CardTier
+    let ink: Color
+
+    var body: some View {
+        Canvas { context, size in
+            let w = size.width
+            let h = size.height
+            var engraving = Path()
+            switch tier.collection {
+            case .origin:
+                if tier != .classic {
+                    let count = tier == .infinite ? 13 : 4
+                    for index in 0..<count {
+                        let offset = CGFloat(index) * w * 0.027
+                        engraving.move(to: CGPoint(x: w * 0.93 + offset, y: h * 0.2))
+                        engraving.addQuadCurve(to: CGPoint(x: w * 0.42 + offset, y: h),
+                                               control: CGPoint(x: w * 0.9 + offset, y: h * 0.7))
+                    }
+                }
+            case .atlas:
+                let radius = h * (tier == .world || tier == .worldElite ? 0.42 : 0.33)
+                for center in [w * 0.7, w * 0.84] {
+                    engraving.addEllipse(in: CGRect(x: center - radius, y: h * 0.59 - radius,
+                                                     width: radius * 2, height: radius * 2))
+                }
+                if tier == .world {
+                    for scale: CGFloat in [0.25, 0.5, 0.75] {
+                        engraving.addEllipse(in: CGRect(x: w * 0.77 - radius, y: h * 0.59 - radius * scale,
+                                                         width: radius * 2, height: radius * scale * 2))
+                    }
+                }
+            case .reserve:
+                for inset: CGFloat in [0.035, 0.06] {
+                    engraving.addRoundedRect(in: CGRect(x: w * inset, y: h * inset,
+                                                         width: w * (1 - 2 * inset), height: h * (1 - 2 * inset)),
+                                               cornerSize: CGSize(width: w * 0.046, height: w * 0.046))
+                }
+                for index in 0..<8 {
+                    let offset = CGFloat(index) * h * 0.042
+                    engraving.addEllipse(in: CGRect(x: w * 0.5 - offset, y: h * 0.38 - offset,
+                                                     width: offset * 2, height: offset * 2))
+                }
+            case .exclusive:
+                switch tier {
+                case .crystalGlass, .holographic:
+                    engraving.move(to: CGPoint(x: w * 0.48, y: 0))
+                    engraving.addLines([CGPoint(x: w * 0.76, y: h * 0.32),
+                                        CGPoint(x: w * 0.64, y: h * 0.78), CGPoint(x: w, y: h * 0.49)])
+                    engraving.move(to: CGPoint(x: w * 0.64, y: h * 0.78))
+                    engraving.addLine(to: CGPoint(x: w * 0.85, y: h))
+                case .carbonBlack, .black:
+                    engraving.move(to: CGPoint(x: w * 0.64, y: h))
+                    engraving.addLines([CGPoint(x: w * 0.72, y: h * 0.72),
+                                        CGPoint(x: w, y: h * 0.72)])
+                default:
+                    engraving.move(to: CGPoint(x: w * 0.55, y: h * 0.72))
+                    engraving.addLines([CGPoint(x: w * 0.78, y: h * 0.72),
+                                        CGPoint(x: w * 0.92, y: h * 0.44),
+                                        CGPoint(x: w * 0.92, y: h * 0.21)])
+                }
+            }
+            context.translateBy(x: 0, y: 0.7)
+            context.stroke(engraving, with: .color(.black.opacity(0.32)), lineWidth: 1)
+            context.translateBy(x: 0, y: -0.7)
+            context.stroke(engraving, with: .color(ink.opacity(0.24)), lineWidth: 0.7)
+        }
+        .accessibilityHidden(true)
+        .allowsHitTesting(false)
     }
 }

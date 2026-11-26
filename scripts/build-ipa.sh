@@ -19,8 +19,54 @@ xcodebuild build -project Veltrix.xcodeproj -scheme Veltrix -configuration Relea
 app="$derived/Build/Products/Release-iphoneos/Veltrix.app"
 executable="$app/Veltrix"
 /usr/bin/plutil -lint "$app/Info.plist"
+test "$(/usr/libexec/PlistBuddy -c 'Print :UILaunchStoryboardName' "$app/Info.plist")" = "LaunchScreen"
+test -n "$(find "$app" -type d -name LaunchScreen.storyboardc -print -quit)"
 test "$(xcrun lipo -archs "$executable")" = "arm64"
 test "$(/usr/libexec/PlistBuddy -c 'Print :MinimumOSVersion' "$app/Info.plist")" = "16.0"
+version="$(sed -n 's/^[[:space:]]*MARKETING_VERSION: "\([0-9.]*\)".*/\1/p' project.yml)"
+test -n "$version"
+test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app/Info.plist")" = "$version"
+build_number="$(sed -n 's/^[[:space:]]*CURRENT_PROJECT_VERSION: \([0-9][0-9]*\).*/\1/p' project.yml)"
+test -n "$build_number"
+test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$app/Info.plist")" = "$build_number"
+test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Info.plist")" = "app.veltrix.simulation"
+test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIcons:CFBundlePrimaryIcon:CFBundleIconName' "$app/Info.plist")" = "AppIcon"
+test -s "$app/Assets.car"
+if /usr/libexec/PlistBuddy -c 'Print :CFBundleIcons:CFBundleAlternateIcons' "$app/Info.plist" >/dev/null 2>&1; then
+  echo "Unexpected alternate app icon" >&2
+  exit 1
+fi
+source_icon="$PWD/Veltrix/Resources/Assets.xcassets/AppIcon.appiconset/VeltrixIcon.png"
+compiled_icon="$(find "$app" -maxdepth 1 -name 'AppIcon*.png' -size +0c -print -quit)"
+test -n "$compiled_icon"
+xcrun swift - "$source_icon" "$app"/AppIcon*.png <<'SWIFT'
+import AppKit
+
+for (index, filename) in CommandLine.arguments.dropFirst().enumerated() {
+    guard let data = try? Data(contentsOf: URL(fileURLWithPath: filename)),
+          let bitmap = NSBitmapImageRep(data: data) else {
+        fatalError("Cannot decode \(filename)")
+    }
+    if index == 0 {
+        precondition(bitmap.pixelsWide == 1024 && bitmap.pixelsHigh == 1024)
+    }
+    let step = max(1, bitmap.pixelsWide / 80)
+    var whiteSeen = false
+    for y in stride(from: 0, to: bitmap.pixelsHigh, by: step) {
+        for x in stride(from: 0, to: bitmap.pixelsWide, by: step) {
+            guard let color = bitmap.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB) else {
+                fatalError("Cannot read icon color")
+            }
+            precondition(abs(color.redComponent - color.greenComponent) < 0.02)
+            precondition(abs(color.redComponent - color.blueComponent) < 0.02)
+            if x == 0 || y == 0 { precondition(color.redComponent < 0.02) }
+            if color.redComponent > 0.95 { whiteSeen = true }
+        }
+    }
+    precondition(whiteSeen, "Missing white icon mark")
+    print("Verified monochrome app icon: \(filename)")
+}
+SWIFT
 build_metadata="$(xcrun vtool -show-build "$executable")"
 grep -Eq 'platform[[:space:]]+IOS([[:space:]]|$)' <<< "$build_metadata"
 grep -Eq 'minos[[:space:]]+16\.0([[:space:]]|$)' <<< "$build_metadata"

@@ -5,28 +5,36 @@ struct MarketStatus: View {
     @EnvironmentObject private var model: VeltrixModel
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 30)) { context in
-            let date = model.quoteDate
-            let stale = model.marketMessage != nil || (date.map { context.date.timeIntervalSince($0) > 300 } ?? true)
-            VStack(alignment: .leading, spacing: 7) {
-                HStack(spacing: 6) {
-                    Circle().fill(stale ? Color.vxMuted : Color.vxUp).frame(width: 6, height: 6)
-                    if let date {
-                        Text(stale ? "Saved quotes" : "CoinGecko quotes")
+        if UITestMode.enabled {
+            status(at: .now)
+        } else {
+            TimelineView(.periodic(from: .now, by: 30)) { status(at: $0.date) }
+        }
+    }
+
+    private func status(at now: Date) -> some View {
+        let date = model.quoteDate
+        let stale = model.usablePrices.isEmpty || (date.map { now.timeIntervalSince($0) > 300 } ?? true)
+        return VStack(alignment: .leading, spacing: 7) {
+            HStack(spacing: 6) {
+                Circle().fill(stale ? Color.vxMuted : Color.vxUp).frame(width: 6, height: 6)
+                if let date {
+                    Text(stale ? "Saved quotes" : "Market quotes")
+                    if !UITestMode.enabled {
                         Text(date, style: .relative)
                         Text("ago")
-                    } else {
-                        Text(model.loading ? "Updating market data" : "Awaiting market data")
                     }
-                }
-                if let message = model.marketMessage { Text(verbatim: message) }
-                if let date = model.rates[model.currency]?.date, model.currency != "USD" {
-                    Text("FX reference date · \(date)")
+                } else {
+                    Text(model.loading ? "Updating market data" : "Awaiting market data")
                 }
             }
-            .font(.caption)
-            .foregroundStyle(Color.vxMuted)
+            if let message = model.marketMessage { Text(verbatim: message) }
+            if let date = model.rates[model.currency]?.date, model.currency != "USD" {
+                Text("FX reference date · \(date)")
+            }
         }
+        .font(.caption)
+        .foregroundStyle(Color.vxMuted)
     }
 }
 
@@ -87,22 +95,34 @@ struct ChangeText: View {
 
 struct MarketSparkline: View {
     let values: [Decimal]
+    var measuredChange: Decimal? = nil
     var body: some View {
         let prices = values.map { NSDecimalNumber(decimal: $0).doubleValue }.filter(\.isFinite)
         Canvas { context, size in
             guard prices.count > 1, let minimum = prices.min(), let maximum = prices.max() else { return }
             let span = maximum - minimum
-            let line = Path { path in
-                for (index, price) in prices.enumerated() {
-                    let x = size.width * CGFloat(index) / CGFloat(prices.count - 1)
-                    let y = span > 0 ? size.height - 2 - CGFloat((price - minimum) / span) * (size.height - 4) : size.height / 2
-                    if index == 0 { path.move(to: CGPoint(x: x, y: y)) }
-                    else { path.addLine(to: CGPoint(x: x, y: y)) }
-                }
+            let width = max(0, size.width - 4)
+            let chartHeight = max(0, size.height - 6)
+            let points = prices.enumerated().map { index, price in
+                CGPoint(x: 2 + width * CGFloat(index) / CGFloat(prices.count - 1),
+                        y: span > 0 ? 3 + (1 - CGFloat((price - minimum) / span)) * chartHeight : size.height / 2)
             }
-            let rising = (prices.last ?? 0) >= (prices.first ?? 0)
-            context.stroke(line, with: .color(rising ? .vxUp : .vxDown),
+            guard let start = points.first, let end = points.last else { return }
+            let line = Path { path in
+                path.move(to: start)
+                path.addLines(Array(points.dropFirst()))
+            }
+            let change = measuredChange.map { MoneyMath.round($0, scale: 2) } ?? (values.last ?? 0) - (values.first ?? 0)
+            let color: Color = change == 0 ? .vxMuted : (change > 0 ? .vxUp : .vxDown)
+            var fill = line
+            fill.addLine(to: CGPoint(x: end.x, y: size.height))
+            fill.addLine(to: CGPoint(x: start.x, y: size.height))
+            fill.closeSubpath()
+            context.fill(fill, with: .linearGradient(Gradient(colors: [color.opacity(0.27), .clear]),
+                                                     startPoint: .zero, endPoint: CGPoint(x: 0, y: size.height)))
+            context.stroke(line, with: .color(color),
                            style: StrokeStyle(lineWidth: 1.3, lineCap: .round, lineJoin: .round))
+            context.fill(Path(ellipseIn: CGRect(x: end.x - 2, y: end.y - 2, width: 4, height: 4)), with: .color(color))
         }.accessibilityHidden(true)
     }
 }

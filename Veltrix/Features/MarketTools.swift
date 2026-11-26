@@ -59,6 +59,8 @@ struct PriceAlertsScreen: View {
         }
         .navigationTitle("Price alerts")
         .navigationBarTitleDisplayMode(.inline)
+        .scrollDismissesKeyboard(.interactively)
+        .dismissibleKeyboard()
     }
 }
 
@@ -83,6 +85,8 @@ struct CurrencyConverter: View {
         }
         .navigationTitle("Currency converter")
         .navigationBarTitleDisplayMode(.inline)
+        .scrollDismissesKeyboard(.interactively)
+        .dismissibleKeyboard()
         .refreshable { await model.refresh() }
         .onAppear { currency = model.currency }
     }

@@ -18,6 +18,31 @@ final class MarketTests: XCTestCase {
         XCTAssertEqual(count, 1)
     }
 
+    func testOverlappingRequestsShareRetriesAfterTemporaryServerError() async throws {
+        let transport = TemporaryFailureTransport()
+        let client = HTTPClient(transport: transport)
+        let url = try XCTUnwrap(URL(string: "https://example.test/history"))
+        async let first = client.get(url)
+        async let second = client.get(url)
+        let (a, b) = try await (first, second)
+        XCTAssertEqual(a, Data([1]))
+        XCTAssertEqual(a, b)
+        let requests = await transport.requests
+        XCTAssertEqual(requests, 2)
+    }
+
+    private actor TemporaryFailureTransport: HTTPTransport {
+        var requests = 0
+
+        func load(_ request: URLRequest) async throws -> (Data, URLResponse) {
+            requests += 1
+            let status = requests == 1 ? 503 : 200
+            let url = try XCTUnwrap(request.url)
+            let response = try XCTUnwrap(HTTPURLResponse(url: url, statusCode: status, httpVersion: nil, headerFields: nil))
+            return (Data([1]), response)
+        }
+    }
+
     func testConnectivityAndAccessDeniedSurfaceAsErrors() async throws {
         let url = try XCTUnwrap(URL(string: "https://example.test/quotes"))
         let denied = HTTPClient(transport: MockTransport(status: 401, data: Data()))

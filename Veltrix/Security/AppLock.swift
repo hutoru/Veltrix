@@ -48,11 +48,13 @@ enum Keychain {
     }
 }
 
-@MainActor final class AppLock: ObservableObject {
+@MainActor final class AuthCoordinator: ObservableObject {
+    enum State: Equatable { case locked, authenticating, unlocked, failed }
     typealias Evaluator = @MainActor (LAPolicy) async throws -> Bool
 
     @Published private(set) var enabled = false
-    @Published private(set) var locked = false
+    @Published private(set) var state = State.unlocked
+    var locked: Bool { state != .unlocked }
     @Published private(set) var busy = false
     @Published private(set) var error: String?
 
@@ -80,7 +82,7 @@ enum Keychain {
                 enabled = true
             }
         }
-        locked = enabled
+        state = enabled ? .locked : .unlocked
     }
 
     var timeout: Int { defaults.object(forKey: "lockTimeout") as? Int ?? 60 }
@@ -100,6 +102,7 @@ enum Keychain {
         backgrounded = date
         generation += 1
         context?.invalidate()
+        if state == .authenticating { state = .locked }
         if timeout == 0 { lockNow() }
         if locked { attemptedAutomatically = false }
     }
@@ -114,7 +117,7 @@ enum Keychain {
         generation += 1
         attemptedAutomatically = false
         error = nil
-        locked = true
+        state = .locked
     }
 
     func tryAutomaticUnlock() async {
@@ -124,9 +127,12 @@ enum Keychain {
     }
 
     func unlockWithDevice() async {
-        guard enabled, locked, await authenticate() else { return }
-        locked = false
-        Feedback.success()
+        guard enabled, locked, !busy else { return }
+        state = .authenticating
+        let success = await authenticate()
+        guard state == .authenticating else { return }
+        state = success ? .unlocked : (error == nil ? .locked : .failed)
+        if success { Feedback.success() }
     }
 
     private func authenticate() async -> Bool {

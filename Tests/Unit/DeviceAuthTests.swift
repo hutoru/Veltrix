@@ -10,7 +10,7 @@ final class DeviceAuthTests: XCTestCase {
         defer { defaults.removePersistentDomain(forName: name) }
         var policies: [LAPolicy] = []
         var success = false
-        let lock = AppLock(defaults: defaults, legacyLock: { true }) { policy in
+        let lock = AuthCoordinator(defaults: defaults, legacyLock: { true }) { policy in
             policies.append(policy)
             return success
         }
@@ -38,16 +38,48 @@ final class DeviceAuthTests: XCTestCase {
         XCTAssertEqual(policies, Array(repeating: .deviceOwnerAuthentication, count: 3))
     }
 
+    @MainActor func testAuthorizationCancellationLeavesGateLockedAndAllowsManualRetry() async throws {
+        let name = "Veltrix-Cancel-Lock-" + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+        defaults.set(true, forKey: "deviceLockEnabled")
+        var calls = 0
+        let lock = AuthCoordinator(defaults: defaults, testing: true) { _ in
+            calls += 1
+            if calls == 1 {
+                throw NSError(domain: LAError.errorDomain, code: LAError.Code.userCancel.rawValue)
+            }
+            return true
+        }
+        await lock.tryAutomaticUnlock()
+        XCTAssertEqual(lock.state, .locked)
+        XCTAssertNil(lock.error)
+        await lock.tryAutomaticUnlock()
+        XCTAssertEqual(calls, 1)
+        await lock.unlockWithDevice()
+        XCTAssertEqual(lock.state, .unlocked)
+    }
+
     @MainActor func testNativeTradeRequestContainsAssetAmountFiatAndSound() {
         let entry = Entry(id: UUID(), date: .now, kind: .buy, asset: "bitcoin", amount: 1, usd: 100)
-        let notification = OperationNotifications.request(for: entry, filled: false, amounts: "1 BTC · $100.00")
+        let amounts = NotificationService.OperationAmounts(quantity: "1 BTC", amount: "$100.00", balance: "$900.00")
+        let notification = NotificationService.request(for: entry, filled: false, amounts: amounts)
         XCTAssertEqual(notification.identifier, entry.id.uuidString)
-        XCTAssertEqual(notification.content.title, "Veltrix")
-        XCTAssertTrue(notification.content.body.contains("Bitcoin · 1 BTC · $100.00"))
+        XCTAssertEqual(notification.content.title, "VELTRIX · CryptoApp")
+        XCTAssertEqual(notification.content.subtitle, "")
+        XCTAssertEqual(notification.content.body, "Purchase BTC for $100.00.\nAvailable balance: $900.00\n1 BTC")
         XCTAssertNotNil(notification.content.sound)
         XCTAssertNil(notification.trigger)
-        let privateRequest = OperationNotifications.request(for: entry, filled: false, amounts: nil)
-        XCTAssertFalse(privateRequest.content.body.contains("Bitcoin"))
+        let privateRequest = NotificationService.request(for: entry, filled: false, amounts: nil)
+        XCTAssertEqual(privateRequest.content.subtitle, "")
+        XCTAssertEqual(privateRequest.content.body, entry.kind.localized + " BTC")
+    }
+
+    func testNativeDecimalInputAcceptsDotAndCommaWithoutAmbiguousGrouping() {
+        XCTAssertEqual(Display.amount("0.125"), Decimal(string: "0.125"))
+        XCTAssertEqual(Display.amount("0,125"), Decimal(string: "0.125"))
+        XCTAssertNil(Display.amount("1,2.3"))
+        XCTAssertNil(Display.amount("1 000,00"))
     }
 
     func testTradeSizingUsesQuotesAndPreservesExactCoinMax() throws {

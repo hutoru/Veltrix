@@ -60,6 +60,7 @@ struct ChartSample: Codable, Equatable, Identifiable, Sendable {
     var open: Decimal?
     var high: Decimal?
     var low: Decimal?
+    var series: Int? = nil
     var id: Date { date }
 }
 
@@ -68,11 +69,11 @@ enum ChartRange: String, CaseIterable, Sendable {
 
     var displayTitle: String {
         switch self {
-        case .day: return "1D"
-        case .week: return "1W"
-        case .month: return "1M"
-        case .quarter: return "3M"
-        default: return rawValue
+        case .day: return L.text("1D")
+        case .week: return L.text("1W")
+        case .month: return L.text("1M")
+        case .quarter: return L.text("3M")
+        default: return L.text(rawValue)
         }
     }
 

@@ -5,6 +5,20 @@ enum L {
     static func format(_ key: String, _ args: CVarArg...) -> String {
         String(format: text(key), locale: .current, arguments: args)
     }
+
+    static func trades(_ count: Int, language: String = Bundle.main.preferredLocalizations.first ?? "en") -> String {
+        if language.hasPrefix("ru") {
+            let digits = count.magnitude
+            let last = digits % 10
+            let noun: String
+            if (11...14).contains(digits % 100) { noun = "сделок" }
+            else if last == 1 { noun = "сделка" }
+            else if (2...4).contains(last) { noun = "сделки" }
+            else { noun = "сделок" }
+            return "\(count) \(noun)"
+        }
+        return "\(count) " + text(count == 1 ? "Trade" : "Trades")
+    }
 }
 
 enum FinancialFormatter {
@@ -55,7 +69,7 @@ enum FinancialFormatter {
     }
 
     static func amount(_ text: String) -> Decimal? {
-        MoneyMath.parse(text, separator: Locale.current.decimalSeparator ?? ".")
+        MoneyMath.parse(text.replacingOccurrences(of: ",", with: "."), separator: ".")
     }
 
     static func error(_ error: Error) -> String {

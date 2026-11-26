@@ -2,7 +2,7 @@ import Foundation
 import SwiftUI
 
 @MainActor final class VeltrixModel: ObservableObject {
-    typealias NotificationSink = @MainActor (Entry, Bool, String?) -> Void
+    typealias NotificationSink = @MainActor (Entry, Bool, NotificationService.OperationAmounts?) -> Void
     @Published private(set) var ledger: Ledger
     @Published private(set) var quotes: [String: Quote] = [:]
     @Published private(set) var rates: [String: FXRate] = [:]
@@ -21,6 +21,7 @@ import SwiftUI
     @Published var favorites: Set<String> { didSet { defaults.set(Array(favorites), forKey: "favorites") } }
     @Published var pushOperations: Bool { didSet { defaults.set(pushOperations, forKey: "pushOperations") } }
     @Published var privateNotifications: Bool { didSet { defaults.set(privateNotifications, forKey: "privateNotifications") } }
+    @Published var hideNotificationBalance: Bool { didSet { defaults.set(hideNotificationBalance, forKey: "hideNotificationBalance") } }
     @Published private(set) var onSet: Bool { didSet { defaults.set(onSet, forKey: "onSet") } }
     @Published var quickActionIDs: [String] { didSet { defaults.set(quickActionIDs, forKey: "quickActionIDs") } }
     @Published private(set) var priceAlerts: [PriceAlert] {
@@ -62,7 +63,7 @@ import SwiftUI
         if testing {
             self.notificationSink = notificationSink
         } else {
-            let native: NotificationSink = OperationNotifications.schedule
+            let native: NotificationSink = NotificationService.schedule
             self.notificationSink = notificationSink ?? native
         }
         let client = HTTPClient()
@@ -78,7 +79,9 @@ import SwiftUI
         fee = defaults.string(forKey: "fee").flatMap { MoneyMath.parse($0, separator: ".") } ?? Decimal(1) / 1_000
         favorites = Set(defaults.stringArray(forKey: "favorites") ?? [])
         pushOperations = defaults.object(forKey: "pushOperations") as? Bool ?? true
-        privateNotifications = defaults.object(forKey: "privateNotifications") as? Bool ?? false
+        let previousNotificationPrivacy = defaults.bool(forKey: "privateNotifications")
+        privateNotifications = previousNotificationPrivacy
+        hideNotificationBalance = defaults.object(forKey: "hideNotificationBalance") as? Bool ?? previousNotificationPrivacy
         let onSet = defaults.bool(forKey: "onSet")
         self.onSet = onSet
         quickActionIDs = defaults.stringArray(forKey: "quickActionIDs") ?? Self.standardActions.map(\.rawValue)
@@ -105,6 +108,7 @@ import SwiftUI
 
     var portfolio: Portfolio { ledger.portfolios.first { $0.id == ledger.selected } ?? ledger.portfolios[0] }
     var cards: [VirtualCard] { ledger.cards.filter { $0.owner == ledger.selected } }
+    var primaryCard: VirtualCard? { cards.first { $0.id == portfolio.primaryCardID } ?? cards.first }
     var prices: [String: Decimal] { quotes.compactMapValues(\.price) }
     static let standardActions: [TradeAction] = [.buy, .sell, .send, .receive, .swap]
 
@@ -161,12 +165,12 @@ import SwiftUI
     func removePriceAlert(_ id: UUID) { priceAlerts.removeAll { $0.id == id } }
 
     var notificationEntries: [Entry] {
-        portfolio.entries.filter { $0.date > notificationsCleared && OperationNotifications.eligible($0) }
+        portfolio.entries.filter { $0.date > notificationsCleared }
             .sorted { $0.date > $1.date }
     }
 
     var hasUnreadNotifications: Bool {
-        portfolio.entries.reversed().contains { $0.date > notificationsCleared && OperationNotifications.eligible($0) && isUnread($0) }
+        portfolio.entries.reversed().contains { $0.date > notificationsCleared && isUnread($0) }
     }
 
     func isUnread(_ entry: Entry) -> Bool {
@@ -185,13 +189,13 @@ import SwiftUI
     func clearNotifications() {
         notificationsCleared = .now
         readNotifications()
-        if !onSet { OperationNotifications.clear() }
+        if !onSet { NotificationService.clear() }
     }
 
     func openNotification(_ id: UUID) -> Entry? {
         guard let owner = ledger.portfolios.first(where: { $0.entries.contains { $0.id == id } }),
               let entry = owner.entries.first(where: { $0.id == id }) else { return nil }
-        if owner.id != ledger.selected && !execute(.selectPortfolio(owner.id)) { return nil }
+        if owner.id != ledger.selected && !execute(.selectPortfolio(owner.id), showFeedback: false) { return nil }
         readNotification(entry)
         return entry
     }
@@ -208,11 +212,13 @@ import SwiftUI
         }
     }
 
-    func money(_ amount: Decimal?, privateValue: Bool = true, price: Bool = false) -> String {
+    func money(_ amount: Decimal?, privateValue: Bool = true, price: Bool = false, minimumDigits: Int = 0,
+               fixedDigits: Int? = nil) -> String {
         if hide && privateValue { return "••••••" }
         guard let amount, let converted = try? Fiat.convert(amount, currency: currency, rates: rates) else { return "—" }
-        let places = price ? FinancialFormatter.pricePrecision(converted, minimum: digits) : digits
-        return Display.money(converted, currency: currency, digits: places, minimum: digits)
+        let minimum = fixedDigits ?? max(digits, minimumDigits)
+        let places = price ? FinancialFormatter.pricePrecision(converted, minimum: minimum) : minimum
+        return Display.money(converted, currency: currency, digits: places, minimum: minimum)
     }
 
     func signedMoney(_ amount: Decimal?) -> String {
@@ -233,10 +239,13 @@ import SwiftUI
         hide ? "••••" : Display.number(amount, maximum: FinancialFormatter.pricePrecision(amount, minimum: 4))
     }
 
-    func execute(_ command: Command, id: UUID = UUID(), showFeedback: Bool = true) -> Bool {
+    func execute(_ command: Command, id: UUID = UUID(), showFeedback: Bool = true,
+                 reviewedPrices: [String: Decimal] = [:]) -> Bool {
         do {
             let live = usablePrices
-            let next = try TradingEngine.apply(command, to: ledger, id: id, prices: live, execution: live)
+            guard reviewedPrices.keys.allSatisfy({ live[$0] != nil }) else { throw SimulationError.missingQuote }
+            let execution = live.merging(reviewedPrices) { _, reviewed in reviewed }
+            let next = try TradingEngine.apply(command, to: ledger, id: id, prices: live, execution: execution)
             try commit(next, notify: true)
             if showFeedback {
                 Feedback.success()
@@ -247,7 +256,14 @@ import SwiftUI
                     if !Task.isCancelled { self?.toast = nil }
                 }
             }
-            if case .limit = command { settle() }
+            if case .limit = command {
+                settle()
+                if pushOperations, !onSet, !testing,
+                   let order = portfolio.orders.first(where: { $0.id == id && $0.status == .open }) {
+                    let balance = hideNotificationBalance ? nil : notificationMoney((try? portfolio.freeCash()) ?? portfolio.cash)
+                    NotificationService.scheduleOrder(order, balance: balance)
+                }
+            }
             return true
         } catch {
             self.error = Display.error(error)
@@ -350,7 +366,6 @@ import SwiftUI
             try Task.checkCancellation()
             geckoOnline = true
             for quote in values where quote.price.map({ $0 > 0 }) ?? false { gecko[quote.id] = quote }
-            quoteDate = values.compactMap(\.updated).max()
             rebuildQuotes()
             checkPriceAlerts()
             marketMessage = nil
@@ -412,7 +427,6 @@ import SwiftUI
     private func restoreCache() async {
         if gecko.isEmpty, let saved = await cache.read([Quote].self, key: "quotes"), !Task.isCancelled {
             for quote in saved.value where gecko[quote.id] == nil { gecko[quote.id] = quote }
-            quoteDate = gecko.values.compactMap(\.updated).max()
             rebuildQuotes()
         }
         if rates.isEmpty, let saved = await cache.read([FXRate].self, key: "fx"), !Task.isCancelled {
@@ -446,8 +460,8 @@ import SwiftUI
         for (alert, price) in triggered {
             let message = L.format("Price alert · %@", Asset.ticker(alert.asset))
             if pushOperations && !testing && !onSet {
-                let body = privateNotifications || hide ? message : message + " · " + money(price, privateValue: false, price: true)
-                OperationNotifications.schedulePriceAlert(id: alert.id, body: body)
+                let body = privateNotifications || hide || defaults.bool(forKey: "deviceLockEnabled") ? message : message + " · " + money(price, privateValue: false, price: true)
+                NotificationService.schedulePriceAlert(id: alert.id, body: body)
             }
             toast = message
         }
@@ -468,6 +482,7 @@ import SwiftUI
             merged[asset] = quote
         }
         quotes = merged
+        quoteDate = merged.values.compactMap(\.updated).max()
     }
 
     private func settle() {
@@ -490,16 +505,16 @@ import SwiftUI
         for portfolio in next.portfolios {
             let count = previous.portfolios.first { $0.id == portfolio.id }?.entries.count ?? 0
             guard portfolio.entries.count > count else { continue }
-            for entry in portfolio.entries.dropFirst(count) where OperationNotifications.eligible(entry) {
+            for entry in portfolio.entries.dropFirst(count) {
                 let filled = portfolio.orders.contains { $0.id == entry.id && $0.status == .filled }
-                var summary: String?
-                if !privateNotifications && !hide {
-                    let quantity = entry.asset == "USD" ? notificationMoney(entry.amount) : "\(units(entry.amount)) \(Asset.ticker(entry.asset))"
-                    if entry.asset != "USD", let usd = entry.usd {
-                        summary = quantity + " · " + notificationMoney(usd)
-                    } else {
-                        summary = quantity
-                    }
+                var summary: NotificationService.OperationAmounts?
+                if !privateNotifications || !hideNotificationBalance {
+                    let units = Display.number(entry.amount, maximum: FinancialFormatter.pricePrecision(entry.amount, minimum: 4))
+                    let quantity = entry.asset == "USD" ? nil : "\(units) \(Asset.ticker(entry.asset))"
+                    let amount = entry.settlementUSD.map(notificationMoney) ?? quantity
+                    let balance = entry.availableCashAfterFill ?? (try? portfolio.freeCash()) ?? portfolio.cash
+                    summary = .init(quantity: privateNotifications ? nil : quantity, amount: privateNotifications ? nil : amount,
+                                    balance: hideNotificationBalance ? nil : notificationMoney(balance))
                 }
                 notificationSink(entry, filled, summary)
             }
@@ -507,7 +522,7 @@ import SwiftUI
     }
 
     private func notificationMoney(_ amount: Decimal) -> String {
-        let formatted = money(amount, price: true)
+        let formatted = money(amount, privateValue: false, price: true, minimumDigits: 2)
         return formatted == "—" ? Display.money(amount, currency: "USD", digits: 4, minimum: 2) : formatted
     }
 
