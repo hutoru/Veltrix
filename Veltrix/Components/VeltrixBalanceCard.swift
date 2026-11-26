@@ -56,7 +56,7 @@ struct VeltrixBalanceCard: View {
                 .accessibilityIdentifier("portfolio.total")
             if !model.hide {
                 HStack(spacing: 7) {
-                    if let period {
+                    if let period, hasLine || period.value != 0 {
                         Text(verbatim: model.signedMoney(period.value))
                         ChangeText(change: period.percent)
                     } else {
@@ -67,8 +67,6 @@ struct VeltrixBalanceCard: View {
                     VeltrixChart(samples: samples, range: $range, candles: .constant(false), allowsCandles: false,
                                  height: 62, mini: true) { model.signedMoney($0) }
                         .allowsHitTesting(false)
-                } else if chartVisible && period != nil {
-                    Text("Not enough history").font(.caption).foregroundStyle(Color.vxMuted)
                 }
                 chartControls
             }
