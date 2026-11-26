@@ -294,7 +294,7 @@ struct CardFace: View, Animatable {
             if !rotated {
                 GeometryReader { geometry in
                     let point = CGPoint(x: geometry.size.width * CGFloat(design.markX),
-                                        y: geometry.size.height * CGFloat(design.markY))
+                                        y: geometry.size.height * CGFloat(compact ? max(design.markY, 0.41) : design.markY))
                     if let moveMark {
                         VeltrixMark().fill(ink.opacity(0.64)).frame(width: 38, height: 38)
                             .padding(6).contentShape(Rectangle())

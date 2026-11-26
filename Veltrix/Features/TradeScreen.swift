@@ -54,6 +54,7 @@ struct TradeEditor: View {
     @State private var asset: String
     @State private var target = "ethereum"
     @State private var amount = ""
+    @State private var calculatedAmount = false
     @State private var limit = ""
     @State private var label = ""
     @State private var isLimit = false
@@ -304,6 +305,7 @@ struct TradeEditor: View {
                 } else {
                     amount = Display.input(exactMaxUnits ?? converted)
                 }
+                calculatedAmount = true
             }
             useFiat.toggle()
             error = nil
@@ -341,14 +343,16 @@ struct TradeEditor: View {
     }
 
     private var amountDisplay: some View {
-        VStack(spacing: 3) {
+        let inputText = displayedAmount
+        return VStack(spacing: 3) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
-                TextField("0", text: Binding(get: { amount }, set: { input in
+                TextField("0", text: Binding(get: { displayedAmount }, set: { input in
                     amount = input
+                    calculatedAmount = false
                     exactMaxUnits = nil
                     error = nil
                 }))
-                .font(.system(size: max(20, (isTrading ? 62 : 51) - CGFloat(max(0, amount.count - 6)) * 3),
+                .font(.system(size: max(20, (isTrading ? 62 : 51) - CGFloat(max(0, inputText.count - 6)) * 3),
                               weight: .semibold).monospacedDigit())
                 .multilineTextAlignment(.trailing)
                 .keyboardType(.decimalPad)
@@ -370,6 +374,12 @@ struct TradeEditor: View {
 
     private var amountIsCash: Bool { intent.action == .deposit || useFiat }
     private var amountUnit: String { amountIsCash ? "USD" : Asset.ticker(asset) }
+
+    private var displayedAmount: String {
+        guard amountIsCash, calculatedAmount, let value = Display.amount(amount) else { return amount }
+        let rounded = MoneyMath.round(value, scale: FinancialFormatter.pricePrecision(value, minimum: 2))
+        return rounded > 0 ? Display.input(rounded) : amount
+    }
 
     private var pricingQuote: Decimal? {
         isLimit ? Display.amount(limit) : model.usablePrices[asset]
@@ -420,6 +430,7 @@ struct TradeEditor: View {
                                               sourceIsUSD: intent.action == .buy, inputIsUSD: amountIsCash,
                                               price: pricingQuote)
             amount = Display.input(size)
+            calculatedAmount = true
             exactMaxUnits = percent == 100 && intent.action != .buy ? available : nil
             error = nil
         } catch {

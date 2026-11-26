@@ -184,6 +184,7 @@ final class VeltrixUITests: XCTestCase {
             XCTAssertEqual(app.staticTexts["trade.amount.unit"].label, "USD")
             app.buttons[action == "Sell" ? "25%" : "MAX"].tap()
             XCTAssertNotEqual(amount.value as? String, "0")
+            if action == "Sell" { XCTAssertEqual(amount.value as? String, "3") }
             capture(app, name: action)
             app.buttons["trade.review"].tap()
             XCTAssertTrue(app.staticTexts["trade.review.title"].waitForExistence(timeout: 5))
