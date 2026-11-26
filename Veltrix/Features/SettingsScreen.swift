@@ -109,7 +109,8 @@ struct SettingsScreen: View {
                         Text("Version \(version)")
                     }
                     Text(verbatim: "© 2026 VELTRIX")
-                    Text("Trades, transfers and card payments are recorded on this device.")
+                    Text("VELTRIX uses virtual funds. Trades, transfers and card payments are simulated on this device.")
+                        .accessibilityIdentifier("settings.simulatorDisclosure")
                 }.foregroundStyle(Color.vxMuted)
             }
         }

@@ -3,12 +3,11 @@ import UIKit
 
 struct PortfolioScreen: View {
     private enum HomeTab: String, CaseIterable {
-        case assets, cards, favorites
+        case assets, favorites
 
         var title: LocalizedStringKey {
             switch self {
             case .assets: return "Assets"
-            case .cards: return "Cards"
             case .favorites: return "Favorites"
             }
         }
@@ -25,33 +24,15 @@ struct PortfolioScreen: View {
         }
     }
 
-    private enum HomeSection: String, CaseIterable {
-        case recent, allocation, statistics, popular
-
-        var title: LocalizedStringKey {
-            switch self {
-            case .allocation: return "Portfolio allocation"
-            case .popular: return "Popular assets"
-            case .recent: return "Recent activity"
-            case .statistics: return "Portfolio statistics"
-            }
-        }
-    }
-
     @EnvironmentObject private var model: VeltrixModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var homeTab = HomeTab.assets
     @State private var query = ""
-    @State private var range = ChartRange.week
-    @State private var candles = false
     @State private var trade: TradeIntent?
-    @AppStorage("profileName") private var profileName = ""
     @AppStorage("holdingSort") private var sort = HoldingSort.value
     @AppStorage("hideZeroHoldings") private var hideZero = true
-    @AppStorage("homeSectionOrder") private var sectionOrder = ""
     @State private var more = false
     @State private var addAsset = false
-    @State private var chart = false
     @State private var share = false
     @State private var scanner = false
 
@@ -61,20 +42,19 @@ struct PortfolioScreen: View {
     var body: some View {
         PageScroll {
             HStack {
-                Menu {
-                    ForEach(model.ledger.portfolios) { item in
-                        Button { _ = model.execute(.selectPortfolio(item.id), showFeedback: false) } label: {
-                            if item.id == portfolio.id { Label(item.name, systemImage: "checkmark") }
-                            else { Text(verbatim: item.name) }
-                        }
-                    }
+                Text(verbatim: "VELTRIX")
+                    .font(.title2.weight(.semibold))
+                    .tracking(2)
+                    .accessibilityAddTraits(.isHeader)
+                NavigationLink {
+                    ProfileScreen()
                 } label: {
-                    ProfileAvatar(size: 36)
-                        .frame(minWidth: 44, minHeight: 44)
+                    ProfileAvatar(size: 34)
+                        .frame(width: 44, height: 44)
                 }
-                .accessibilityLabel(Text("Portfolios"))
-                Text(verbatim: profileName.isEmpty ? "VELTRIX" : profileName)
-                    .font(.headline).lineLimit(1).minimumScaleFactor(0.75)
+                .buttonStyle(.plain)
+                .accessibilityLabel(Text("Profile"))
+                .accessibilityIdentifier("home.profile")
                 Spacer(minLength: 4)
                 IconButton(icon: "qrcode.viewfinder", label: "Scan QR code") { Feedback.tap(); scanner = true }
                 NavigationLink {
@@ -91,16 +71,31 @@ struct PortfolioScreen: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(Text("Notifications"))
+            }
+            PortfolioBalanceHeader(portfolio: portfolio, value: value)
+            NavigationLink {
+                PortfolioAnalyticsScreen()
+            } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "wallet.pass").foregroundStyle(Color.vxMuted)
+                    Text("Available").font(.subheadline)
+                    Spacer(minLength: 5)
+                    CountValue(text: model.money(try? portfolio.freeCash(), fixedDigits: 2))
+                        .font(.subheadline.weight(.semibold))
+                        .lineLimit(1).minimumScaleFactor(0.55)
+                    Image(systemName: "chevron.right").font(.caption).foregroundStyle(Color.vxMuted)
+                }
+                .padding(.horizontal, 14)
+                .frame(minHeight: 48)
+                .background(Color.vxCard, in: RoundedRectangle(cornerRadius: 16))
+            }
+            .buttonStyle(.plain)
+            actions
+            HStack {
+                homeTabs
                 IconButton(icon: "plus", label: "Add holding") { addAsset = true }
             }
-            VeltrixBalanceCard(range: $range, portfolio: portfolio, value: value) { chart = true }
-            actions
-            homeTabs
-            if homeTab == .cards { cardsSection }
-            else { positions }
-            ForEach(homeSections, id: \.self) { section in
-                homeSection(section)
-            }
+            positions
             MarketStatus()
             if !model.hide {
                 IconButton(icon: "square.and.arrow.up", label: "Share portfolio") { share = true }
@@ -110,7 +105,7 @@ struct PortfolioScreen: View {
         .dismissibleKeyboard()
         .refreshable { await model.refresh() }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.userDidTakeScreenshotNotification)) { _ in
-            if !model.hide, !chart, !scanner, trade == nil,
+            if !model.hide, !scanner, trade == nil,
                !ProcessInfo.processInfo.arguments.contains("--ui-testing") { share = true }
         }
         .sheet(isPresented: $addAsset) { SettingsForm(panel: .positions) }
@@ -122,18 +117,6 @@ struct PortfolioScreen: View {
         .fullScreenCover(item: $trade) { TradeScreen(intent: $0) }
         .fullScreenCover(isPresented: $scanner) { QRScanner() }
         .sheet(isPresented: $share) { PortfolioShare(portfolio: portfolio) }
-        .fullScreenCover(isPresented: $chart) {
-            NavigationStack {
-                PageScroll {
-                    VeltrixChart(samples: samples, range: $range, candles: $candles, allowsCandles: true, height: 320, compareAmounts: true) {
-                        model.signedMoney($0)
-                    }
-                }
-                .navigationTitle("Portfolio history")
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { chart = false } } }
-            }
-        }
     }
 
     private var homeTabs: some View {
@@ -156,174 +139,6 @@ struct PortfolioScreen: View {
                 .buttonStyle(.plain)
                 .accessibilityAddTraits(homeTab == item ? .isSelected : [])
                 .accessibilityIdentifier("home.section." + item.rawValue)
-            }
-        }
-    }
-
-    private var samples: [ChartSample] {
-        portfolio.chart(range: range, candles: candles, performance: true,
-                        liveValue: try? portfolio.value(prices: model.usablePrices))
-    }
-
-    private var homeSections: [HomeSection] {
-        var sections: [HomeSection] = []
-        for id in sectionOrder.split(separator: ",") {
-            if let section = HomeSection(rawValue: String(id)), !sections.contains(section) { sections.append(section) }
-        }
-        return sections + HomeSection.allCases.filter { !sections.contains($0) }
-    }
-
-    private var homeCustomization: some View {
-        Menu {
-            ForEach(Array(homeSections.dropFirst()), id: \.self) { section in
-                Button {
-                    var sections = homeSections.filter { $0 != section }
-                    sections.insert(section, at: 0)
-                    sectionOrder = sections.map(\.rawValue).joined(separator: ",")
-                    Feedback.tap()
-                } label: {
-                    Label(section.title, systemImage: "arrow.up.to.line")
-                }
-            }
-            Button("Reset section order") { sectionOrder = "" }
-        } label: {
-            Image(systemName: "slider.horizontal.3").frame(width: 44, height: 44)
-        }.accessibilityLabel(Text("Reorder home sections"))
-    }
-
-    private var cardsSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            NavigationLink { CardsScreen() } label: {
-                Label("Card Studio", systemImage: "creditcard").font(.headline)
-                    .frame(minHeight: 44)
-            }
-            if let card = model.primaryCard {
-                NavigationLink { CardsScreen(initialCard: card.id) } label: {
-                    HStack(spacing: 12) {
-                        CardFace(tier: card.tier, design: card.design ?? card.tier.defaultDesign,
-                                 name: card.name, balance: model.money(card.balance), frozen: card.frozen,
-                                 flip: 0, tilt: .zero, compact: true)
-                            .frame(width: 144).accessibilityHidden(true)
-                        VStack(alignment: .leading, spacing: 5) {
-                            Text(verbatim: card.name).font(.subheadline.weight(.semibold))
-                            Text(verbatim: model.money(card.balance)).font(.caption.monospacedDigit())
-                                .foregroundStyle(Color.vxMuted)
-                        }
-                        Spacer()
-                        Image(systemName: "chevron.right").font(.caption).foregroundStyle(Color.vxMuted)
-                    }
-                }.buttonStyle(.plain)
-            }
-        }
-    }
-
-    @ViewBuilder private func homeSection(_ section: HomeSection) -> some View {
-        switch section {
-        case .statistics:
-            if !model.hide { statistics }
-        case .allocation:
-            if !model.hide, let value, value > 0, !portfolio.positions.isEmpty {
-                VStack(alignment: .leading, spacing: 9) {
-                    Text(section.title).font(.headline)
-                    ForEach(allocationAssets) { asset in
-                        if let holding = positionValue(asset), holding > 0,
-                           let weight = try? MoneyMath.divide(holding, value) {
-                            HStack {
-                                Text(verbatim: asset.ticker).font(.caption.monospacedDigit()).frame(width: 48, alignment: .leading)
-                                ProgressView(value: min(1, max(0, NSDecimalNumber(decimal: weight).doubleValue)))
-                                Text(verbatim: Display.percent(weight * 100)).font(.caption.monospacedDigit())
-                            }
-                        }
-                    }
-                    if let cashShare = try? MoneyMath.divide(portfolio.cash, value), cashShare > 0 {
-                        HStack {
-                            Text("Cash").font(.caption)
-                            ProgressView(value: NSDecimalNumber(decimal: cashShare).doubleValue)
-                            Text(verbatim: Display.percent(cashShare * 100)).font(.caption.monospacedDigit())
-                        }
-                    }
-                }
-            }
-        case .popular:
-            marketSection(section.title, assets: Array(Asset.catalog.filter {
-                model.quotes[$0.id]?.price != nil && !model.favorites.contains($0.id)
-            }.prefix(4)))
-        case .recent:
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Text(section.title).font(.headline)
-                    Spacer()
-                    NavigationLink("All activity") { ActivityScreen() }.font(.subheadline)
-                    homeCustomization
-                }
-                ForEach(Array(portfolio.entries.suffix(3).reversed())) { entry in
-                    NavigationLink { EntryScreen(entry: entry) } label: { EntryRow(entry: entry) }
-                        .buttonStyle(.plain)
-                }
-            }
-        }
-    }
-
-    private var statistics: some View {
-        let now = Date()
-        let current = try? portfolio.value(prices: model.usablePrices)
-        let overall = portfolio.performance(since: .distantPast, until: now, liveValue: current).change
-        let daily = portfolio.performance(since: now.addingTimeInterval(-86_400), until: now, liveValue: current).change
-        let best = Asset.catalog.compactMap { asset -> (Asset, Decimal)? in
-            guard let position = portfolio.positions[asset.id], position.basis > 0,
-                  let holding = positionValue(asset), let ratio = try? MoneyMath.divide(holding - position.basis, position.basis) else { return nil }
-            return (asset, ratio * 100)
-        }.max { $0.1 < $1.1 }
-
-        return VStack(alignment: .leading, spacing: 12) {
-            Text("Portfolio statistics").font(.headline)
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], alignment: .leading, spacing: 12) {
-                statistic("Total return", Display.percent(overall?.percent))
-                statistic("24h P&L", model.signedMoney(daily?.value))
-                statistic("Best performing asset", best.map { "\($0.0.ticker) · \(Display.percent($0.1))" } ?? "—")
-                statistic("Assets held", Display.number(Decimal(portfolio.positions.count), maximum: 0))
-                statistic("Realized P&L", model.signedMoney(try? portfolio.realized()))
-                statistic("Unrealized P&L", model.signedMoney(try? portfolio.unrealized(prices: model.usablePrices)))
-            }
-        }
-        .padding(.vertical, 6)
-    }
-
-    private func statistic(_ label: LocalizedStringKey, _ value: String) -> some View {
-        VStack(alignment: .leading, spacing: 5) {
-            Text(label).font(.caption).foregroundStyle(Color.vxMuted)
-            Text(verbatim: value).font(.subheadline.weight(.semibold).monospacedDigit())
-                .lineLimit(1).minimumScaleFactor(0.6)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var allocationAssets: [Asset] {
-        let values = Asset.catalog.compactMap { asset -> (Asset, Decimal)? in
-            guard portfolio.positions[asset.id] != nil, let value = positionValue(asset), value > 0 else { return nil }
-            return (asset, value)
-        }
-        return values.sorted { $0.1 > $1.1 }.prefix(4).map { $0.0 }
-    }
-
-    @ViewBuilder private func marketSection(_ title: LocalizedStringKey, assets: [Asset]) -> some View {
-        if !assets.isEmpty {
-            VStack(alignment: .leading, spacing: 8) {
-                Text(title).font(.headline)
-                ForEach(assets) { asset in
-                    NavigationLink(value: asset) {
-                        HStack {
-                            CoinIcon(asset: asset, url: model.quotes[asset.id]?.image, size: 29)
-                            Text(verbatim: asset.name).lineLimit(1)
-                            Spacer()
-                            VStack(alignment: .trailing, spacing: 2) {
-                                Text(verbatim: model.money(model.quotes[asset.id]?.price, privateValue: false, price: true))
-                                ChangeText(change: model.quotes[asset.id]?.change)
-                            }.lineLimit(1)
-                        }.font(.subheadline.monospacedDigit())
-                            .frame(minHeight: 44).contentShape(Rectangle())
-                    }.buttonStyle(.plain)
-                }
             }
         }
     }
@@ -393,8 +208,12 @@ struct PortfolioScreen: View {
                                     CountValue(text: model.money(positionValue(asset))).font(.subheadline.bold())
                                     ChangeText(change: model.quotes[asset.id]?.change)
                                 }
-                            }.lineLimit(1).minimumScaleFactor(0.7)
-                                .frame(minHeight: 56).contentShape(Rectangle())
+                            }
+                            .lineLimit(1).minimumScaleFactor(0.7)
+                            .padding(.horizontal, 12)
+                            .frame(minHeight: 64)
+                            .background(Color.vxCard, in: RoundedRectangle(cornerRadius: 22))
+                            .contentShape(RoundedRectangle(cornerRadius: 22))
                         }.buttonStyle(.plain)
                         .contextMenu {
                             Button(model.favorites.contains(asset.id) ? "Remove from favorites" : "Add to favorites") {
@@ -402,7 +221,6 @@ struct PortfolioScreen: View {
                                 else { model.favorites.insert(asset.id) }
                             }
                         }
-                    Divider().overlay(Color.vxSeparator)
                 }
             }
         }

@@ -15,7 +15,7 @@ final class VeltrixUITests: XCTestCase {
 
     func testDepositThroughReviewAndSeeItInActivity() {
         let app = launch()
-        XCTAssertTrue(app.staticTexts["Portfolio value"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["portfolio.total"].waitForExistence(timeout: 5))
         capture(app, name: "Home Empty")
         let more = app.buttons["trade.more"]
         if !more.isHittable { app.swipeUp() }
@@ -36,10 +36,38 @@ final class VeltrixUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["activity.deposit"].waitForExistence(timeout: 5))
         capture(app, name: "Notifications")
         app.navigationBars["Notifications"].buttons.element(boundBy: 0).tap()
-        app.buttons["tab.activity"].tap()
-        XCTAssertTrue(app.staticTexts["Virtual transactions and open orders"].waitForExistence(timeout: 5), app.debugDescription)
+        openActivity(in: app)
+        XCTAssertTrue(app.staticTexts["Transactions and open orders"].waitForExistence(timeout: 5), app.debugDescription)
         XCTAssertTrue(app.descendants(matching: .any)["activity.deposit"].exists)
         capture(app, name: "Activity")
+    }
+
+    func testFloatingNavigationOpensGlobalSearch() {
+        let app = launch()
+        XCTAssertTrue(app.buttons["tab.portfolio"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["tab.markets"].isHittable)
+        XCTAssertTrue(app.buttons["tab.operations"].isHittable)
+        app.buttons["tab.search"].tap()
+        let field = app.textFields["global.search"]
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        field.tap()
+        field.typeText("Bitcoin")
+        let result = app.buttons["global.asset.BTC"]
+        XCTAssertTrue(result.waitForExistence(timeout: 5))
+        capture(app, name: "Global Search")
+        result.tap()
+        XCTAssertTrue(app.buttons["asset.buy"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["asset.buy"].isHittable)
+        XCTAssertTrue(app.buttons["asset.sell"].isHittable)
+    }
+
+    private func openActivity(in app: XCUIApplication) {
+        app.buttons["tab.operations"].tap()
+        let activity = app.buttons["operations.activity"]
+        for _ in 0..<3 where !activity.isHittable || activity.frame.midY > app.frame.maxY - 75 {
+            app.swipeUp()
+        }
+        activity.tap()
     }
 
     func testMarketSearchAndNativeDetail() {
@@ -79,11 +107,11 @@ final class VeltrixUITests: XCTestCase {
 
     func testCreateCardAndHideItsBalanceThroughSettings() {
         let app = launch()
-        app.buttons["tab.profile"].tap()
+        app.buttons["home.profile"].tap()
         XCTAssertTrue(app.buttons["profile.settings"].waitForExistence(timeout: 5))
         capture(app, name: "Profile")
         app.buttons["profile.cards"].tap()
-        XCTAssertTrue(app.staticTexts["Virtual card. No payment credentials."].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Card Studio and spending"].waitForExistence(timeout: 5))
         let create = app.buttons["card.create"]
         XCTAssertTrue(create.waitForExistence(timeout: 5), app.debugDescription)
         create.tap()
@@ -117,10 +145,8 @@ final class VeltrixUITests: XCTestCase {
 
     func testPortfolioHoldingEditorAndHistory() {
         let app = launch()
-        let cards = app.buttons["home.section.cards"]
-        XCTAssertTrue(cards.waitForExistence(timeout: 5))
-        cards.tap()
-        XCTAssertTrue(app.buttons["Card Studio"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["home.section.assets"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["home.section.cards"].exists)
         app.buttons["home.section.favorites"].tap()
         XCTAssertTrue(app.staticTexts["No favorites yet"].waitForExistence(timeout: 5))
         app.buttons["home.section.assets"].tap()
@@ -129,20 +155,20 @@ final class VeltrixUITests: XCTestCase {
         app.buttons["Add holding"].tap()
         XCTAssertTrue(app.textFields["Quantity"].waitForExistence(timeout: 5))
         app.buttons["Close"].tap()
-        let history = app.buttons["Portfolio history"]
-        for _ in 0..<8 where !history.isHittable || history.frame.midY > app.frame.maxY - 75 {
+        app.buttons["tab.operations"].tap()
+        let analytics = app.buttons["operations.analytics"]
+        for _ in 0..<3 where !analytics.isHittable || analytics.frame.midY > app.frame.maxY - 75 {
             app.swipeUp()
         }
-        history.tap()
-        XCTAssertTrue(app.navigationBars["Portfolio history"].waitForExistence(timeout: 5))
-        capture(app, name: "Portfolio history")
-        app.buttons["Done"].tap()
+        analytics.tap()
+        XCTAssertTrue(app.navigationBars["Analytics"].waitForExistence(timeout: 5))
+        capture(app, name: "Analytics")
     }
 
     func testTradingUsesNativeDecimalKeyboardAndReviewsQuotes() {
         let app = launch()
         for (action, unit) in [("Buy", "USD"), ("Sell", "BTC"), ("Swap", "BTC")] {
-            app.buttons["tab.trade"].tap()
+            app.buttons["tab.operations"].tap()
             let actionButton = app.buttons["trade.action." + action.lowercased()]
             XCTAssertTrue(actionButton.waitForExistence(timeout: 5))
             actionButton.tap()
@@ -172,7 +198,7 @@ final class VeltrixUITests: XCTestCase {
                 XCTAssertTrue(app.staticTexts["trade.saved"].waitForExistence(timeout: 5))
                 capture(app, name: "Operation Saved")
                 app.buttons["Done"].tap()
-                XCTAssertTrue(app.buttons["tab.trade"].waitForExistence(timeout: 5))
+                XCTAssertTrue(app.buttons["tab.operations"].waitForExistence(timeout: 5))
                 app.buttons["tab.portfolio"].tap()
                 XCTAssertTrue(app.staticTexts["Bitcoin"].waitForExistence(timeout: 5))
                 XCTAssertEqual(app.staticTexts["portfolio.total"].label, "$9,999.99")
@@ -193,7 +219,7 @@ final class VeltrixUITests: XCTestCase {
             capture(app, name: action + " Saved")
             app.buttons["Done"].tap()
         }
-        app.buttons["tab.activity"].tap()
+        openActivity(in: app)
         XCTAssertTrue(app.descendants(matching: .any)["activity.swap"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.descendants(matching: .any)["activity.sell"].exists)
     }
@@ -223,7 +249,7 @@ final class VeltrixUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["trade.saved"].waitForExistence(timeout: 5))
         capture(app, name: "Send Saved")
         app.buttons["Done"].tap()
-        app.buttons["tab.activity"].tap()
+        openActivity(in: app)
         XCTAssertTrue(app.descendants(matching: .any)["activity.send"].waitForExistence(timeout: 5))
     }
 
@@ -254,7 +280,7 @@ final class VeltrixUITests: XCTestCase {
         if allow.waitForExistence(timeout: 5) { allow.tap() }
         XCTAssertTrue(app.staticTexts["trade.saved"].waitForExistence(timeout: 8))
         app.buttons["Done"].tap()
-        app.buttons["tab.profile"].tap()
+        app.buttons["home.profile"].tap()
         app.buttons["profile.settings"].tap()
         let delivery = app.staticTexts["notifications.delivery"]
         for _ in 0..<6 where !delivery.isHittable { app.swipeUp() }

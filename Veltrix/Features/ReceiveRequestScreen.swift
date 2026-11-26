@@ -27,7 +27,6 @@ struct ReceiveRequestScreen: View {
     var body: some View {
         NavigationStack {
             PageScroll {
-                Text("Local test request").font(.subheadline.weight(.semibold)).foregroundStyle(Color.vxMuted)
                 if let request, let image {
                     details(request, image: image)
                 } else {

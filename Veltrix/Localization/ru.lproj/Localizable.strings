@@ -549,3 +549,12 @@
 "No matching assets" = "Активы не найдены";
 "Hide balance in notifications" = "Скрывать остаток в уведомлениях";
 "iOS controls which details appear on the Lock Screen." = "Видимость подробностей на экране блокировки задаётся в настройках iOS.";
+"Operations Center" = "Центр операций";
+"Analytics" = "Аналитика";
+"Search" = "Поиск";
+"Search assets and operations" = "Поиск активов и операций";
+"No results" = "Ничего не найдено";
+"Card Studio and spending" = "Card Studio и расходы";
+"This operation was already recorded." = "Эта операция уже сохранена.";
+"This file is not a valid VELTRIX backup." = "Файл не является корректной резервной копией VELTRIX.";
+"This payment was already refunded." = "Этот платёж уже возвращён.";

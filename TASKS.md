@@ -1,5 +1,15 @@
 # Задачи и проверки
 
+## VELTRIX 9.0 Final Edition
+
+- [x] Confirm 6f4baa5 Recovery baseline. Release job 45825393851 succeeded. Simulator job 45820541270 passed on ancestor 91a659a.
+- [x] Confirm existing archive commit marker and verify a full-history Git backup in ignored dist/.
+- [x] Confirm existing public repository and standard macOS runner.
+- [ ] Complete repository and asset audit, including historical archives and CI artifacts.
+- [ ] Verify navigation, Home, search, and Settings copy in the simulator.
+- [ ] Complete Markets, analytics, cards, history, QR, notifications, authentication, and remaining UX work.
+- [ ] Verify migration, visual acceptance, and final ARM64 IPA.
+
 ## Veltrix 7.1
 
 - [x] Заменить PIN приложения авторизацией iOS с политикой `.deviceOwnerAuthentication` и сохранить включённую блокировку при обновлении.

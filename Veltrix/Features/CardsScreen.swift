@@ -21,7 +21,7 @@ struct CardsScreen: View {
 
     var body: some View {
         PageScroll {
-            PageHeader(title: "Cards", detail: "Virtual card. No payment credentials.") {
+            PageHeader(title: "Cards", detail: "Card Studio and spending") {
                 IconButton(icon: "plus", label: "New card") { editor = CardIntent(.create) }
                     .accessibilityIdentifier("card.new")
             }

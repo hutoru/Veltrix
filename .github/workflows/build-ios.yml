@@ -16,13 +16,13 @@ permissions:
 
 concurrency:
   group: veltrix-ios-${{ github.ref }}-${{ inputs.task }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   release:
     if: ${{ inputs.task == 'release' }}
     runs-on: macos-15
-    timeout-minutes: 3
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
 

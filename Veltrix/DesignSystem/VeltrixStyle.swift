@@ -2,14 +2,14 @@ import SwiftUI
 import UIKit
 
 enum VeltrixTheme {
-    static let background = adaptive(0x080809, 0xF6F6F8)
+    static let background = adaptive(0x0B0B0D, 0xFFFFFF)
     static let secondaryBackground = adaptive(0x101012, 0xF0F0F2)
-    static let surface = adaptive(0x171719, 0xFFFFFF)
-    static let elevated = adaptive(0x1C1C1E, 0xEDEDEF)
-    static let border = adaptive(0x2C2C30, 0xDEDEE2)
-    static let text = adaptive(0xFFFFFF, 0x171719)
-    static let muted = adaptive(0x96969C, 0x64646B)
-    static let metallic = adaptive(0xC4C7CC, 0x52545A)
+    static let surface = adaptive(0x19191C, 0xF2F2F5)
+    static let elevated = adaptive(0x242428, 0xE8E8EC)
+    static let border = adaptive(0x27272C, 0xE0E0E5)
+    static let text = adaptive(0xFFFFFF, 0x101012)
+    static let muted = adaptive(0x97979F, 0x73737C)
+    static let highlight = adaptive(0xD2D2D7, 0x52525A)
     static let positive = adaptive(0x30D158, 0x12773B)
     static let negative = adaptive(0xFF453A, 0xB9222C)
     static let buttonInk = adaptive(0x080809, 0xFFFFFF)
@@ -31,7 +31,7 @@ extension Color {
     static let vxMuted = VeltrixTheme.muted
     static let vxSeparator = VeltrixTheme.border
     static let vxAccent = VeltrixTheme.text
-    static let vxHighlight = VeltrixTheme.metallic
+    static let vxHighlight = VeltrixTheme.highlight
     static let vxUp = VeltrixTheme.positive
     static let vxDown = VeltrixTheme.negative
 }

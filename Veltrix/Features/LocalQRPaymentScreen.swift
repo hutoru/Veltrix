@@ -14,7 +14,6 @@ struct LocalQRPaymentScreen: View {
     var body: some View {
         NavigationStack {
             PageScroll {
-                Text("Local test request").font(.subheadline.weight(.semibold)).foregroundStyle(Color.vxMuted)
                 if saved {
                     Label("Operation saved", systemImage: "checkmark.circle.fill")
                         .font(.title2.bold()).foregroundStyle(Color.vxUp)

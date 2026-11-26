@@ -66,23 +66,19 @@ struct VeltrixApp: App {
 }
 
 private enum Destination: String, CaseIterable {
-    case portfolio, markets, trade, activity, profile
+    case portfolio, markets, operations
     var name: LocalizedStringKey {
         switch self {
         case .portfolio: return "Home"
         case .markets: return "Markets"
-        case .trade: return "Trade"
-        case .activity: return "Activity"
-        case .profile: return "Profile"
+        case .operations: return "Operations Center"
         }
     }
     var icon: String {
         switch self {
         case .portfolio: return "house"
         case .markets: return "chart.line.uptrend.xyaxis"
-        case .trade: return "arrow.left.arrow.right"
-        case .activity: return "list.bullet.rectangle"
-        case .profile: return "person.crop.circle"
+        case .operations: return "infinity"
         }
     }
 }
@@ -95,7 +91,7 @@ struct VeltrixRoot: View {
     @State private var tab = Destination.portfolio
     @State private var keyboardVisible = false
     @State private var showSplash = !UITestMode.enabled || UITestMode.fixture("--capture-launch")
-    @State private var trade: TradeIntent?
+    @State private var showSearch = false
     @State private var notificationEntry: Entry?
     @State private var notificationOrder: LimitOrder?
     @State private var showPriceAlerts = false
@@ -156,7 +152,7 @@ struct VeltrixRoot: View {
         .onChange(of: lock.locked) { value in
             if value {
                 model.stop()
-                trade = nil
+                showSearch = false
                 notificationEntry = nil
                 notificationOrder = nil
                 showPriceAlerts = false
@@ -253,15 +249,12 @@ struct VeltrixRoot: View {
                 switch tab {
                 case .portfolio: PortfolioScreen()
                 case .markets: MarketsScreen()
-                case .trade: tradeHome
-                case .activity: ActivityScreen()
-                case .profile: ProfileScreen()
+                case .operations: OperationsScreen()
                 }
             }
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 if !keyboardVisible {
-                    VeltrixGlassTabBar(selection: $tab)
-                        .background(alignment: .bottom) { Color.vxBackground.ignoresSafeArea(edges: .bottom) }
+                    VeltrixGlassTabBar(selection: $tab) { showSearch = true }
                 }
             }
             .navigationDestination(for: Asset.self) { AssetScreen(asset: $0) }
@@ -279,40 +272,15 @@ struct VeltrixRoot: View {
             }
         }
         .animation(reduceMotion || UITestMode.enabled ? nil : .easeOut(duration: 0.2), value: model.toast)
-        .fullScreenCover(item: $trade) { TradeScreen(intent: $0) }
+        .sheet(isPresented: $showSearch) {
+            NavigationStack {
+                GlobalSearchScreen()
+                    .navigationDestination(for: Asset.self) { AssetScreen(asset: $0) }
+            }
+        }
         .alert("VELTRIX", isPresented: .init(get: { model.error != nil }, set: { if !$0 { model.error = nil } })) {
             Button("OK", role: .cancel) { model.error = nil }
         } message: { Text(verbatim: model.error ?? "") }
-    }
-
-    private var tradeHome: some View {
-        PageScroll {
-            PageHeader(title: "Trade", detail: "Choose an operation") { EmptyView() }
-            VStack(alignment: .leading, spacing: 7) {
-                Text("Balance").font(.subheadline).foregroundStyle(Color.vxMuted)
-                CountValue(text: model.money(try? model.portfolio.freeCash()))
-                    .font(.largeTitle.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.5)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                ForEach(TradeAction.allCases) { action in
-                    Button {
-                        Feedback.tap()
-                        trade = TradeIntent(action: action)
-                    } label: {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Image(systemName: action.icon).font(.title3)
-                            Text(action.title).font(.subheadline.weight(.semibold))
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .panel()
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("trade.action." + action.rawValue)
-                }
-            }
-        }
     }
 
 }
@@ -320,48 +288,61 @@ struct VeltrixRoot: View {
 private struct VeltrixGlassTabBar: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Binding var selection: Destination
+    let openSearch: () -> Void
 
     var body: some View {
-        HStack(spacing: 0) {
-            ForEach(Destination.allCases, id: \.self) { destination in
-                Button {
-                    guard destination != selection else { return }
-                    Feedback.tap()
-                    selection = destination
-                } label: {
-                    VStack(spacing: 5) {
+        HStack(spacing: 9) {
+            HStack(spacing: 0) {
+                ForEach(Destination.allCases, id: \.self) { destination in
+                    Button {
+                        guard destination != selection else { return }
+                        Feedback.tap()
+                        selection = destination
+                    } label: {
                         Image(systemName: destination.icon)
-                            .font(.system(size: 17, weight: selection == destination ? .semibold : .regular))
-                            .frame(height: 20)
-                        Text(destination.name).font(.caption2.weight(.medium)).lineLimit(1).minimumScaleFactor(0.7)
+                            .font(.system(size: 24, weight: .semibold))
+                            .frame(maxWidth: .infinity, minHeight: 48)
+                            .contentShape(Rectangle())
                     }
-                    .foregroundStyle(selection == destination ? Color.vxText : Color.vxMuted)
-                    .frame(maxWidth: .infinity, minHeight: 49)
-                    .contentShape(Rectangle())
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(Text(destination.name))
+                    .accessibilityIdentifier("tab." + destination.rawValue)
+                    .accessibilityAddTraits(selection == destination ? .isSelected : [])
                 }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("tab." + destination.rawValue)
-                .accessibilityAddTraits(selection == destination ? .isSelected : [])
             }
-        }
-        .background {
-            GeometryReader { proxy in
-                let slot = proxy.size.width / CGFloat(Destination.allCases.count)
-                let index = Destination.allCases.firstIndex(of: selection) ?? 0
-                Capsule().fill(Color.vxText.opacity(0.10))
-                    .frame(width: max(0, slot - 4), height: proxy.size.height)
-                    .offset(x: CGFloat(index) * slot + 2)
-                    .animation(reduceMotion || UITestMode.enabled ? nil : .spring(response: 0.3, dampingFraction: 0.82),
-                               value: selection)
+            .background {
+                GeometryReader { proxy in
+                    let destinations = Destination.allCases
+                    let slot = proxy.size.width / CGFloat(destinations.count)
+                    let index = destinations.firstIndex(of: selection) ?? 0
+                    Capsule()
+                        .fill(Color.vxBackground.opacity(0.92))
+                        .frame(width: slot, height: proxy.size.height)
+                        .offset(x: CGFloat(index) * slot)
+                        .animation(reduceMotion || UITestMode.enabled ? nil : .easeInOut(duration: 0.23),
+                                   value: selection)
+                }
+                .allowsHitTesting(false)
             }
-            .allowsHitTesting(false)
+            .padding(4)
+            .glass(radius: 28)
+
+            Button {
+                Feedback.tap()
+                openSearch()
+            } label: {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 24, weight: .semibold))
+                    .frame(width: 56, height: 56)
+                    .contentShape(Circle())
+                    .glass(radius: 28)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(Text("Search"))
+            .accessibilityIdentifier("tab.search")
         }
-        .padding(5)
-        .background(VeltrixTheme.elevated.opacity(0.96), in: Capsule())
-        .background(.regularMaterial, in: Capsule())
-        .overlay(Capsule().strokeBorder(Color.vxHighlight.opacity(0.24)).allowsHitTesting(false))
-        .shadow(color: .black.opacity(0.16), radius: 12, y: 5)
-        .frame(maxWidth: 600)
+        .foregroundStyle(Color.vxText)
+        .frame(maxWidth: 460)
         .padding(.horizontal, 16)
         .padding(.vertical, 5)
         .frame(maxWidth: .infinity)

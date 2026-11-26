@@ -71,7 +71,7 @@ struct QRScanner: View {
                 Spacer()
                 if let result {
                     VStack(alignment: .leading, spacing: 16) {
-                        Text(LocalPaymentRequest.identifier(from: result) == nil ? "QR code" : "Local test request").font(.headline)
+                        Text(LocalPaymentRequest.identifier(from: result) == nil ? "QR code" : "Payment request").font(.headline)
                         ScrollView { Text(verbatim: result).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading) }
                             .frame(maxHeight: 180)
                         if let id = LocalPaymentRequest.identifier(from: result) {

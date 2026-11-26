@@ -60,7 +60,7 @@ struct ActivityScreen: View {
 
     var body: some View {
         PageScroll {
-            PageHeader(title: "Activity", detail: "Virtual transactions and open orders") { EmptyView() }
+            PageHeader(title: "Activity", detail: "Transactions and open orders") { EmptyView() }
             Picker("Activity view", selection: $showOrders) {
                 Text("Transactions").tag(false)
                 Text("Orders").tag(true)

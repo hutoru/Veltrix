@@ -319,3 +319,12 @@
 "A digital asset used in a network that supports decentralized applications." = "A digital asset used in a network that supports decentralized applications.";
 "Closed positions" = "Closed positions";
 "Virtual transactions and open orders" = "Virtual transactions and open orders";
+"Operations Center" = "Operations Center";
+"Analytics" = "Analytics";
+"Search" = "Search";
+"Search assets and operations" = "Search assets and operations";
+"No results" = "No results";
+"Card Studio and spending" = "Card Studio and spending";
+"This operation was already recorded." = "This operation was already recorded.";
+"This file is not a valid VELTRIX backup." = "This file is not a valid VELTRIX backup.";
+"This payment was already refunded." = "This payment was already refunded.";
