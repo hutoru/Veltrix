@@ -2,22 +2,27 @@ name: Build iOS IPA
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main, veltrix-7-redesign, veltrix-8.3-recovery]
-  pull_request:
-    branches: [main]
+    inputs:
+      task:
+        description: Build the Release IPA or run the simulator test workflow
+        type: choice
+        options:
+          - release
+          - tests
+        default: release
 
 permissions:
   contents: read
 
 concurrency:
-  group: veltrix-ios-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: veltrix-ios-${{ github.ref }}-${{ inputs.task }}
+  cancel-in-progress: false
 
 jobs:
-  ios:
+  release:
+    if: ${{ inputs.task == 'release' }}
     runs-on: macos-15
-    timeout-minutes: 50
+    timeout-minutes: 3
     steps:
       - uses: actions/checkout@v6
 
@@ -25,7 +30,6 @@ jobs:
         run: brew list xcodegen >/dev/null 2>&1 || brew install xcodegen
 
       - name: Select Xcode and generate project
-        id: project
         shell: bash
         run: |
           set -euo pipefail
@@ -39,44 +43,11 @@ jobs:
           xcodegen --version
           xcrun --sdk iphoneos --show-sdk-version
           xcodegen generate --spec project.yml
-          xcodebuild -resolvePackageDependencies -project Veltrix.xcodeproj -scheme Veltrix
-
-      - name: Run unit and UI tests on an installed iPhone simulator
-        shell: bash
-        run: |
-          set -euo pipefail
-          simulator="$(bash scripts/select-simulator.sh)"
-          mkdir -p build
-          defaults write com.apple.iphonesimulator ConnectHardwareKeyboard -bool false
-          xcodebuild test -project Veltrix.xcodeproj -scheme Veltrix \
-            -destination "platform=iOS Simulator,id=$simulator" \
-            -derivedDataPath build/TestDerived -resultBundlePath build/VeltrixTests.xcresult \
-            -test-timeouts-enabled YES -default-test-execution-time-allowance 180 \
-            -parallel-testing-enabled NO CODE_SIGNING_ALLOWED=NO
 
       - name: Build and validate unsigned ARM64 IPA
-        id: package
-        if: ${{ !cancelled() && steps.project.outcome == 'success' }}
         run: bash scripts/build-ipa.sh
 
-      - name: Collect simulator screenshots
-        if: always()
-        continue-on-error: true
-        run: |
-          if [[ -d build/VeltrixTests.xcresult ]]; then
-            xcrun xcresulttool export attachments --path build/VeltrixTests.xcresult --output-path build/SimulatorAttachments
-          fi
-
       - uses: actions/upload-artifact@v6
-        if: always()
-        with:
-          name: Veltrix-simulator-attachments
-          path: build/SimulatorAttachments
-          if-no-files-found: ignore
-          retention-days: 3
-
-      - uses: actions/upload-artifact@v6
-        if: ${{ !cancelled() && steps.package.outcome == 'success' }}
         with:
           name: Veltrix-unsigned-ipa
           path: |
@@ -85,10 +56,6 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-      - uses: actions/upload-artifact@v6
-        if: failure()
-        with:
-          name: Veltrix-test-results
-          path: build/VeltrixTests.xcresult
-          if-no-files-found: ignore
-          retention-days: 3
+  tests:
+    if: ${{ inputs.task == 'tests' }}
+    uses: ./.github/workflows/test-ios.yml
