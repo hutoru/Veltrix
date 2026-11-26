@@ -30,7 +30,10 @@ jobs:
           anchor = '        let ids = ["bitcoin", "ethereum", "solana", "binancecoin", "ripple"]'
           assert source.count(old) == source.count(anchor) == 1
           source = source.replace(anchor, anchor + '\n        let featured: [Asset] = ids.compactMap { id in\n            Asset.catalog.first { $0.id == id }\n        }')
-          file.write_text(source.replace(old, 'ForEach(featured) { asset in'))
+          source = source.replace(old, 'ForEach(featured) { asset in')
+          frame = '.frame(width: 165, minHeight: 64, alignment: .leading)'
+          assert source.count(frame) == 1
+          file.write_text(source.replace(frame, '.frame(width: 165, alignment: .leading)\n                            .frame(minHeight: 64, alignment: .leading)'))
           PY
       - name: Set up Xcode
         run: |
