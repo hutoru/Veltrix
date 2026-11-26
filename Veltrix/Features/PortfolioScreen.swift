@@ -270,7 +270,7 @@ private struct AvailableCashScreen: View {
                 .font(.largeTitle.bold())
                 .lineLimit(1)
                 .minimumScaleFactor(0.45)
-            LabeledContent("Cash", value: model.money(portfolio.cash, fixedDigits: 2))
+            LabeledContent("Cash balance", value: model.money(portfolio.cash, fixedDigits: 2))
             LabeledContent("Reserved", value: model.money(available.flatMap {
                 try? MoneyMath.subtract(portfolio.cash, $0)
             }, fixedDigits: 2))
