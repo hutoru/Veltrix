@@ -290,6 +290,18 @@ final class VeltrixUITests: XCTestCase {
         capture(app, name: "iOS Notification Diagnostics")
     }
 
+    func testSimulatorDisclosureAppearsAtBottomOfSettings() {
+        let app = launch()
+        let disclosure = app.staticTexts["settings.simulatorDisclosure"]
+        XCTAssertFalse(disclosure.exists)
+        app.buttons["home.profile"].tap()
+        app.buttons["profile.settings"].tap()
+        for _ in 0..<9 where !disclosure.isHittable { app.swipeUp() }
+        XCTAssertTrue(disclosure.isHittable)
+        XCTAssertTrue(disclosure.label.hasPrefix("VELTRIX is a simulator."))
+        capture(app, name: "Settings disclosure")
+    }
+
     func testQRScannerOpensAndCanBeDismissed() {
         let app = launch()
         app.buttons["Scan QR code"].tap()
@@ -311,12 +323,13 @@ final class VeltrixUITests: XCTestCase {
         generate.tap()
         let qr = app.images["receive.qr"]
         XCTAssertTrue(qr.waitForExistence(timeout: 5))
-        let original = app.staticTexts.containing(NSPredicate(format: "label BEGINSWITH %@", "VELTRIX-TEST:v1:")).firstMatch
+        let original = app.staticTexts["receive.requestID"]
         XCTAssertTrue(original.exists)
-        let payload = original.label
+        let requestID = original.label
+        XCTAssertNotNil(UUID(uuidString: requestID))
         capture(app, name: "Receive Local QR")
         generate.tap()
-        XCTAssertNotEqual(original.label, payload)
+        XCTAssertNotEqual(original.label, requestID)
     }
 
     func testRussianLightThemeAndNativeDecimalInput() {

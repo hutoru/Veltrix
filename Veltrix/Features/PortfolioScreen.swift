@@ -74,7 +74,7 @@ struct PortfolioScreen: View {
             }
             PortfolioBalanceHeader(portfolio: portfolio, value: value)
             NavigationLink {
-                PortfolioAnalyticsScreen()
+                AvailableCashScreen()
             } label: {
                 HStack(spacing: 10) {
                     Image(systemName: "wallet.pass").foregroundStyle(Color.vxMuted)
@@ -216,6 +216,13 @@ struct PortfolioScreen: View {
                             .contentShape(RoundedRectangle(cornerRadius: 22))
                         }.buttonStyle(.plain)
                         .contextMenu {
+                            ForEach([TradeAction.buy, .sell, .swap]) { action in
+                                Button {
+                                    trade = TradeIntent(action: action, asset: asset.id)
+                                } label: {
+                                    Label(action.title, systemImage: action.icon)
+                                }
+                            }
                             Button(model.favorites.contains(asset.id) ? "Remove from favorites" : "Add to favorites") {
                                 if model.favorites.contains(asset.id) { model.favorites.remove(asset.id) }
                                 else { model.favorites.insert(asset.id) }
@@ -235,7 +242,9 @@ struct PortfolioScreen: View {
     private var holdings: [Asset] {
         let term = query.trimmingCharacters(in: .whitespacesAndNewlines)
         return Asset.catalog.filter {
-            let included = homeTab == .favorites ? model.favorites.contains($0.id) : (!hideZero || portfolio.positions[$0.id] != nil)
+            let held = (portfolio.positions[$0.id]?.units ?? 0) > 0
+            let listed = !$0.isTokenizedStock || model.quotes[$0.id]?.price != nil || held
+            let included = homeTab == .favorites ? model.favorites.contains($0.id) : (held || (!hideZero && listed))
             return included && (term.isEmpty || $0.name.localizedCaseInsensitiveContains(term) || $0.ticker.localizedCaseInsensitiveContains(term))
         }.sorted { left, right in
             let a = sort == .change ? model.quotes[left.id]?.change : positionValue(left)
@@ -246,6 +255,31 @@ struct PortfolioScreen: View {
             }
             return left.name.localizedCaseInsensitiveCompare(right.name) == .orderedAscending
         }
+    }
+}
+
+private struct AvailableCashScreen: View {
+    @EnvironmentObject private var model: VeltrixModel
+    @State private var deposit: TradeIntent?
+
+    var body: some View {
+        let portfolio = model.portfolio
+        let available = try? portfolio.freeCash()
+        PageScroll {
+            CountValue(text: model.money(available, fixedDigits: 2))
+                .font(.largeTitle.bold())
+                .lineLimit(1)
+                .minimumScaleFactor(0.45)
+            LabeledContent("Cash", value: model.money(portfolio.cash, fixedDigits: 2))
+            LabeledContent("Reserved", value: model.money(available.flatMap {
+                try? MoneyMath.subtract(portfolio.cash, $0)
+            }, fixedDigits: 2))
+            Button("Deposit") { deposit = TradeIntent(action: .deposit) }
+                .buttonStyle(PrimaryButtonStyle())
+        }
+        .navigationTitle("Available cash")
+        .navigationBarTitleDisplayMode(.inline)
+        .fullScreenCover(item: $deposit) { TradeScreen(intent: $0) }
     }
 }
 

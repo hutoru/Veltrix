@@ -160,7 +160,7 @@ final class ShortcutSceneDelegate: NSObject, UIWindowSceneDelegate {
 
     static func request(for entry: Entry, filled: Bool, amounts: OperationAmounts?) -> UNNotificationRequest {
         let content = UNMutableNotificationContent()
-        content.title = "VELTRIX · CryptoApp"
+        content.title = "VELTRIX"
         let operation = filled ? L.format("Limit order filled: %@", entry.kind.localized) : entry.kind.localized
         let asset = entry.asset == "USD" ? nil : Asset.ticker(entry.asset)
         let heading = [operation, asset].compactMap { $0 }.joined(separator: " ")
@@ -182,7 +182,7 @@ final class ShortcutSceneDelegate: NSObject, UIWindowSceneDelegate {
 
     static func scheduleOrder(_ order: LimitOrder, balance: String?) {
         let content = UNMutableNotificationContent()
-        content.title = "VELTRIX · CryptoApp"
+        content.title = "VELTRIX"
         content.sound = .default
         content.body = L.text("Limit order placed") + " · " + Asset.ticker(order.asset)
         if let balance {

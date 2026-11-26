@@ -182,12 +182,18 @@ struct CardsScreen: View {
         }
     }
 
+    private func netSpending(paid: [Entry], refunds: [Entry]) -> Decimal? {
+        try? MoneyMath.subtract(paid.map(\.amount).reduce(Decimal.zero, MoneyMath.add),
+                                refunds.map(\.amount).reduce(Decimal.zero, MoneyMath.add))
+    }
+
     private func spending(_ card: VirtualCard) -> some View {
         let entries = model.portfolio.entries.filter { $0.cardID == card.id }
         let paid = entries.filter { $0.kind == .cardPayment }
         let refunds = entries.filter { $0.kind == .refund }
-        let total = try? MoneyMath.subtract(paid.map(\.amount).reduce(Decimal.zero, MoneyMath.add),
-                                            refunds.map(\.amount).reduce(Decimal.zero, MoneyMath.add))
+        let total = netSpending(paid: paid, refunds: refunds)
+        let subscriptionPayments = paid.filter { $0.cardSubscription == true }
+        let subscriptionRefunds = refunds.filter { $0.cardSubscription == true }
         return VStack(alignment: .leading, spacing: 13) {
             HStack {
                 Text("Card activity").font(.title3.weight(.semibold))
@@ -196,6 +202,11 @@ struct CardsScreen: View {
                     .lineLimit(1).minimumScaleFactor(0.6)
             }
             Text("Net spending").font(.caption).foregroundStyle(Color.vxMuted)
+            if !subscriptionPayments.isEmpty {
+                LabeledContent("Subscriptions", value: model.money(netSpending(
+                    paid: subscriptionPayments, refunds: subscriptionRefunds)))
+                    .font(.subheadline)
+            }
             if entries.isEmpty {
                 Text("Card operations will appear here.").font(.footnote).foregroundStyle(Color.vxMuted)
             } else {
@@ -419,6 +430,7 @@ private struct CardForm: View {
     @State private var design = CardTier.classic.defaultDesign
     @State private var showsCatalog = false
     @State private var merchant = "YouTube"
+    @State private var subscription = false
     @State private var photo: PhotosPickerItem?
     @State private var name = ""
     @State private var limit = ""
@@ -442,7 +454,7 @@ private struct CardForm: View {
                             }
                             .panel(padding: 12)
                             if merchant.isEmpty { TextField("Merchant", text: $name).panel(padding: 12) }
-                            Text("Payments are recorded on this device.").font(.footnote).foregroundStyle(Color.vxMuted)
+                            Toggle("Subscription payment", isOn: $subscription)
                         }
                         TextField("Amount (USD)", text: $amount).keyboardType(.decimalPad).panel(padding: 12)
                     }
@@ -587,7 +599,7 @@ private struct CardForm: View {
             return .moveCardFunds(id, value, toCard: toCard)
         case let .pay(id):
             guard let value = Display.amount(amount) else { throw SimulationError.invalidAmount }
-            return .pay(id, value, merchant.isEmpty ? name : merchant)
+            return .pay(id, value, merchant.isEmpty ? name : merchant, subscription: subscription)
         }
     }
 }

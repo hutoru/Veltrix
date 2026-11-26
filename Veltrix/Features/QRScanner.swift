@@ -71,10 +71,15 @@ struct QRScanner: View {
                 Spacer()
                 if let result {
                     VStack(alignment: .leading, spacing: 16) {
-                        Text(LocalPaymentRequest.identifier(from: result) == nil ? "QR code" : "Payment request").font(.headline)
-                        ScrollView { Text(verbatim: result).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading) }
+                        let requestID = LocalPaymentRequest.identifier(from: result)
+                        Text(requestID == nil ? "QR code" : "Payment request").font(.headline)
+                        ScrollView {
+                            Text(verbatim: requestID?.uuidString ?? result)
+                                .textSelection(.enabled)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
                             .frame(maxHeight: 180)
-                        if let id = LocalPaymentRequest.identifier(from: result) {
+                        if let id = requestID {
                             Button("Review local payment") { showPayment = true }
                                 .buttonStyle(.borderedProminent)
                                 .accessibilityIdentifier("scanner.reviewPayment")
@@ -83,7 +88,7 @@ struct QRScanner: View {
                         HStack {
                             Button("Copy") { UIPasteboard.general.string = result; Feedback.success() }
                             Spacer()
-                            if let onScan, LocalPaymentRequest.identifier(from: result) == nil {
+                            if let onScan, requestID == nil {
                                 Button("Use scanned text") { onScan(result); dismiss() }
                             } else {
                                 Button("Scan again") { self.result = nil }

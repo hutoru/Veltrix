@@ -44,9 +44,19 @@ private extension UIColor {
 }
 
 enum Feedback {
-    static func tap() { UISelectionFeedbackGenerator().selectionChanged() }
-    static func success() { UINotificationFeedbackGenerator().notificationOccurred(.success) }
-    static func failure() { UINotificationFeedbackGenerator().notificationOccurred(.error) }
+    private static var enabled: Bool { UserDefaults.standard.object(forKey: "hapticsEnabled") as? Bool ?? true }
+
+    static func tap() {
+        if enabled { UISelectionFeedbackGenerator().selectionChanged() }
+    }
+
+    static func success() {
+        if enabled { UINotificationFeedbackGenerator().notificationOccurred(.success) }
+    }
+
+    static func failure() {
+        if enabled { UINotificationFeedbackGenerator().notificationOccurred(.error) }
+    }
 }
 
 struct VeltrixMark: Shape {

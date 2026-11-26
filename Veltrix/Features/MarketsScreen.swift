@@ -36,28 +36,31 @@ struct MarketsScreen: View {
     @State private var news: [MarketHeadline] = []
     @State private var headlineIndex = 0
     @State private var swap = false
+    @State private var showTokenized = false
+    @State private var network: TransferNetwork?
+
+    private var tokenized: [Asset] {
+        Asset.tokenizedStocks.filter {
+            model.quotes[$0.id]?.price != nil || model.portfolio.positions[$0.id] != nil
+        }
+    }
+
+    private var displaysTokenized: Bool { showTokenized && !tokenized.isEmpty }
 
     var body: some View {
         let visible = filtered
         PageScroll {
-            ZStack {
+            HStack {
                 Text("Markets").font(.title2.bold()).accessibilityAddTraits(.isHeader)
-                HStack {
-                    NavigationLink { CardsScreen() } label: {
-                        Image(systemName: "wallet.pass").font(.headline).frame(width: 42, height: 42)
-                            .background(Color.vxSurface, in: Circle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(Text("Cards"))
-                    Spacer()
-                    NavigationLink { CurrencyConverter() } label: {
-                        Image(systemName: "arrow.left.arrow.right").frame(width: 42, height: 42)
-                            .background(Color.vxCard, in: Circle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(Text("Currency converter"))
+                Spacer()
+                NavigationLink { CurrencyConverter() } label: {
+                    Image(systemName: "arrow.left.arrow.right").frame(width: 44, height: 44)
+                        .background(Color.vxCard, in: Circle())
                 }
+                .buttonStyle(.plain)
+                .accessibilityLabel(Text("Currency converter"))
             }
+            if !tokenized.isEmpty { marketTypes }
             HStack(spacing: 10) {
                 Image(systemName: "magnifyingglass").foregroundStyle(Color.vxMuted)
                 TextField("Search assets", text: $query).textInputAutocapitalization(.never).autocorrectionDisabled()
@@ -69,7 +72,7 @@ struct MarketsScreen: View {
                 }
             }
             .panel(padding: 12)
-            if query.isEmpty {
+            if query.isEmpty && !displaysTokenized {
                 blueChips
                 if !news.isEmpty { headlines }
             }
@@ -90,20 +93,29 @@ struct MarketsScreen: View {
                     }
                 }
                 Menu {
+                    if !displaysTokenized {
+                        Picker("Network", selection: $network) {
+                            Text("All networks").tag(nil as TransferNetwork?)
+                            ForEach(TransferNetwork.allCases, id: \.self) { item in
+                                Text(verbatim: item.rawValue).tag(Optional(item))
+                            }
+                        }
+                    }
                     Picker("Sort by", selection: Binding(get: { effectiveSort }, set: { sort = $0; sortOverride = true })) {
                         ForEach(MarketSort.allCases, id: \.self) { Text($0.title).tag($0) }
                     }
                 } label: {
-                    Image(systemName: "arrow.down").frame(width: 44, height: 44)
+                    Image(systemName: network == nil || displaysTokenized ? "line.3.horizontal.decrease" : "line.3.horizontal.decrease.circle.fill")
+                        .frame(width: 44, height: 44)
                 }
-                .accessibilityLabel(Text("Sort by"))
+                .accessibilityLabel(Text("Market filters"))
             }
             .font(.caption.weight(.semibold))
             MarketStatus()
             if query.isEmpty && category == .trending && !model.recentAssets.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
-                        ForEach(model.recentAssets) { asset in
+                        ForEach(model.recentAssets.filter { $0.isTokenizedStock == displaysTokenized }) { asset in
                             NavigationLink(value: asset) {
                                 HStack(spacing: 6) {
                                     CoinIcon(asset: asset, url: model.quotes[asset.id]?.image, size: 20)
@@ -151,9 +163,11 @@ struct MarketsScreen: View {
 
     private var filtered: [Asset] {
         let term = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        return Asset.catalog.filter { asset in
+        let assets = displaysTokenized ? tokenized : Asset.cryptoCatalog
+        return assets.filter { asset in
             let matches = term.isEmpty || asset.name.localizedCaseInsensitiveContains(term) || asset.ticker.localizedCaseInsensitiveContains(term)
-            guard matches else { return false }
+            let networks = TransferNetwork.available(for: asset.id)
+            guard matches, displaysTokenized || network.map(networks.contains) != false else { return false }
             switch category {
             case .trending, .top: return true
             case .favorites: return model.favorites.contains(asset.id)
@@ -169,6 +183,31 @@ struct MarketsScreen: View {
             }
             return a.name.localizedCaseInsensitiveCompare(b.name) == .orderedAscending
         }
+    }
+
+    private var marketTypes: some View {
+        HStack(spacing: 16) {
+            marketTypeButton("Crypto", tokenized: false)
+            marketTypeButton("Tokenized stocks", tokenized: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func marketTypeButton(_ title: LocalizedStringKey, tokenized: Bool) -> some View {
+        let selected = displaysTokenized == tokenized
+        return Button {
+            showTokenized = tokenized
+            Feedback.tap()
+        } label: {
+            Text(title).font(.subheadline.weight(.semibold))
+                .foregroundStyle(selected ? Color.vxText : Color.vxMuted)
+                .frame(minHeight: 44)
+                .overlay(alignment: .bottom) {
+                    if selected { Capsule().fill(Color.vxText).frame(height: 2).allowsHitTesting(false) }
+                }
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
     private var effectiveSort: MarketSort {
@@ -410,7 +449,10 @@ struct AssetScreen: View {
             }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            HStack(spacing: 10) {
+            HStack(spacing: 8) {
+                Button("Swap") { Feedback.tap(); trade = TradeIntent(action: .swap, asset: asset.id) }
+                    .buttonStyle(PrimaryButtonStyle(tint: .vxSurface, ink: .vxText, height: 54))
+                    .accessibilityIdentifier("asset.swap")
                 Button("Sell") { Feedback.tap(); trade = TradeIntent(action: .sell, asset: asset.id) }
                     .buttonStyle(PrimaryButtonStyle(tint: .vxDown, height: 54))
                     .accessibilityIdentifier("asset.sell")
@@ -517,6 +559,7 @@ struct AssetScreen: View {
 
 private extension Asset {
     var category: LocalizedStringKey {
+        if isTokenizedStock { return "Tokenized stock tracking an underlying equity." }
         switch ticker {
         case "BTC": return "Bitcoin is a peer-to-peer network with a fixed issuance schedule."
         case "USDT", "USDC": return "A stablecoin designed to track the US dollar."

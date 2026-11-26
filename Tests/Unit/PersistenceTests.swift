@@ -22,6 +22,33 @@ final class PersistenceTests: XCTestCase {
         XCTAssertEqual(try SimulationBackup.load(data), state)
     }
 
+    @MainActor func testRecoveryStoreAndPreferencesReopenWithExistingRecords() throws {
+        let name = "Veltrix-Recovery-" + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+        defaults.set("RUB", forKey: "currency")
+        defaults.set(["bitcoin"], forKey: "favorites")
+        defaults.set(true, forKey: "deviceLockEnabled")
+        defaults.set("Trader", forKey: "profileName")
+
+        let store = try CoreDataLedgerStore(inMemory: true)
+        let initial = Ledger.fresh(name: "Recovery", cash: 2_000)
+        let invested = try TradingEngine.apply(.market(.buy, "bitcoin", 1, 0), to: initial,
+                                               prices: ["bitcoin": 100], execution: ["bitcoin": 100])
+        let withCard = try TradingEngine.apply(.createCard(.gold, "Recovery card", nil), to: invested,
+                                               prices: ["bitcoin": 100])
+        let oldBackup = try SimulationBackup.export(withCard)
+        XCTAssertFalse(String(decoding: oldBackup, as: UTF8.self).contains("cardSubscription"))
+        try store.save(SimulationBackup.load(oldBackup))
+
+        let model = VeltrixModel(defaults: defaults, store: store, testing: true)
+        XCTAssertEqual(model.ledger, withCard)
+        XCTAssertEqual(model.currency, "RUB")
+        XCTAssertEqual(model.favorites, Set(["bitcoin"]))
+        XCTAssertTrue(AuthCoordinator(defaults: defaults, testing: true).locked)
+        XCTAssertEqual(defaults.string(forKey: "profileName"), "Trader")
+    }
+
     func testCorruptBackupCannotReplaceLedger() throws {
         XCTAssertThrowsError(try SimulationBackup.load(Data("{}".utf8)))
         var invalid = Ledger.fresh()

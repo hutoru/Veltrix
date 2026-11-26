@@ -10,6 +10,7 @@ struct SettingsScreen: View {
     @Environment(\.openURL) private var openURL
     @AppStorage("profileName") private var profileName = ""
     @AppStorage("profileUsername") private var username = ""
+    @AppStorage("hapticsEnabled") private var hapticsEnabled = true
     @State private var panel: SettingsPanel?
     @State private var export = false
     @State private var takeFile = false
@@ -20,7 +21,7 @@ struct SettingsScreen: View {
 
     var body: some View {
         List {
-            Section("My profile") {
+            Section("Account") {
                 TextField("Display name", text: $profileName)
                 TextField("Username", text: $username)
                     .textInputAutocapitalization(.never)
@@ -31,16 +32,15 @@ struct SettingsScreen: View {
                     }
                 LabeledContent("Portfolio created", value: model.portfolio.createdAt.formatted(date: .abbreviated, time: .omitted))
             }
-            Section {
+            Section("Preferences") {
                 display
                 Link(destination: URL(string: UIApplication.openSettingsURLString)!) {
                     Label("App language", systemImage: "globe")
                 }
-            }
-            Section { simulation }
-            Section("Home") {
+                Toggle("Haptic feedback", isOn: $hapticsEnabled)
                 NavigationLink("Quick actions") { QuickActionsSettings() }
             }
+            Section { portfolioControls }
             Section("Filming") {
                 Toggle("On-set portfolio", isOn: Binding(get: { model.onSet }, set: model.setOnSet))
                 Text("The on-set portfolio has separate balances, cards and activity. Its operations stay in the app.")
@@ -75,9 +75,12 @@ struct SettingsScreen: View {
                 NavigationLink("Price alerts") { PriceAlertsScreen() }
             }.disabled(model.onSet)
             Section("Cards") { NavigationLink("Cards") { CardsScreen() } }
-            Section { security }
-            Section { backups }
-            Section("Community") {
+            Section("Security") { security }
+            Section("Data") {
+                backups
+                NavigationLink("Adjustment journal") { ActivityScreen(adjustmentsOnly: true) }
+            }
+            Section("Support") {
                 Button {
                     guard let url = URL(string: "https://t.me/veltrixlarpwallet") else { return }
                     Feedback.tap()
@@ -109,7 +112,7 @@ struct SettingsScreen: View {
                         Text("Version \(version)")
                     }
                     Text(verbatim: "© 2026 VELTRIX")
-                    Text("VELTRIX uses virtual funds. Trades, transfers and card payments are simulated on this device.")
+                    Text("VELTRIX is a simulator. Trades, transfers and card payments use virtual funds on this device.")
                         .accessibilityIdentifier("settings.simulatorDisclosure")
                 }.foregroundStyle(Color.vxMuted)
             }
@@ -196,7 +199,7 @@ struct SettingsScreen: View {
         }
     }
 
-    private var simulation: some View {
+    private var portfolioControls: some View {
         VStack(alignment: .leading, spacing: 6) {
             heading("Portfolio controls")
             Picker("Active portfolio", selection: .init(get: { model.ledger.selected }, set: { _ = model.execute(.selectPortfolio($0)) })) {
@@ -215,7 +218,6 @@ struct SettingsScreen: View {
 
     private var display: some View {
         VStack(alignment: .leading, spacing: 12) {
-            heading("Display")
             Picker("Display currency", selection: $model.currency) {
                 ForEach(Fiat.currencies, id: \.self) { code in
                     Text(verbatim: code + " · " + (Locale.current.localizedString(forCurrencyCode: code) ?? code)).tag(code)
@@ -252,7 +254,6 @@ struct SettingsScreen: View {
 
     private var security: some View {
         VStack(alignment: .leading, spacing: 11) {
-            heading("Privacy and lock")
             Toggle("Require device authentication", isOn: .init(get: { lock.enabled }, set: { next in
                 Task { await lock.setEnabled(next) }
             }))

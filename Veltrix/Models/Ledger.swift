@@ -27,6 +27,7 @@ struct Entry: Codable, Identifiable, Equatable, Sendable {
     var externalFlow: Decimal = 0
     var valuationUnavailable: Bool?
     var availableCashAfterFill: Decimal?
+    var cardSubscription: Bool?
 
     var settlementUSD: Decimal? {
         guard let usd else { return nil }
@@ -114,7 +115,8 @@ struct Portfolio: Codable, Identifiable, Equatable, Sendable {
         performance(since: cutoff).points
     }
 
-    func performance(since cutoff: Date, until end: Date = .distantFuture, liveValue: Decimal? = nil)
+    func performance(since cutoff: Date, until end: Date = .distantFuture, liveValue: Decimal? = nil,
+                     includesPoints: Bool = true)
         -> (points: [PortfolioPoint], change: (value: Decimal, percent: Decimal?)?) {
         let lastUnknown = entries.last(where: { $0.date <= end && $0.valuationUnavailable == true })?.date ?? .distantPast
         var visible = history.filter { $0.date >= cutoff && $0.date > lastUnknown && $0.date <= end }
@@ -129,23 +131,28 @@ struct Portfolio: Codable, Identifiable, Equatable, Sendable {
         var net: Decimal = 0
         var points: [PortfolioPoint] = []
         do {
-            for point in visible {
+            guard let last = visible.last else { return (points, nil) }
+            for point in includesPoints ? visible : [last] {
                 while flowIndex < flows.count && flows[flowIndex].date <= point.date {
                     net = try MoneyMath.addValuation(net, flows[flowIndex].externalFlow)
                     flowIndex += 1
                 }
-                let change = try MoneyMath.subtractValuation(point.value, start.value)
-                points.append(PortfolioPoint(date: point.date, value: try MoneyMath.subtractValuation(change, net)))
+                if includesPoints {
+                    let change = try MoneyMath.subtractValuation(point.value, start.value)
+                    points.append(PortfolioPoint(date: point.date, value: try MoneyMath.subtractValuation(change, net)))
+                }
             }
-            guard points.count > 1, let last = points.last, last.date > start.date else { return (points, nil) }
+            guard last.date > start.date else { return (points, nil) }
+            let change = try points.last?.value ?? MoneyMath.subtractValuation(
+                MoneyMath.subtractValuation(last.value, start.value), net)
             // Modified Dietz weights each contribution or withdrawal by the time it was invested.
             let duration = last.date.timeIntervalSince(start.date)
             let basis = try flows.prefix(flowIndex).reduce(start.value) { capital, entry in
                 let weight = Decimal(last.date.timeIntervalSince(entry.date) / duration)
                 return try MoneyMath.addValuation(capital, MoneyMath.multiply(entry.externalFlow, weight))
             }
-            let percent = basis > 0 ? try MoneyMath.multiply(MoneyMath.divide(last.value, basis), 100) : nil
-            return (points, (last.value, percent))
+            let percent = basis > 0 ? try MoneyMath.multiply(MoneyMath.divide(change, basis), 100) : nil
+            return (points, (change, percent))
         } catch {
             return ([], nil)
         }

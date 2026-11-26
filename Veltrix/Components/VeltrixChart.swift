@@ -229,6 +229,8 @@ struct VeltrixChart: View {
             if let focus, focus.date >= first, focus.date <= last {
                 RuleMark(x: .value("Date", focus.date))
                     .foregroundStyle(Color.vxHighlight).lineStyle(StrokeStyle(lineWidth: 0.9))
+                RuleMark(y: .value("Selected price", double(focus.close)))
+                    .foregroundStyle(Color.vxMuted.opacity(0.5)).lineStyle(StrokeStyle(lineWidth: 0.7, dash: [3, 3]))
                 PointMark(x: .value("Date", focus.date), y: .value("Price", double(focus.close)))
                     .foregroundStyle(Color.vxHighlight).symbolSize(48)
             }
@@ -275,16 +277,12 @@ struct VeltrixChart: View {
                     .accessibilityHidden(true)
                 if replay == nil, selected == nil, let latest = plotted.last,
                    let x = proxy.position(forX: latest.date), let y = proxy.position(forY: double(latest.close)) {
-                    TimelineView(.animation(minimumInterval: 1 / 24, paused: UITestMode.enabled || reduceMotion || phase != .active)) { timeline in
-                        let pulse = reduceMotion ? 0.0 : (sin(timeline.date.timeIntervalSinceReferenceDate * 4) + 1) / 2
-                        Canvas { context, _ in
-                            let center = CGPoint(x: plot.minX + x, y: plot.minY + y)
-                            let radius = 4 + pulse * 3
-                            let halo = CGRect(x: center.x - radius, y: center.y - radius, width: radius * 2, height: radius * 2)
-                            context.fill(Path(ellipseIn: halo), with: .color(trend.opacity(0.2)))
-                            context.fill(Path(ellipseIn: CGRect(x: center.x - 3, y: center.y - 3, width: 6, height: 6)), with: .color(trend))
-                        }
-                    }.allowsHitTesting(false).accessibilityHidden(true)
+                    Circle()
+                        .fill(trend)
+                        .frame(width: 6, height: 6)
+                        .position(x: plot.minX + x, y: plot.minY + y)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
                 }
             }
         }

@@ -21,7 +21,7 @@ enum Command: Sendable {
     case setPrimaryCard(UUID)
     case deleteCard(UUID)
     case moveCardFunds(UUID, Decimal, toCard: Bool)
-    case pay(UUID, Decimal, String)
+    case pay(UUID, Decimal, String, subscription: Bool = false)
     case refund(UUID, UUID)
 }
 
@@ -226,7 +226,7 @@ enum TradingEngine {
                           usd: amount, cardID: card, externalFlow: flow)
             changedValue = true
 
-        case let .pay(card, amount, merchant):
+        case let .pay(card, amount, merchant, subscription):
             try MoneyMath.quantity(amount)
             let cardIndex = try findCard(card, in: ledger)
             let record = ledger.cards[cardIndex]
@@ -235,7 +235,7 @@ enum TradingEngine {
             guard record.balance >= amount else { throw SimulationError.insufficientCash }
             ledger.cards[cardIndex].balance = try MoneyMath.subtract(record.balance, amount)
             entry = Entry(id: id, date: date, kind: .cardPayment, asset: "USD", amount: amount, usd: amount,
-                          note: try validName(merchant), cardID: card)
+                          note: try validName(merchant), cardID: card, cardSubscription: subscription ? true : nil)
 
         case let .refund(card, paymentID):
             let cardIndex = try findCard(card, in: ledger)
@@ -245,7 +245,7 @@ enum TradingEngine {
             else { throw SimulationError.alreadyRefunded }
             ledger.cards[cardIndex].balance = try MoneyMath.add(ledger.cards[cardIndex].balance, payment.amount)
             entry = Entry(id: id, date: date, kind: .refund, asset: "USD", amount: payment.amount, usd: payment.amount,
-                          note: payment.note, cardID: card, reference: paymentID)
+                          note: payment.note, cardID: card, reference: paymentID, cardSubscription: payment.cardSubscription)
         }
 
         if let entry { portfolio.entries.append(entry) }

@@ -325,8 +325,12 @@ struct TradeEditor: View {
     }
 
     private func tradeAssetRow(_ title: LocalizedStringKey, selection: Binding<String>) -> some View {
-        LabeledContent {
-            AssetPicker(title: title, asset: selection)
+        let currentPrices = model.usablePrices
+        return LabeledContent {
+            AssetPicker(title: title, asset: selection, assets: Asset.catalog.filter { asset in
+                !asset.isTokenizedStock || currentPrices[asset.id] != nil
+                    || model.portfolio.positions[asset.id] != nil || selection.wrappedValue == asset.id
+            })
                 .labelsHidden()
                 .pickerStyle(.menu)
                 .tint(.vxText)

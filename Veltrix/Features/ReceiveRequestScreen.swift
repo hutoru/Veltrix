@@ -62,7 +62,7 @@ struct ReceiveRequestScreen: View {
                         if image != nil {
                             Button("Edit") { image = nil; copied = false }
                         }
-                        Button("Record local receipt") { manualReceipt = true }
+                        Button("Record receipt") { manualReceipt = true }
                     } label: {
                         Image(systemName: "ellipsis.circle").accessibilityLabel(Text("More"))
                     }
@@ -90,10 +90,14 @@ struct ReceiveRequestScreen: View {
                 .interpolation(.none).resizable().scaledToFit()
                 .frame(width: 208, height: 208).padding(18)
                 .background(.white, in: RoundedRectangle(cornerRadius: 12))
-                .accessibilityLabel(Text("Test QR code"))
+                .accessibilityLabel(Text("QR code"))
                 .accessibilityIdentifier("receive.qr")
-            Text(verbatim: request.payload)
-                .font(.caption.monospaced()).multilineTextAlignment(.center).textSelection(.enabled)
+            VStack(spacing: 4) {
+                Text("Request ID").font(.caption).foregroundStyle(Color.vxMuted)
+                Text(verbatim: request.id.uuidString)
+                    .font(.caption.monospaced()).multilineTextAlignment(.center).textSelection(.enabled)
+                    .accessibilityIdentifier("receive.requestID")
+            }
             Button(copied ? "Copied" : "Copy") {
                 UIPasteboard.general.string = request.payload
                 copied = true

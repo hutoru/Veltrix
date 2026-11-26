@@ -5,9 +5,12 @@
 - [x] Confirm 6f4baa5 Recovery baseline. Release job 45825393851 succeeded. Simulator job 45820541270 passed on ancestor 91a659a.
 - [x] Confirm existing archive commit marker and verify a full-history Git backup in ignored dist/.
 - [x] Confirm existing public repository and standard macOS runner.
-- [ ] Complete repository and asset audit, including historical archives and CI artifacts.
+- [x] Screen local archives, historical tracked paths and three Recovery CI logs for common credential patterns. No matches in those checks.
+- [ ] Confirm redistribution rights for the existing bundled cryptocurrency icon artwork.
 - [ ] Verify navigation, Home, search, and Settings copy in the simulator.
-- [ ] Complete Markets, analytics, cards, history, QR, notifications, authentication, and remaining UX work.
+- [x] Add tokenized equities from the existing CoinGecko provider, market filters, portfolio analytics, adjustment journal, card subscription records, and Settings disclosure.
+- [x] Record legacy exit code 65 at the native limit-price field idle wait in Recovery run 45822833320. Preserve existing UITEST_MODE and keyboard dismissal coverage.
+- [ ] Complete device-level checks of camera, Face ID and notifications, plus iPhone XS and 15 Pro Max performance and layout acceptance.
 - [ ] Verify migration, visual acceptance, and final ARM64 IPA.
 
 ## Veltrix 7.1

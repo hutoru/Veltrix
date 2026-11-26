@@ -10,10 +10,29 @@ struct PortfolioAnalyticsScreen: View {
     @EnvironmentObject private var model: VeltrixModel
     @State private var range = ChartRange.week
     @State private var candles = false
+    @State private var fullScreen = false
 
     private var portfolio: Portfolio { model.portfolio }
     private var trades: [Entry] { portfolio.entries.filter { [.buy, .sell, .swap].contains($0.kind) } }
     private var realizedTrades: [Entry] { trades.filter { $0.profit != nil } }
+    private var returnInPeriod: Decimal? {
+        let now = Date()
+        return portfolio.performance(since: range.start(from: now) ?? .distantPast, until: now,
+                                     liveValue: try? portfolio.value(prices: model.usablePrices),
+                                     includesPoints: false).change?.percent
+    }
+
+    private var rankedPositions: [(asset: Asset, value: Decimal)] {
+        let prices = model.usablePrices
+        return Asset.catalog.compactMap { asset -> (asset: Asset, value: Decimal)? in
+            guard let holding = portfolio.positions[asset.id], holding.basis > 0,
+                  let quote = prices[asset.id],
+                  let marketValue = try? MoneyMath.multiply(holding.units, quote),
+                  let profit = try? MoneyMath.subtractValuation(marketValue, holding.basis),
+                  let ratio = try? MoneyMath.divide(profit, holding.basis) else { return nil }
+            return (asset, ratio * 100)
+        }.sorted { $0.value > $1.value }
+    }
     private var samples: [ChartSample] {
         portfolio.chart(range: range, candles: candles, performance: true,
                         liveValue: try? portfolio.value(prices: model.usablePrices))
@@ -29,9 +48,22 @@ struct PortfolioAnalyticsScreen: View {
             }
             Divider().overlay(Color.vxSeparator)
             if !model.hide {
-                VeltrixChart(samples: samples, range: $range, candles: $candles, allowsCandles: true,
-                           compareAmounts: true, ranges: [.day, .week, .month, .all]) { model.signedMoney($0) }
+                HStack {
+                    Text("Portfolio history").font(.headline)
+                    Spacer()
+                    IconButton(icon: "arrow.up.left.and.arrow.down.right", label: "Full screen chart") { fullScreen = true }
+                }
+                chart(height: 190)
+                LabeledContent("Total return", value: Display.percent(returnInPeriod))
                 LabeledContent("Realized P&L", value: model.signedMoney(periodProfit))
+                LabeledContent("Trades", value: Display.number(Decimal(trades.count), maximum: 0))
+                let ranked = rankedPositions
+                if let best = ranked.first {
+                    LabeledContent("Best performing asset", value: best.asset.ticker + " · " + Display.percent(best.value))
+                }
+                if ranked.count > 1, let worst = ranked.last {
+                    LabeledContent("Worst performing asset", value: worst.asset.ticker + " · " + Display.percent(worst.value))
+                }
                 allocation
             }
             Text("Open positions").font(.headline)
@@ -44,7 +76,13 @@ struct PortfolioAnalyticsScreen: View {
                         CoinIcon(asset: coin, url: model.quotes[coin.id]?.image, size: 30)
                         Text(verbatim: coin.name)
                         Spacer()
-                        if let position = portfolio.positions[coin.id] { Text(verbatim: model.units(position.units)) }
+                        if let position = portfolio.positions[coin.id] {
+                            VStack(alignment: .trailing, spacing: 3) {
+                                Text(verbatim: model.units(position.units))
+                                Text(verbatim: model.money(position.average, price: true))
+                                    .font(.caption).foregroundStyle(Color.vxMuted)
+                            }
+                        }
                     }.frame(minHeight: 48).contentShape(Rectangle())
                 }.buttonStyle(.plain)
                 Divider().overlay(Color.vxSeparator)
@@ -77,6 +115,22 @@ struct PortfolioAnalyticsScreen: View {
         }
         .navigationTitle("Analytics")
         .navigationBarTitleDisplayMode(.inline)
+        .fullScreenCover(isPresented: $fullScreen) {
+            NavigationStack {
+                PageScroll { chart(height: 320) }
+                    .navigationTitle("Portfolio history")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { fullScreen = false } } }
+            }
+        }
+        .onChange(of: model.hide) { hidden in if hidden { fullScreen = false } }
+    }
+
+    private func chart(height: CGFloat) -> some View {
+        VeltrixChart(samples: samples, range: $range, candles: $candles, allowsCandles: true,
+                     height: height, compareAmounts: true, ranges: [.day, .week, .month, .year, .all]) {
+            model.signedMoney($0)
+        }
     }
 
     private func metric(_ label: LocalizedStringKey, value: String) -> some View {

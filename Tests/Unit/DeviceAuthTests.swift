@@ -65,7 +65,7 @@ final class DeviceAuthTests: XCTestCase {
         let amounts = NotificationService.OperationAmounts(quantity: "1 BTC", amount: "$100.00", balance: "$900.00")
         let notification = NotificationService.request(for: entry, filled: false, amounts: amounts)
         XCTAssertEqual(notification.identifier, entry.id.uuidString)
-        XCTAssertEqual(notification.content.title, "VELTRIX · CryptoApp")
+        XCTAssertEqual(notification.content.title, "VELTRIX")
         XCTAssertEqual(notification.content.subtitle, "")
         XCTAssertEqual(notification.content.body, "Purchase BTC for $100.00.\nAvailable balance: $900.00\n1 BTC")
         XCTAssertNotNil(notification.content.sound)
@@ -73,6 +73,19 @@ final class DeviceAuthTests: XCTestCase {
         let privateRequest = NotificationService.request(for: entry, filled: false, amounts: nil)
         XCTAssertEqual(privateRequest.content.subtitle, "")
         XCTAssertEqual(privateRequest.content.body, entry.kind.localized + " BTC")
+    }
+
+    @MainActor func testOperationNotificationBodyUsesSavedOperationKind() {
+        let operationKinds: [OperationKind] = [.buy, .sell, .swap, .deposit, .send, .receive,
+                                               .qrPayment, .cardPayment, .cardTopUp, .cardReturn, .refund]
+        for kind in operationKinds {
+            let entry = Entry(id: UUID(), date: .now, kind: kind, asset: "USD", amount: 5, usd: 5)
+            let amounts = NotificationService.OperationAmounts(quantity: nil, amount: "$5.00", balance: "$40.00")
+            let content = NotificationService.request(for: entry, filled: false, amounts: amounts).content
+            XCTAssertEqual(content.body.components(separatedBy: "\n").first,
+                           L.format("%@ for %@.", kind.localized, "$5.00"))
+            XCTAssertTrue(content.body.contains(L.format("Available balance: %@", "$40.00")))
+        }
     }
 
     func testNativeDecimalInputAcceptsDotAndCommaWithoutAmbiguousGrouping() {

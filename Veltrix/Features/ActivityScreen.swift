@@ -50,22 +50,52 @@ extension OperationKind {
 }
 
 struct ActivityScreen: View {
+    private enum Category: String, CaseIterable {
+        case trades, transfers, cards
+
+        var title: LocalizedStringKey {
+            switch self {
+            case .trades: return "Trades"
+            case .transfers: return "Transfers"
+            case .cards: return "Cards"
+            }
+        }
+
+        func includes(_ kind: OperationKind) -> Bool {
+            switch self {
+            case .trades: return [.buy, .sell, .swap].contains(kind)
+            case .transfers: return [.send, .receive, .deposit, .qrPayment].contains(kind)
+            case .cards: return [.cardTopUp, .cardReturn, .cardPayment, .refund].contains(kind)
+            }
+        }
+    }
+
+    var adjustmentsOnly = false
     @EnvironmentObject private var model: VeltrixModel
     @State private var showOrders = false
     @State private var query = ""
-    @State private var category: OperationKind?
+    @State private var category: Category?
     @State private var status: OrderStatus?
+    @State private var assetID: String?
+    @State private var dateFilter = false
+    @State private var startDate = Calendar.current.startOfDay(for:
+        Calendar.current.date(byAdding: .day, value: -30, to: .now) ?? .now)
+    @State private var endDate = Calendar.current.startOfDay(for: .now)
     @State private var descending = true
     @State private var cancelOrder: LimitOrder?
 
     var body: some View {
         PageScroll {
-            PageHeader(title: "Activity", detail: "Transactions and open orders") { EmptyView() }
-            Picker("Activity view", selection: $showOrders) {
-                Text("Transactions").tag(false)
-                Text("Orders").tag(true)
+            if adjustmentsOnly {
+                Text("Adjustment journal").font(.largeTitle.bold()).accessibilityAddTraits(.isHeader)
+            } else {
+                PageHeader(title: "Activity", detail: "Transactions and open orders") { EmptyView() }
+                Picker("Activity view", selection: $showOrders) {
+                    Text("Transactions").tag(false)
+                    Text("Orders").tag(true)
+                }
+                .pickerStyle(.segmented)
             }
-            .pickerStyle(.segmented)
             HStack(spacing: 9) {
                 Image(systemName: "magnifyingglass").foregroundStyle(Color.vxMuted)
                 TextField("Search activity", text: $query).textInputAutocapitalization(.never).autocorrectionDisabled()
@@ -75,6 +105,10 @@ struct ActivityScreen: View {
             }
             .panel(padding: 12)
             filters
+            if dateFilter {
+                DatePicker("From", selection: $startDate, in: ...endDate, displayedComponents: .date)
+                DatePicker("To", selection: $endDate, in: startDate...max(endDate, .now), displayedComponents: .date)
+            }
             if showOrders { orders } else { transactions }
         }
         .scrollDismissesKeyboard(.interactively)
@@ -96,14 +130,21 @@ struct ActivityScreen: View {
                             Text(value.title).tag(Optional(value))
                         }
                     }
-                } else {
+                } else if !adjustmentsOnly {
                     Picker("Category", selection: $category) {
-                        Text("All").tag(OperationKind?.none)
-                        ForEach(OperationKind.allCases, id: \.self) { value in
+                        Text("All").tag(Category?.none)
+                        ForEach(Category.allCases, id: \.self) { value in
                             Text(value.title).tag(Optional(value))
                         }
                     }
                 }
+                Picker("Asset", selection: $assetID) {
+                    Text("All assets").tag(nil as String?)
+                    ForEach(activityAssetIDs, id: \.self) { id in
+                        Text(verbatim: Asset.ticker(id)).tag(Optional(id))
+                    }
+                }
+                Toggle("Filter by date", isOn: $dateFilter)
             } label: {
                 Label(filterTitle, systemImage: "line.3.horizontal.decrease.circle")
                     .font(.caption.weight(.semibold))
@@ -124,12 +165,16 @@ struct ActivityScreen: View {
 
     private var transactions: some View {
         let entries = model.portfolio.entries.filter {
-            (category == nil || $0.kind == category) &&
-            matches([$0.kind.localized, Asset.ticker($0.asset), $0.note, $0.counterAsset.map(Asset.ticker) ?? ""])
+            ($0.kind == .adjustment) == adjustmentsOnly &&
+            (category?.includes($0.kind) ?? true) &&
+            (assetID == nil || $0.asset == assetID || $0.counterAsset == assetID) &&
+            includes($0.date) &&
+            matches([$0.kind.localized, Asset.ticker($0.asset), model.hide ? "" : $0.note,
+                     $0.counterAsset.map(Asset.ticker) ?? ""])
         }
         let groups = Dictionary(grouping: entries) { Calendar.current.startOfDay(for: $0.date) }
         return LazyVStack(alignment: .leading, spacing: 16) {
-            if model.portfolio.entries.contains(where: { $0.kind == .cardPayment }) {
+            if !adjustmentsOnly && model.portfolio.entries.contains(where: { $0.kind == .cardPayment }) {
                 DisclosureGroup("Card spending") { spending }
                     .font(.subheadline.weight(.medium))
             }
@@ -157,7 +202,11 @@ struct ActivityScreen: View {
 
     private var orders: some View {
         let matches = model.portfolio.orders.filter { order in
-            (status == nil || order.status == status) && self.matches([Asset.ticker(order.asset), order.side.rawValue, order.status.rawValue])
+            (status == nil || order.status == status) &&
+            (assetID == nil || order.asset == assetID) &&
+            includes(order.date) &&
+            self.matches([Asset.ticker(order.asset), order.side.rawValue, order.status.rawValue,
+                          L.text(order.side == .buy ? "Purchase" : "Sale"), L.text(order.status.rawValue.capitalized)])
         }
         return VStack(alignment: .leading, spacing: 13) {
             if matches.isEmpty {
@@ -167,7 +216,7 @@ struct ActivityScreen: View {
             ForEach(matches.sorted { descending ? $0.date > $1.date : $0.date < $1.date }) { order in
                 VStack(alignment: .leading, spacing: 10) {
                     HStack {
-                        Label(order.side == .buy ? "Buy" : "Sell", systemImage: order.side == .buy ? "plus.circle" : "minus.circle")
+                        Label(order.side == .buy ? "Purchase" : "Sale", systemImage: order.side == .buy ? "plus.circle" : "minus.circle")
                             .font(.headline)
                         Text(verbatim: Asset.ticker(order.asset)).font(.subheadline.monospaced())
                         Spacer()
@@ -206,6 +255,20 @@ struct ActivityScreen: View {
         }
         .font(.footnote)
         .panel()
+    }
+
+    private var activityAssetIDs: [String] {
+        let entries = model.portfolio.entries.filter { ($0.kind == .adjustment) == adjustmentsOnly }
+        let traded = entries.flatMap { [$0.asset] + ($0.counterAsset.map { [$0] } ?? []) }
+        let ordered = adjustmentsOnly ? [] : model.portfolio.orders.map(\.asset)
+        return Set(traded + ordered).sorted { Asset.ticker($0) < Asset.ticker($1) }
+    }
+
+    private func includes(_ date: Date) -> Bool {
+        guard dateFilter else { return true }
+        let calendar = Calendar.current
+        let day = calendar.startOfDay(for: date)
+        return day >= calendar.startOfDay(for: startDate) && day <= calendar.startOfDay(for: endDate)
     }
 
     private func matches(_ terms: [String]) -> Bool {
@@ -282,6 +345,9 @@ struct EntryScreen: View {
                 if let profit = entry.profit { LabeledContent("Realized P&L", value: model.money(profit)) }
                 if let other = entry.counterAmount, let asset = entry.counterAsset {
                     LabeledContent("Receive asset", value: "\(model.units(other)) \(Asset.ticker(asset))")
+                }
+                if entry.cardSubscription == true {
+                    LabeledContent("Payment type") { Text("Subscription payment") }
                 }
                 if !entry.note.isEmpty {
                     LabeledContent("Details") { Text(verbatim: entry.note).textSelection(.enabled) }

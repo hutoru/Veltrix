@@ -47,19 +47,23 @@ struct GlobalSearchScreen: View {
     }
 
     @ViewBuilder private var results: some View {
-        let assets = Asset.catalog.filter { asset in
-            term.isEmpty ? model.favorites.contains(asset.id) : matches(asset.name, asset.ticker)
+        let favorites = Asset.catalog.filter { model.favorites.contains($0.id) }
+        let recent = model.recentAssets.filter { !model.favorites.contains($0.id) }
+        let assets = term.isEmpty ? favorites + recent : Asset.catalog.filter { asset in
+            let available = !asset.isTokenizedStock || model.quotes[asset.id]?.price != nil
+                || model.portfolio.positions[asset.id] != nil
+            return available && matches(asset.name, asset.ticker)
         }
         let actions = TradeAction.allCases.filter { matches($0.rawValue, L.text($0.rawValue.capitalized)) }
         let entries = term.isEmpty ? [] : model.portfolio.entries.reversed().filter {
-            matches($0.kind.localized, Asset.ticker($0.asset), model.hide ? "" : $0.note)
+            $0.kind != .adjustment && matches($0.kind.localized, Asset.ticker($0.asset), model.hide ? "" : $0.note)
         }
         let cards = term.isEmpty || model.hide ? [] : model.cards.filter { matches($0.name) }
         let showSettings = matches(L.text("Settings"))
         let showCards = matches(L.text("Cards"))
         let showActivity = matches(L.text("Activity"))
         if !assets.isEmpty {
-            Text(term.isEmpty ? "Favorites" : "Assets").font(.headline)
+            Text("Assets").font(.headline)
             ForEach(assets) { asset in
                 NavigationLink(value: asset) {
                     HStack(spacing: 10) {

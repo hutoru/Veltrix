@@ -11,7 +11,8 @@ struct PortfolioBalanceHeader: View {
     var body: some View {
         let now = Date()
         let change = portfolio.performance(since: .distantPast, until: now,
-                                           liveValue: try? portfolio.value(prices: model.usablePrices)).change
+                                           liveValue: try? portfolio.value(prices: model.usablePrices),
+                                           includesPoints: false).change
         VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Menu {

@@ -5,7 +5,7 @@ struct Asset: Identifiable, Hashable, Sendable {
     let ticker: String
     let name: String
 
-    static let catalog: [Asset] = [
+    static let cryptoCatalog: [Asset] = [
         .init(id: "bitcoin", ticker: "BTC", name: "Bitcoin"),
         .init(id: "ethereum", ticker: "ETH", name: "Ethereum"),
         .init(id: "solana", ticker: "SOL", name: "Solana"),
@@ -37,7 +37,20 @@ struct Asset: Identifiable, Hashable, Sendable {
         .init(id: "ethereum-classic", ticker: "ETC", name: "Ethereum Classic"),
         .init(id: "polygon-ecosystem-token", ticker: "POL", name: "Polygon")
     ]
+    static let tokenizedStocks: [Asset] = [
+        .init(id: "apple-xstock", ticker: "AAPLx", name: "Apple xStock"),
+        .init(id: "nvidia-xstock", ticker: "NVDAx", name: "NVIDIA xStock"),
+        .init(id: "microsoft-xstock", ticker: "MSFTx", name: "Microsoft xStock"),
+        .init(id: "tesla-xstock", ticker: "TSLAx", name: "Tesla xStock"),
+        .init(id: "amazon-xstock", ticker: "AMZNx", name: "Amazon xStock"),
+        .init(id: "alphabet-xstock", ticker: "GOOGLx", name: "Alphabet xStock"),
+        .init(id: "meta-xstock", ticker: "METAx", name: "Meta xStock")
+    ]
+
+    static let catalog = cryptoCatalog + tokenizedStocks
     static let ids = Set(catalog.map(\.id))
+    private static let tokenizedIDs = Set(tokenizedStocks.map(\.id))
+    var isTokenizedStock: Bool { Self.tokenizedIDs.contains(id) }
     static func ticker(_ id: String) -> String { catalog.first { $0.id == id }?.ticker ?? id }
 }
 

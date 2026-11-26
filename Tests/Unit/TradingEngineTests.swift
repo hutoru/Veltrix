@@ -210,6 +210,21 @@ final class TradingEngineTests: XCTestCase {
         XCTAssertEqual(Set(KrakenSymbols.pairs.keys), Set(Asset.catalog.map(\.ticker)))
     }
 
+    func testSubscriptionPaymentAndRefundSurviveBackup() throws {
+        let initial = Ledger.fresh(cash: 200)
+        let created = try execute(.createCard(.classic, "Studio", nil), initial, bitcoin: 100)
+        let card = try XCTUnwrap(created.cards.first?.id)
+        let funded = try execute(.moveCardFunds(card, 100, toCard: true), created, bitcoin: 100)
+        let paid = try execute(.pay(card, 20, "Service", subscription: true), funded, bitcoin: 100)
+        let payment = try XCTUnwrap(paid.portfolios.first?.entries.last)
+        XCTAssertEqual(payment.cardSubscription, true)
+        let refunded = try execute(.refund(card, payment.id), paid, bitcoin: 100)
+        let restored = try SimulationBackup.load(SimulationBackup.export(refunded))
+        XCTAssertEqual(restored.cards.first?.balance, 100)
+        XCTAssertEqual(restored.portfolios.first?.entries.last?.cardSubscription, true)
+        XCTAssertEqual(restored.portfolios.first?.entries.last?.reference, payment.id)
+    }
+
     func testCardMoveFreezeLimitPaymentRefundAndOwnership() throws {
         var ledger = try execute(.createCard(.gold, "Test", 100), .fresh(cash: 1_000, date: start), bitcoin: 100)
         let card = try XCTUnwrap(ledger.cards.first?.id)
