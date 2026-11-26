@@ -3,7 +3,7 @@ import Foundation
 enum SimulationError: String, Error, Equatable, Sendable {
     case invalidAmount, precision, insufficientCash, insufficientAsset, missingQuote
     case missingRecord, duplicate, invalidPair, invalidBackup, reservedAsset
-    case cardFrozen, cardLimit, cardHasBalance, alreadyRefunded, invalidName
+    case cardFrozen, cardLimit, cardHasBalance, alreadyRefunded, invalidName, invalidAddress
 }
 
 enum MoneyMath {
@@ -27,6 +27,21 @@ enum MoneyMath {
         return try calculate(a, b, NSDecimalDivide, rounded: true)
     }
 
+    static func addValuation(_ a: Decimal, _ b: Decimal) throws -> Decimal {
+        try calculate(a, b, NSDecimalAdd, rounded: true)
+    }
+
+    static func subtractValuation(_ a: Decimal, _ b: Decimal) throws -> Decimal {
+        try calculate(a, b, NSDecimalSubtract, rounded: true)
+    }
+
+    static func quotedUSD(_ units: Decimal, at price: Decimal) throws -> Decimal {
+        let value = try multiply(units, price)
+        // Products from repeating coin quantities can exhaust Decimal's precision before fees or cash are applied.
+        let settled = round(value, scale: 16, mode: .down)
+        return settled == 0 ? value : settled
+    }
+
     private static func calculate(
         _ a: Decimal, _ b: Decimal,
         _ operation: (UnsafeMutablePointer<Decimal>, UnsafePointer<Decimal>, UnsafePointer<Decimal>, Decimal.RoundingMode) -> Decimal.CalculationError,
@@ -43,10 +58,10 @@ enum MoneyMath {
         return result
     }
 
-    static func round(_ value: Decimal, scale: Int) -> Decimal {
+    static func round(_ value: Decimal, scale: Int, mode: Decimal.RoundingMode = .bankers) -> Decimal {
         var source = value
         var result = Decimal.zero
-        NSDecimalRound(&result, &source, scale, .bankers)
+        NSDecimalRound(&result, &source, scale, mode)
         return result
     }
 

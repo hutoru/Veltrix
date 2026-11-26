@@ -1,5 +1,7 @@
 import SwiftUI
 import CoreMotion
+import PhotosUI
+import UIKit
 
 struct CardsScreen: View {
     @EnvironmentObject private var model: VeltrixModel
@@ -15,8 +17,8 @@ struct CardsScreen: View {
 
     var body: some View {
         PageScroll {
-            PageHeader(title: "Cards", detail: "Virtual balances and card spending") {
-                IconButton(icon: "plus", label: "New virtual card") { editor = CardIntent(.create) }
+            PageHeader(title: "Cards", detail: "Card collection") {
+                IconButton(icon: "plus", label: "New card") { editor = CardIntent(.create) }
                     .accessibilityIdentifier("card.new")
             }
             if let card {
@@ -25,8 +27,8 @@ struct CardsScreen: View {
                 spending(card)
             } else {
                 EmptyPanel(icon: "creditcard", title: "Start your card collection",
-                           detail: "Choose Classic, Gold, Platinum or Black and simulate spending from a separate balance.")
-                Button("Create virtual card") { editor = CardIntent(.create) }
+                           detail: "Choose a finish and personalize your first card.")
+                Button("Create card") { editor = CardIntent(.create) }
                     .buttonStyle(PrimaryButtonStyle()).accessibilityIdentifier("card.create")
             }
         }
@@ -40,8 +42,10 @@ struct CardsScreen: View {
         }
         .navigationTitle("Cards")
         .navigationBarTitleDisplayMode(.inline)
-        .sheet(item: $editor, onDismiss: configureMotion) { CardForm(intent: $0).onAppear { motion.stop() } }
-        .confirmationDialog("Delete virtual card?", isPresented: $delete, titleVisibility: .visible) {
+        .sheet(item: $editor, onDismiss: configureMotion) { intent in
+            CardForm(intent: intent, onCreate: select).onAppear { motion.stop() }
+        }
+        .confirmationDialog("Delete card?", isPresented: $delete, titleVisibility: .visible) {
             if let card {
                 Button("Delete card", role: .destructive) { _ = model.execute(.deleteCard(card.id)) }
             }
@@ -72,6 +76,8 @@ struct CardsScreen: View {
                     Feedback.tap()
                 } label: {
                     MotionCardFace(motion: motion, card: card, balance: model.money(card.balance), flipped: flipped)
+                        .id(card.id)
+                        .transition(reduceMotion ? .identity : .opacity.combined(with: .scale(scale: 0.96)))
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(Text("Flip \(card.name) card"))
@@ -186,18 +192,20 @@ private struct MotionCardFace: View {
     let flipped: Bool
 
     var body: some View {
-        CardFace(tier: card.tier, name: card.name, balance: balance, frozen: card.frozen,
+        CardFace(tier: card.tier, design: card.design ?? card.tier.defaultDesign, name: card.name, balance: balance, frozen: card.frozen,
                  flip: flipped ? 180 : 0, tilt: motion.tilt)
     }
 }
 
 private struct CardFace: View, Animatable {
     let tier: CardTier
+    let design: CardDesign
     let name: String
     let balance: String
     let frozen: Bool
     var flip: Double
     var tilt: CGSize
+    var moveMark: ((Double, Double) -> Void)?
 
     var animatableData: Double {
         get { flip }
@@ -206,52 +214,76 @@ private struct CardFace: View, Animatable {
 
     var body: some View {
         let rotated = flip >= 90
-        let colors = tier.colors
+        let (_, _, light, dark) = tier.finish
+        let ink: Color = tier == .ceramicWhite && design.tint == nil && design.portrait == nil ? .black : .white
+        let typeface: Font.Design = design.typeface == .classic ? .serif : (design.typeface == .mono ? .monospaced : .default)
         return ZStack {
             RoundedRectangle(cornerRadius: 21)
-                .fill(LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing))
-            Canvas { context, size in
-                for index in 0..<Int(size.height) {
-                    let y = CGFloat(index)
-                    let alpha = Double((index * 31) % 13) / 270
-                    var line = Path()
-                    line.move(to: CGPoint(x: 0, y: y))
-                    line.addLine(to: CGPoint(x: size.width, y: y))
-                    context.stroke(line, with: .color(.white.opacity(alpha)), lineWidth: 0.35)
-                }
+                .fill(LinearGradient(colors: [.init(cardRGB: design.tint ?? light), .init(cardRGB: design.shade ?? dark)],
+                                     startPoint: .topLeading, endPoint: .bottomTrailing))
+            if let portrait = design.portrait {
+                CardPortrait(bytes: portrait).equatable()
+                LinearGradient(colors: [.black.opacity(0.34), .black.opacity(0.76)], startPoint: .top, endPoint: .bottom)
             }
-            OrbitLines(opacity: tier == .black ? 0.06 : 0.16)
-            GeometryReader { geometry in
-                let x = 0.63 + tilt.width * 0.22
-                let y = 0.35 + tilt.height * 0.25
-                AngularGradient(colors: [.clear, .cyan.opacity(0.19), .white.opacity(0.36), .purple.opacity(0.30), .clear],
-                                center: UnitPoint(x: x, y: y), angle: .degrees(geometry.size.width / 5))
-                    .blendMode(.screen)
-                    .opacity(tier == .black ? 0.15 : (tier == .classic ? 0.24 : 0.50))
+            CardGrain(texture: design.texture, collection: tier.collection)
+            let center = UnitPoint(x: 0.62 + tilt.width * 0.24, y: 0.38 + tilt.height * 0.22)
+            switch design.material {
+            case .holographic:
+                AngularGradient(colors: [.cyan, .purple, .pink, .mint, .cyan], center: center,
+                                angle: .degrees(18 + Double(tilt.width) * 30))
+                    .blendMode(.screen).opacity(design.sheen * 0.62)
+            case .glass:
+                RadialGradient(colors: [.white.opacity(0.9), .cyan.opacity(0.17), .clear], center: center,
+                               startRadius: 0, endRadius: 165)
+                    .blendMode(.screen).opacity(design.sheen * 0.7)
+            default:
+                LinearGradient(colors: [.clear, .white.opacity(0.65), .clear],
+                               startPoint: UnitPoint(x: center.x - 0.26, y: 0),
+                               endPoint: UnitPoint(x: center.x + 0.52, y: 1))
+                    .blendMode(.screen).opacity(design.sheen * (design.material == .carbon ? 0.21 : 0.43))
+            }
+            if !rotated {
+                GeometryReader { geometry in
+                    let point = CGPoint(x: geometry.size.width * CGFloat(design.markX),
+                                        y: geometry.size.height * CGFloat(design.markY))
+                    if let moveMark {
+                        VeltrixMark().fill(ink.opacity(0.64)).frame(width: 38, height: 38)
+                            .padding(6).contentShape(Rectangle())
+                            .gesture(DragGesture(coordinateSpace: .named("card.preview")).onChanged { value in
+                                moveMark(Double(value.location.x / max(1, geometry.size.width)),
+                                         Double(value.location.y / max(1, geometry.size.height)))
+                            })
+                            .position(point)
+                    } else {
+                        VeltrixMark().fill(ink.opacity(0.56)).frame(width: 38, height: 38)
+                            .shadow(color: .black.opacity(0.28), radius: 0, x: 0, y: 1).position(point)
+                    }
+                }.coordinateSpace(name: "card.preview").accessibilityHidden(true)
             }
             VStack(alignment: .leading, spacing: 9) {
                 HStack {
-                    VeltrixMark().fill(.white).frame(width: 23, height: 23)
-                    Text(verbatim: "VELTRIX").font(.system(.subheadline, design: .rounded).weight(.heavy)).tracking(2)
+                    Text(verbatim: "VELTRIX")
+                        .font(.system(.subheadline, design: typeface).weight(.bold)).tracking(3)
                     Spacer()
                     if frozen { Image(systemName: "snowflake").accessibilityLabel(Text("Frozen")) }
                 }
                 Spacer()
                 if rotated {
-                    Text("Virtual funds").font(.headline)
-                    Text("Virtual card. No payment credentials.").font(.caption).opacity(0.78)
+                    Text("Veltrix card").font(.headline)
+                    Text("No payment credentials").font(.caption).opacity(0.78)
                 } else {
-                    Text(verbatim: balance).font(.system(size: 27, weight: .semibold, design: .rounded)).monospacedDigit()
+                    Text(verbatim: balance).font(.system(size: 29, weight: .semibold, design: typeface)).monospacedDigit()
                         .lineLimit(1).minimumScaleFactor(0.38)
-                    Text(verbatim: name).font(.caption.weight(.medium)).lineLimit(1).opacity(0.80)
+                    Text(verbatim: name).font(.system(.caption, design: typeface).weight(.medium)).lineLimit(1).opacity(0.80)
                 }
                 HStack {
                     Text(tier.title).font(.caption.weight(.bold)).textCase(.uppercase).tracking(1.5)
                     Spacer()
                 }
             }
-            .foregroundStyle(.white)
+            .foregroundStyle(ink)
             .padding(17)
+            .allowsHitTesting(false)
             .rotation3DEffect(.degrees(rotated ? 180 : 0), axis: (x: 0, y: 1, z: 0))
         }
         .aspectRatio(1.68, contentMode: .fit)
@@ -286,26 +318,6 @@ private struct CardFace: View, Animatable {
     }
 }
 
-extension CardTier {
-    var title: LocalizedStringKey {
-        switch self {
-        case .classic: return "Classic"
-        case .gold: return "Gold"
-        case .platinum: return "Platinum"
-        case .black: return "Black"
-        }
-    }
-
-    var colors: [Color] {
-        switch self {
-        case .classic: return [.init(red: 0.11, green: 0.11, blue: 0.13), .init(red: 0.24, green: 0.24, blue: 0.26), .black]
-        case .gold: return [.init(red: 0.33, green: 0.20, blue: 0.08), .init(red: 0.58, green: 0.44, blue: 0.22), .black]
-        case .platinum: return [.init(red: 0.29, green: 0.34, blue: 0.44), .init(red: 0.48, green: 0.50, blue: 0.55), .black]
-        case .black: return [.black, .init(red: 0.13, green: 0.13, blue: 0.15), .black]
-        }
-    }
-}
-
 private struct CardIntent: Identifiable {
     enum Mode { case create, edit(UUID), topUp(UUID), returnFunds(UUID), pay(UUID) }
     let id = UUID()
@@ -315,11 +327,10 @@ private struct CardIntent: Identifiable {
 
     var title: LocalizedStringKey {
         switch mode {
-        case .create: return "New virtual card"
-        case .edit: return "Edit card"
+        case .create, .edit: return "Card Studio"
         case .topUp: return "Top up"
         case .returnFunds: return "Return funds"
-        case .pay: return "Virtual payment"
+        case .pay: return "Card payment"
         }
     }
 
@@ -333,9 +344,13 @@ private struct CardIntent: Identifiable {
 
 private struct CardForm: View {
     let intent: CardIntent
+    let onCreate: (UUID) -> Void
     @EnvironmentObject private var model: VeltrixModel
     @Environment(\.dismiss) private var dismiss
     @State private var tier = CardTier.classic
+    @State private var collection = CardCollection.origin
+    @State private var design = CardTier.classic.defaultDesign
+    @State private var photo: PhotosPickerItem?
     @State private var name = ""
     @State private var limit = ""
     @State private var amount = ""
@@ -343,31 +358,31 @@ private struct CardForm: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section {
-                    if case .pay = intent.mode { Text("Virtual funds").font(.footnote).foregroundStyle(Color.vxMuted) }
+            PageScroll {
+                VStack(alignment: .leading, spacing: 16) {
                     switch intent.mode {
                     case .create, .edit:
-                        if case .create = intent.mode {
-                            Picker("Card tier", selection: $tier) {
-                                ForEach(CardTier.allCases, id: \.self) { Text($0.title).tag($0) }
-                            }
-                        }
-                        TextField("Card name", text: $name)
-                        TextField("Per-payment limit (USD)", text: $limit).keyboardType(.decimalPad)
-                        Text("Leave the limit blank for unrestricted simulated payments.")
-                            .font(.footnote).foregroundStyle(Color.vxMuted)
+                        studio
                     case .topUp, .returnFunds, .pay:
-                        if case .pay = intent.mode { TextField("Merchant", text: $name) }
-                        TextField("Amount (USD)", text: $amount).keyboardType(.decimalPad)
+                        if case .pay = intent.mode {
+                            if !model.onSet {
+                                Text("Local operation").font(.caption.weight(.semibold)).foregroundStyle(Color.vxMuted)
+                            }
+                            TextField("Merchant", text: $name).panel(padding: 12)
+                        }
+                        TextField("Amount (USD)", text: $amount).keyboardType(.decimalPad).panel(padding: 12)
                     }
                 }
                 if let error { Text(verbatim: error).font(.footnote).foregroundStyle(Color.vxDown) }
-                Button("Confirm operation") { save() }
-                    .buttonStyle(PrimaryButtonStyle()).listRowBackground(Color.clear)
-                    .accessibilityIdentifier("card.confirm")
             }
-            .scrollContentBackground(.hidden).background(Color.vxBackground)
+            .scrollDismissesKeyboard(.interactively)
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                Button(isStudio ? "Save card" : "Confirm operation") { save() }
+                    .buttonStyle(PrimaryButtonStyle())
+                    .accessibilityIdentifier("card.confirm")
+                    .padding(.horizontal, 16).padding(.vertical, 8)
+                    .background(Color.vxBackground)
+            }
             .navigationTitle(intent.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } } }
@@ -377,14 +392,97 @@ private struct CardForm: View {
                   let card = model.cards.first(where: { $0.id == intent.cardID }) else { return }
             name = card.name
             limit = card.limit.map(Display.input) ?? ""
+            tier = card.tier
+            collection = card.tier.collection
+            design = card.design ?? card.tier.defaultDesign
         }
+        .task(id: photo) {
+            guard let photo else { return }
+            do {
+                guard let bytes = try await photo.loadTransferable(type: Data.self),
+                      let image = UIImage(data: bytes),
+                      let thumbnail = await image.byPreparingThumbnail(ofSize: CGSize(width: 840, height: 840)),
+                      let encoded = thumbnail.jpegData(compressionQuality: 0.6),
+                      encoded.count <= 360_000 else { throw CocoaError(.fileReadCorruptFile) }
+                try Task.checkCancellation()
+                design.portrait = encoded
+                error = nil
+            } catch {
+                if !Task.isCancelled { self.error = L.text("Photo unavailable") }
+            }
+        }
+    }
+
+    private var isStudio: Bool {
+        switch intent.mode {
+        case .create, .edit: return true
+        default: return false
+        }
+    }
+
+    private var studio: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            CardFace(tier: tier, design: design, name: name.isEmpty ? "VELTRIX" : name,
+                     balance: model.money(0), frozen: false, flip: 0, tilt: .zero) { x, y in
+                design.markX = min(0.87, max(0.13, x))
+                design.markY = min(0.82, max(0.14, y))
+            }
+            Text("Drag the emblem to reposition it.").font(.caption).foregroundStyle(Color.vxMuted)
+            Picker("Collection", selection: Binding(get: { collection }, set: { value in
+                collection = value
+                if let first = value.tiers.first { choose(first) }
+            })) {
+                ForEach(CardCollection.allCases, id: \.self) {
+                    Text($0.segmentTitle).accessibilityLabel(Text($0.title)).tag($0)
+                }
+            }.pickerStyle(.segmented)
+            Picker("Design", selection: Binding(get: { tier }, set: choose)) {
+                ForEach(collection.tiers, id: \.self) { Text($0.title).tag($0) }
+            }
+            Divider().overlay(Color.vxSeparator)
+            Picker("Material", selection: $design.material) {
+                ForEach(CardMaterial.allCases, id: \.self) { Text($0.title).tag($0) }
+            }
+            Picker("Texture", selection: $design.texture) {
+                ForEach(CardTexture.allCases, id: \.self) { Text(LocalizedStringKey($0.rawValue.capitalized)).tag($0) }
+            }
+            Picker("Typeface", selection: $design.typeface) {
+                ForEach(CardTypeface.allCases, id: \.self) { Text(LocalizedStringKey($0.rawValue.capitalized)).tag($0) }
+            }
+            ColorPicker("Base color", selection: Binding(get: { Color(cardRGB: design.tint ?? tier.finish.2) },
+                                                        set: { design.tint = $0.cardRGB }), supportsOpacity: false)
+            ColorPicker("Edge color", selection: Binding(get: { Color(cardRGB: design.shade ?? tier.finish.3) },
+                                                        set: { design.shade = $0.cardRGB }), supportsOpacity: false)
+            Text("Reflection").font(.subheadline)
+            Slider(value: $design.sheen, in: 0...1) { Text("Reflection") }
+            PhotosPicker(selection: $photo, matching: .images) { Label("Choose card image", systemImage: "photo") }
+            if design.portrait != nil {
+                Button("Remove card image") { photo = nil; design.portrait = nil }
+            }
+            Divider().overlay(Color.vxSeparator)
+            TextField("Card name", text: $name).panel(padding: 12)
+            TextField("Per-payment limit (USD)", text: $limit).keyboardType(.decimalPad).panel(padding: 12)
+        }
+    }
+
+    private func choose(_ value: CardTier) {
+        tier = value
+        let portrait = design.portrait
+        design = value.defaultDesign
+        design.portrait = portrait
+        Feedback.tap()
     }
 
     private func save() {
         do {
             let command = try makeCommand()
-            if model.execute(command, id: intent.id) { dismiss() }
-            else { error = model.error; model.error = nil }
+            if model.execute(command, id: intent.id) {
+                if case .create = intent.mode, let card = model.cards.last { onCreate(card.id) }
+                dismiss()
+            } else {
+                error = model.error
+                model.error = nil
+            }
         } catch {
             self.error = Display.error(error)
         }
@@ -396,10 +494,10 @@ private struct CardForm: View {
             let text = limit.trimmingCharacters(in: .whitespacesAndNewlines)
             let value = text.isEmpty ? nil : Display.amount(text)
             if !text.isEmpty && value == nil { throw SimulationError.invalidAmount }
-            if let id = intent.cardID { return .configureCard(id, name, value) }
+            if let id = intent.cardID { return .configureCard(id, name, value, tier: tier, design: design) }
             let title = name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                ? "VELTRIX " + L.text(tier.rawValue.capitalized) : name
-            return .createCard(tier, title, value)
+                ? "VELTRIX " + L.text(tier.titleKey) : name
+            return .createCard(tier, title, value, design: design)
         case let .topUp(id), let .returnFunds(id):
             guard let value = Display.amount(amount) else { throw SimulationError.invalidAmount }
             let toCard: Bool

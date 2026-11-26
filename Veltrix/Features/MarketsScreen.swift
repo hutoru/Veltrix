@@ -12,16 +12,37 @@ private enum MarketSort: String, CaseIterable {
     }
 }
 
+private enum MarketCategory: String, CaseIterable {
+    case trending, favorites, gainers, losers
+
+    var title: LocalizedStringKey {
+        switch self {
+        case .trending: return "Trending"
+        case .favorites: return "Favorites"
+        case .gainers: return "Top Gainers"
+        case .losers: return "Top Losers"
+        }
+    }
+}
+
 struct MarketsScreen: View {
     @EnvironmentObject private var model: VeltrixModel
     @State private var query = ""
     @State private var sort = MarketSort.cap
-    @State private var onlyFavorites = false
+    @State private var category = MarketCategory.trending
+    @State private var sortOverride = false
 
     var body: some View {
         let visible = filtered
         PageScroll {
-            PageHeader(title: "Explore", detail: "Crypto prices in your display currency") { EmptyView() }
+            HStack {
+                Text("Explore").font(.largeTitle.weight(.semibold)).accessibilityAddTraits(.isHeader)
+                Spacer()
+                NavigationLink { CurrencyConverter() } label: {
+                    Image(systemName: "arrow.left.arrow.right").frame(width: 44, height: 44)
+                        .background(Color.vxCard, in: Circle())
+                }.accessibilityLabel(Text("Currency converter"))
+            }
             HStack(spacing: 10) {
                 Image(systemName: "magnifyingglass").foregroundStyle(Color.vxMuted)
                 TextField("Search assets", text: $query).textInputAutocapitalization(.never).autocorrectionDisabled()
@@ -33,34 +54,62 @@ struct MarketsScreen: View {
             }
             .panel(padding: 12)
             HStack(spacing: 8) {
-                Toggle(isOn: $onlyFavorites) { Label("Favorites", systemImage: onlyFavorites ? "star.fill" : "star") }
-                    .toggleStyle(.button)
-                Spacer()
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 12) {
+                        ForEach(MarketCategory.allCases, id: \.self) { item in
+                            Button {
+                                category = item
+                                sortOverride = false
+                                Feedback.tap()
+                            } label: {
+                                Text(item.title).fixedSize().padding(.vertical, 12)
+                                    .foregroundStyle(item == category ? Color.vxText : Color.vxMuted)
+                                    .overlay(alignment: .bottom) {
+                                        if item == category { Rectangle().fill(Color.vxAccent).frame(height: 2) }
+                                    }
+                            }.buttonStyle(.plain).accessibilityAddTraits(item == category ? .isSelected : [])
+                        }
+                    }
+                }
                 Menu {
-                    Picker("Sort by", selection: $sort) {
+                    Picker("Sort by", selection: Binding(get: { effectiveSort }, set: { sort = $0; sortOverride = true })) {
                         ForEach(MarketSort.allCases, id: \.self) { Text($0.title).tag($0) }
                     }
                 } label: {
-                    Label(sort.title, systemImage: "arrow.up.arrow.down")
-                        .font(.caption.weight(.semibold))
-                        .frame(minHeight: 38)
-                        .padding(.horizontal, 10)
-                        .background(Color.vxSurface, in: RoundedRectangle(cornerRadius: 10))
+                    Image(systemName: "arrow.up.arrow.down").frame(width: 44, height: 44)
                 }
                 .accessibilityLabel(Text("Sort by"))
             }
             .font(.caption.weight(.semibold))
             MarketStatus()
+            if query.isEmpty && category == .trending && !model.recentAssets.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(model.recentAssets) { asset in
+                            NavigationLink(value: asset) {
+                                HStack(spacing: 6) {
+                                    CoinIcon(asset: asset, url: model.quotes[asset.id]?.image, size: 20)
+                                    Text(verbatim: asset.ticker).font(.caption.weight(.medium))
+                                }.padding(8).background(Color.vxCard, in: Capsule())
+                            }.buttonStyle(.plain)
+                        }
+                    }
+                }.accessibilityLabel(Text("Recently viewed"))
+            }
             if visible.isEmpty {
                 EmptyPanel(icon: "magnifyingglass", title: "No assets found", detail: "Try a different search or disable the favorites filter.")
             } else {
+                HStack {
+                    Text("Asset")
+                    Spacer()
+                    Text("Price / 24H")
+                }.font(.caption).foregroundStyle(Color.vxMuted)
                 LazyVStack(spacing: 0) {
                     ForEach(visible) { asset in
                         row(asset)
-                        if asset != visible.last { Divider() }
+                        if asset != visible.last { Divider().overlay(Color.vxSeparator) }
                     }
                 }
-                .panel(padding: 13)
             }
             Link("Market data by CoinGecko", destination: URL(string: "https://www.coingecko.com/")!)
                 .font(.caption).foregroundStyle(Color.vxMuted)
@@ -72,22 +121,37 @@ struct MarketsScreen: View {
     private var filtered: [Asset] {
         let term = query.trimmingCharacters(in: .whitespacesAndNewlines)
         return Asset.catalog.filter { asset in
-            (!onlyFavorites || model.favorites.contains(asset.id)) &&
-                (term.isEmpty || asset.name.localizedCaseInsensitiveContains(term) || asset.ticker.localizedCaseInsensitiveContains(term))
+            let matches = term.isEmpty || asset.name.localizedCaseInsensitiveContains(term) || asset.ticker.localizedCaseInsensitiveContains(term)
+            guard matches else { return false }
+            switch category {
+            case .trending: return true
+            case .favorites: return model.favorites.contains(asset.id)
+            case .gainers: return (model.quotes[asset.id]?.change ?? 0) > 0
+            case .losers: return (model.quotes[asset.id]?.change ?? 0) < 0
+            }
         }.sorted { a, b in
             let left = sortValue(a)
             let right = sortValue(b)
             if left != right {
-                if let left, let right { return left > right }
+                if let left, let right { return category == .losers && effectiveSort == .change ? left < right : left > right }
                 return left != nil
             }
             return a.name.localizedCaseInsensitiveCompare(b.name) == .orderedAscending
         }
     }
 
+    private var effectiveSort: MarketSort {
+        if sortOverride { return sort }
+        switch category {
+        case .trending: return .volume
+        case .gainers, .losers: return .change
+        case .favorites: return .cap
+        }
+    }
+
     private func sortValue(_ asset: Asset) -> Decimal? {
         let quote = model.quotes[asset.id]
-        switch sort {
+        switch effectiveSort {
         case .cap: return quote?.marketCap
         case .change: return quote?.change
         case .volume: return quote?.volume
@@ -104,7 +168,8 @@ struct MarketsScreen: View {
                     CoinIcon(asset: asset, url: quote?.image)
                     VStack(alignment: .leading, spacing: 4) {
                         Text(verbatim: asset.name).font(.subheadline.weight(.semibold)).lineLimit(1)
-                        Text(verbatim: asset.ticker).font(.caption2.monospaced()).foregroundStyle(Color.vxMuted)
+                        Text(verbatim: asset.ticker + " · " + model.compactMarketValue(quote?.marketCap))
+                            .font(.caption2.monospacedDigit()).lineLimit(1).foregroundStyle(Color.vxMuted)
                     }
                     Spacer(minLength: 4)
                     if let values = quote?.sparkline, values.count > 2 {
@@ -150,6 +215,7 @@ struct AssetScreen: View {
     @State private var full = false
     @State private var trade: TradeIntent?
     @State private var reload = UUID()
+    @State private var alert = false
 
     private var quote: Quote? { model.quotes[asset.id] }
 
@@ -165,7 +231,7 @@ struct AssetScreen: View {
             }
             VStack(alignment: .leading, spacing: 8) {
                 CountValue(text: model.money(quote?.price, privateValue: false, price: true))
-                    .font(.system(size: 36, weight: .semibold, design: .rounded)).lineLimit(1).minimumScaleFactor(0.45)
+                    .font(.system(size: 44, weight: .semibold)).lineLimit(1).minimumScaleFactor(0.45)
                 HStack {
                     ChangeText(change: quote?.change)
                     Text("CoinGecko · 24H").font(.caption2).foregroundStyle(Color.vxMuted)
@@ -178,7 +244,6 @@ struct AssetScreen: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .panel()
 
             VStack(alignment: .leading, spacing: 7) {
                 HStack {
@@ -188,7 +253,6 @@ struct AssetScreen: View {
                 }
                 chartBody(height: 206)
             }
-            .panel()
 
 
             VStack(alignment: .leading, spacing: 13) {
@@ -204,6 +268,10 @@ struct AssetScreen: View {
                         LabeledContent("Portfolio allocation", value: model.hide ? "••••" : Display.number(share, maximum: 2) + "%")
                     }
                     LabeledContent("Average purchase price", value: model.money(position.average, price: true))
+                    let positionValue = quote?.price.flatMap { try? MoneyMath.multiply(position.units, $0) }
+                    LabeledContent("Position value", value: model.money(positionValue))
+                    let pnl = positionValue.flatMap { try? MoneyMath.subtractValuation($0, position.basis) }
+                    LabeledContent("Unrealized P&L", value: model.signedMoney(pnl))
                 }
             }
             .font(.subheadline)
@@ -226,13 +294,16 @@ struct AssetScreen: View {
         .safeAreaInset(edge: .bottom, spacing: 0) {
             HStack(spacing: 10) {
                 Button("Sell") { Feedback.tap(); trade = TradeIntent(action: .sell, asset: asset.id) }
-                    .buttonStyle(PrimaryButtonStyle(tint: .vxDown, ink: Color.black))
+                    .buttonStyle(PrimaryButtonStyle(tint: .vxDown, ink: Color.black, height: 54))
                 Button("Buy") { Feedback.tap(); trade = TradeIntent(action: .buy, asset: asset.id) }
-                    .buttonStyle(PrimaryButtonStyle(tint: .vxUp, ink: Color.black))
+                    .buttonStyle(PrimaryButtonStyle(tint: .vxUp, ink: Color.black, height: 54))
             }.padding(.horizontal, 18).padding(.vertical, 8).background(Color.vxBackground)
         }
         .navigationTitle(Text(verbatim: asset.name))
         .toolbar {
+            ToolbarItem(placement: .secondaryAction) {
+                Button { alert = true } label: { Label("Price alerts", systemImage: "bell.badge") }
+            }
             ToolbarItem(placement: .primaryAction) {
                 let favorite = model.favorites.contains(asset.id)
                 Button {
@@ -243,6 +314,13 @@ struct AssetScreen: View {
             }
         }
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear { model.recordAsset(asset) }
+        .sheet(isPresented: $alert) {
+            NavigationStack {
+                PriceAlertsScreen(initialAsset: asset.id)
+                    .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { alert = false } } }
+            }
+        }
         .fullScreenCover(item: $trade) { TradeScreen(intent: $0) }
         .task(id: LoadKey(range: range, candles: candles, reload: reload)) { await load() }
         .refreshable { await model.refresh(); reload = UUID() }
@@ -261,16 +339,7 @@ struct AssetScreen: View {
     private func chartBody(height: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             if loading && history == nil { Skeleton().frame(height: 78) }
-            ChartPanel(samples: history?.samples ?? [], range: $range, candles: $candles, allowsCandles: true, height: height,
-                       ranges: [.hour, .day, .week, .month, .year, .all],
-                       rangeLabel: { value in
-                           switch value {
-                           case .day: return "1D"
-                           case .week: return "1W"
-                           case .month: return "1M"
-                           default: return value.rawValue
-                           }
-                       }) {
+            VeltrixChart(samples: history?.samples ?? [], range: $range, candles: $candles, allowsCandles: true, height: height) {
                 model.money($0, privateValue: false, price: true)
             }
             if let history {

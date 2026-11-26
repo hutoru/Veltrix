@@ -13,7 +13,7 @@ struct PortfolioShare: View {
         NavigationStack {
             PageScroll {
                 signature
-                ChartPanel(samples: portfolio.chart(range: range), range: $range, candles: $candles, allowsCandles: false) {
+                VeltrixChart(samples: portfolio.chart(range: range), range: $range, candles: $candles, allowsCandles: false) {
                     model.money($0)
                 }
                 Button {
@@ -44,7 +44,6 @@ struct PortfolioShare: View {
             Text(verbatim: model.money(try? portfolio.value(prices: model.prices)))
                 .font(.system(size: 38, weight: .medium, design: .rounded))
                 .lineLimit(1).minimumScaleFactor(0.45)
-            Text("Virtual funds").font(.caption).foregroundStyle(Color.vxMuted)
         }
         .panel()
     }

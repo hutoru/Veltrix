@@ -7,7 +7,18 @@ enum L {
     }
 }
 
-enum Display {
+enum FinancialFormatter {
+    static func pricePrecision(_ amount: Decimal, minimum: Int) -> Int {
+        guard amount != 0, abs(amount) < 1 else { return minimum }
+        var scaled = abs(amount)
+        var places = 3
+        while scaled < 1 && places < 12 {
+            scaled *= 10
+            places += 1
+        }
+        return max(minimum, places)
+    }
+
     static func number(_ number: Decimal, maximum: Int = 8) -> String {
         let format = NumberFormatter()
         format.numberStyle = .decimal
@@ -22,7 +33,9 @@ enum Display {
         format.currencyCode = currency
         format.maximumFractionDigits = digits
         format.minimumFractionDigits = minimum ?? digits
-        return format.string(from: NSDecimalNumber(decimal: value)) ?? "—"
+        format.minusSign = "−"
+        let displayedValue = value < 0 && MoneyMath.round(value, scale: digits) == 0 ? .zero : value
+        return format.string(from: NSDecimalNumber(decimal: displayedValue)) ?? "—"
     }
 
     static func percent(_ value: Decimal?) -> String {
@@ -31,8 +44,10 @@ enum Display {
         format.numberStyle = .percent
         format.maximumFractionDigits = 2
         format.minimumFractionDigits = 2
-        format.positivePrefix = "+"
-        return format.string(from: NSDecimalNumber(decimal: value / 100)) ?? "—"
+        let rounded = MoneyMath.round(value, scale: 2)
+        format.positivePrefix = rounded > 0 ? "+" : ""
+        format.minusSign = "−"
+        return format.string(from: NSDecimalNumber(decimal: rounded / 100)) ?? "—"
     }
 
     static func input(_ number: Decimal) -> String {
@@ -61,6 +76,7 @@ enum Display {
             case .cardHasBalance: return L.text("Return the card balance before deleting it.")
             case .alreadyRefunded: return L.text("This simulated payment was already refunded.")
             case .invalidName: return L.text("Enter a name.")
+            case .invalidAddress: return L.text("Check the address format for the selected network.")
             }
         }
         if let issue = error as? MarketError {
@@ -74,3 +90,5 @@ enum Display {
         return L.text("The operation couldn’t be completed.")
     }
 }
+
+typealias Display = FinancialFormatter

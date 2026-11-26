@@ -54,7 +54,7 @@ struct ActivityScreen: View {
 
     var body: some View {
         PageScroll {
-            PageHeader(title: "Activity", detail: "Virtual transactions and open orders") { EmptyView() }
+            PageHeader(title: "Activity", detail: "Transactions and open orders") { EmptyView() }
             Picker("Activity view", selection: $showOrders) {
                 Text("Transactions").tag(false)
                 Text("Orders").tag(true)
@@ -122,7 +122,7 @@ struct ActivityScreen: View {
             matches([$0.kind.localized, Asset.ticker($0.asset), $0.note, $0.counterAsset.map(Asset.ticker) ?? ""])
         }
         let groups = Dictionary(grouping: entries) { Calendar.current.startOfDay(for: $0.date) }
-        return VStack(alignment: .leading, spacing: 15) {
+        return LazyVStack(alignment: .leading, spacing: 16) {
             if model.portfolio.entries.contains(where: { $0.kind == .cardPayment }) {
                 DisclosureGroup("Card spending") { spending }
                     .font(.subheadline.weight(.medium))
@@ -134,16 +134,15 @@ struct ActivityScreen: View {
                 ForEach(groups.keys.sorted(by: descending ? (>) : (<)), id: \.self) { day in
                     VStack(alignment: .leading, spacing: 8) {
                         Text(day, style: .date).font(.subheadline.weight(.semibold)).foregroundStyle(Color.vxMuted)
-                        VStack(spacing: 1) {
+                        LazyVStack(spacing: 0) {
                             ForEach(sortedEntries(groups[day] ?? [])) { entry in
                                 NavigationLink {
                                     EntryScreen(entry: entry)
                                 } label: { EntryRow(entry: entry) }
                                 .buttonStyle(.plain)
-                                Divider()
+                                Divider().overlay(Color.vxSeparator)
                             }
                         }
-                        .panel(padding: 12)
                     }
                 }
             }
@@ -268,7 +267,7 @@ struct EntryScreen: View {
 
     var body: some View {
         PageScroll {
-            PageHeader(title: entry.kind.title, detail: "Virtual operation") { EmptyView() }
+            PageHeader(title: entry.kind.title, detail: "Operation details") { EmptyView() }
             VStack(alignment: .leading, spacing: 16) {
                 LabeledContent("Amount", value: summary)
                 LabeledContent("Date", value: entry.date.formatted(date: .abbreviated, time: .standard))
@@ -278,7 +277,9 @@ struct EntryScreen: View {
                 if let other = entry.counterAmount, let asset = entry.counterAsset {
                     LabeledContent("Receive asset", value: "\(model.units(other)) \(Asset.ticker(asset))")
                 }
-                if !entry.note.isEmpty { LabeledContent("Details", value: entry.note) }
+                if !entry.note.isEmpty {
+                    LabeledContent("Details") { Text(verbatim: entry.note).textSelection(.enabled) }
+                }
             }
             .font(.subheadline)
             .panel()
@@ -291,14 +292,14 @@ struct EntryScreen: View {
             }
             if !model.hide {
                 ShareLink(item: "VELTRIX · \(L.text("Virtual operation")) · \(entry.kind.localized) · \(summary) · \(entry.date.formatted())") {
-                    Label("Share confirmation", systemImage: "square.and.arrow.up")
+                    Label("Share operation", systemImage: "square.and.arrow.up")
                 }
                 .buttonStyle(.bordered)
             }
         }
         .navigationTitle("Operation details")
         .navigationBarTitleDisplayMode(.inline)
-        .confirmationDialog("Refund virtual payment?", isPresented: $refund, titleVisibility: .visible) {
+        .confirmationDialog("Refund card payment?", isPresented: $refund, titleVisibility: .visible) {
             if let card = entry.cardID {
                 Button("Refund") { _ = model.execute(.refund(card, entry.id)) }
             }
