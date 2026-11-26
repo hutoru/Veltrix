@@ -337,6 +337,9 @@ final class VeltrixUITests: XCTestCase {
         let done = app.buttons["keyboard.done"].firstMatch
         XCTAssertTrue(done.waitForExistence(timeout: 3))
         done.tap()
+        let dismissed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"),
+                                                  object: app.keyboards.firstMatch)
+        XCTAssertEqual(XCTWaiter.wait(for: [dismissed], timeout: 5), .completed)
     }
 
     private func capture(_ app: XCUIApplication, name: String) {

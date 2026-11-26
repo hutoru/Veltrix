@@ -26,7 +26,10 @@ struct VeltrixApp: App {
     init() {
         let testing = UITestMode.enabled
         let defaults = testing ? (UserDefaults(suiteName: "Veltrix-UI-Tests") ?? .standard) : .standard
-        if testing { defaults.removePersistentDomain(forName: "Veltrix-UI-Tests") }
+        if testing {
+            defaults.removePersistentDomain(forName: "Veltrix-UI-Tests")
+            UIView.setAnimationsEnabled(false)
+        }
         if UITestMode.fixture("--locked-fixture") {
             defaults.set(true, forKey: "deviceLockEnabled")
         }
@@ -45,7 +48,10 @@ struct VeltrixApp: App {
             Group {
                 if UITestMode.enabled {
                     VeltrixRoot()
-                        .transaction { $0.disablesAnimations = true }
+                        .transaction {
+                            $0.animation = nil
+                            $0.disablesAnimations = true
+                        }
                 } else {
                     VeltrixRoot()
                 }
