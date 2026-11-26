@@ -33,8 +33,12 @@ jobs:
           brew list xcodegen >/dev/null 2>&1 || brew install xcodegen
           xcodegen generate --spec project.yml
       - name: Build and verify iOS ARM64 IPA
+        id: release
+        # Test-only pushes can validate the sources of an already published IPA.
+        if: ${{ github.event_name != 'push' || !endsWith(github.event.head_commit.message, '[test-only]') }}
         run: bash scripts/build-ipa.sh
       - uses: actions/upload-artifact@v6
+        if: ${{ steps.release.outcome == 'success' }}
         with:
           name: Veltrix-8.3.1-unsigned-ipa
           path: |
