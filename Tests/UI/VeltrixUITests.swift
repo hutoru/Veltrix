@@ -19,11 +19,12 @@ final class VeltrixUITests: XCTestCase {
     func testDepositThroughReviewAndSeeItInActivity() {
         let app = launch()
         XCTAssertTrue(app.staticTexts["portfolio.total"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["trade.send"].isHittable)
+        XCTAssertTrue(app.buttons["trade.deposit"].isHittable)
+        XCTAssertFalse(app.buttons["trade.buy"].exists)
+        XCTAssertFalse(app.staticTexts["How to larp 101"].exists)
         capture(app, name: "Home Empty")
-        let more = app.buttons["trade.more"]
-        if !more.isHittable { app.swipeUp() }
-        more.tap()
-        app.buttons["Deposit"].tap()
+        app.buttons["trade.deposit"].tap()
         XCTAssertTrue(app.textFields["trade.amount"].waitForExistence(timeout: 5))
         capture(app, name: "Deposit")
         enterAmount("100", in: app)
@@ -248,7 +249,7 @@ final class VeltrixUITests: XCTestCase {
 
     func testSendRecordsSimulatedTransfer() {
         let app = launch()
-        app.buttons["trade.buy"].tap()
+        openOperation("buy", in: app)
         XCTAssertTrue(app.buttons["25%"].waitForExistence(timeout: 5))
         app.buttons["25%"].tap()
         app.buttons["trade.review"].tap()
@@ -256,6 +257,7 @@ final class VeltrixUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["trade.saved"].waitForExistence(timeout: 5))
         app.buttons["Done"].tap()
 
+        app.buttons["tab.portfolio"].tap()
         let send = app.buttons["trade.send"]
         XCTAssertTrue(send.waitForExistence(timeout: 5))
         send.tap()
@@ -290,7 +292,7 @@ final class VeltrixUITests: XCTestCase {
 
     func testSavedTradeReachesIOSNotificationCenter() {
         let app = launch(["--native-notifications"])
-        app.buttons["trade.buy"].tap()
+        openOperation("buy", in: app)
         let quarterBalance = app.buttons["25%"]
         XCTAssertTrue(quarterBalance.waitForExistence(timeout: 5))
         quarterBalance.tap()
@@ -302,6 +304,7 @@ final class VeltrixUITests: XCTestCase {
         if allow.waitForExistence(timeout: 5) { allow.tap() }
         XCTAssertTrue(app.staticTexts["trade.saved"].waitForExistence(timeout: 8))
         app.buttons["Done"].tap()
+        app.buttons["tab.portfolio"].tap()
         app.buttons["home.profile"].tap()
         app.buttons["profile.settings"].tap()
         let delivery = app.staticTexts["notifications.delivery"]
@@ -339,7 +342,7 @@ final class VeltrixUITests: XCTestCase {
 
     func testReceiveCreatesAndRefreshesLocalQRRequest() {
         let app = launch()
-        app.buttons["trade.receive"].tap()
+        openOperation("receive", in: app)
         enterAmount("0.01", in: app, fieldID: "receive.amount")
         let generate = app.buttons["receive.generate"]
         generate.tap()
@@ -357,8 +360,10 @@ final class VeltrixUITests: XCTestCase {
     func testRussianLightThemeAndNativeDecimalInput() {
         let app = launch(["--light-fixture"], language: "ru", locale: "ru_RU")
         XCTAssertTrue(app.buttons["tab.portfolio"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.buttons["trade.send"].label, "Отправить")
+        XCTAssertEqual(app.buttons["trade.deposit"].label, "Пополнить")
         capture(app, name: "Home Russian Light")
-        app.buttons["trade.buy"].tap()
+        openOperation("buy", in: app)
         let amount = app.textFields["trade.amount"]
         XCTAssertTrue(amount.waitForExistence(timeout: 5))
         amount.tap()
@@ -383,6 +388,13 @@ final class VeltrixUITests: XCTestCase {
             ).firstMatch
             XCTAssertTrue(row.exists, "Missing receipt row \(title)\n\(app.debugDescription)")
         }
+    }
+
+    private func openOperation(_ action: String, in app: XCUIApplication) {
+        app.buttons["tab.operations"].tap()
+        let button = app.buttons["trade.action." + action]
+        XCTAssertTrue(button.waitForExistence(timeout: 5))
+        button.tap()
     }
 
     private func enterAmount(_ value: String, in app: XCUIApplication, fieldID: String = "trade.amount") {

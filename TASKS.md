@@ -1,17 +1,28 @@
 # Задачи и проверки
 
+## VELTRIX 9.1.0 Premium Refinement
+
+- [x] Сверить Home с последним референсом. Надпись «How to larp 101» присутствовала только на изображении.
+- [x] Обновить композицию Home, цветовую капсулу доходности, прямые действия, доступный остаток и строки активов с денежным P&L из Decimal-оценки и себестоимости.
+- [x] Применить сохранённые приоритеты операций в Центре операций и обновить UI-тесты для новых точек входа.
+- [x] Добавить подложку в цвет темы под нижней навигацией на корневых экранах.
+- [ ] Проверить P0 на macOS с изолированным портфелем. Снять Home в EN/RU и обеих темах, проверить Reduce Motion, safe area, Buy/Sell и системную клавиатуру.
+- [x] Установить версию 9.1.0 и номер сборки 13.
+- [ ] Прогнать регрессии, собрать Release ARM64 и проверить скачанный IPA.
+- [ ] Продолжить остальные пункты P1/P2 из брифа.
+
 ## VELTRIX 9.0 Final Edition
 
-- [x] Confirm 6f4baa5 Recovery baseline. Release job 45825393851 succeeded. Simulator job 45820541270 passed on ancestor 91a659a.
-- [x] Confirm existing archive commit marker and verify a full-history Git backup in ignored dist/.
-- [x] Confirm existing public repository and standard macOS runner.
-- [x] Screen local archives, historical tracked paths and three Recovery CI logs for common credential patterns. No matches in those checks.
-- [ ] Confirm redistribution rights for the existing bundled cryptocurrency icon artwork.
-- [ ] Verify navigation, Home, search, and Settings copy in the simulator.
-- [x] Add tokenized equities from the existing CoinGecko provider, market filters, portfolio analytics, adjustment journal, card subscription records, and Settings disclosure.
-- [x] Record legacy exit code 65 at the native limit-price field idle wait in Recovery run 45822833320. Preserve existing UITEST_MODE and keyboard dismissal coverage.
-- [ ] Complete device-level checks of camera, Face ID and notifications, plus iPhone XS and 15 Pro Max performance and layout acceptance.
-- [ ] Verify migration, visual acceptance, and final ARM64 IPA.
+- [x] Выбрана база Recovery `6f4baa5`. Проверена метка в архиве исходников и создана полная резервная копия Git в `dist/`.
+- [x] Решение по видимости репозитория проверено. GitHub уже показывал его публичным. Сборка и тесты идут на стандартном macOS runner.
+- [x] Типовые шаблоны секретов проверены в истории, 14 локальных архивах и трёх логах Recovery. Совпадений в этой проверке не выявлено.
+- [x] Собран Release 9.0.0 (12) из `049c591`. Проверены ARM64, iOS 16.0+, Bundle ID, AppIcon, Payload и SHA-256. IPA сохранён в «Загрузках». [Сборка](https://github.com/hutoru/Veltrix/actions/runs/45891073946)
+- [x] 39 модульных тестов прошли, в том числе чтение данных Recovery, расчёты, уведомления и платежи по подпискам. [Модульные тесты](https://github.com/hutoru/Veltrix/actions/runs/45891918531)
+- [x] На iPhone SE (3-го поколения), iOS 26.2, прошли 13 UI-тестов. Общий запуск содержал две устаревшие модульные проверки каталога. Они исправлены и прошли в модульном прогоне. Полный UI-прогон предшествовал правке двух подписей денежного остатка. [UI-прогон](https://github.com/hutoru/Veltrix/actions/runs/45889983955)
+- [x] На коде Release дополнительно проверены центр операций и рынок токенизированных акций. 40 именованных снимков собраны в `dist/VELTRIX-9.0-QA-screenshots.zip`. [Целевая проверка](https://github.com/hutoru/Veltrix/actions/runs/45892064338)
+- [x] В старом логе Recovery код 65 возникал после фокуса поля цены лимитного ордера и ожидания состояния idle. Текущий UI-прогон прошёл этот сценарий с нативной клавиатурой.
+- [ ] Установка поверх Recovery и приёмка на физических iPhone XS и iPhone 15 Pro Max, включая камеру, Face ID, системные баннеры и частоту кадров.
+- [ ] Подтвердить происхождение и права на распространение существующих встроенных иконок криптовалют.
 
 ## Veltrix 7.1
 

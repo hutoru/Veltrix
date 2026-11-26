@@ -221,8 +221,8 @@ import SwiftUI
         return Display.money(converted, currency: currency, digits: places, minimum: minimum)
     }
 
-    func signedMoney(_ amount: Decimal?) -> String {
-        let text = money(amount)
+    func signedMoney(_ amount: Decimal?, fixedDigits: Int? = nil) -> String {
+        let text = money(amount, fixedDigits: fixedDigits)
         return !hide && text != "—" && (amount ?? 0) > 0 ? "+" + text : text
     }
 

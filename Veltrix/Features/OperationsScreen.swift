@@ -1,8 +1,14 @@
 import SwiftUI
 
 struct OperationsScreen: View {
+    @EnvironmentObject private var model: VeltrixModel
     @State private var trade: TradeIntent?
     @State private var scanner = false
+
+    private var actions: [TradeAction] {
+        let preferred = model.quickActions
+        return preferred + TradeAction.allCases.filter { !preferred.contains($0) }
+    }
 
     var body: some View {
         PageScroll {
@@ -10,7 +16,7 @@ struct OperationsScreen: View {
                 .font(.largeTitle.bold())
                 .accessibilityAddTraits(.isHeader)
             VStack(spacing: 0) {
-                ForEach(TradeAction.allCases) { action in
+                ForEach(actions) { action in
                     Button {
                         Feedback.tap()
                         trade = TradeIntent(action: action)

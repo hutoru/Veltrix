@@ -255,6 +255,9 @@ struct VeltrixRoot: View {
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 if !keyboardVisible {
                     VeltrixGlassTabBar(selection: $tab) { showSearch = true }
+                        .background {
+                            Color.vxBackground.ignoresSafeArea(edges: .bottom)
+                        }
                 }
             }
             .navigationDestination(for: Asset.self) { AssetScreen(asset: $0) }

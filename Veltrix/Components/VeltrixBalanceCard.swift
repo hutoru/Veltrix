@@ -30,7 +30,7 @@ struct PortfolioBalanceHeader: View {
                             .lineLimit(1)
                         Image(systemName: "chevron.down").font(.caption.weight(.semibold))
                     }
-                    .foregroundStyle(Color.vxText)
+                    .foregroundStyle(Color.vxMuted)
                     .frame(minHeight: 44)
                 }
                 .accessibilityLabel(Text("Portfolios"))
@@ -62,10 +62,15 @@ struct PortfolioBalanceHeader: View {
                 if let change {
                     let tint: Color = change.value < 0 ? .vxDown : (change.value > 0 ? .vxUp : .vxMuted)
                     HStack(spacing: 8) {
-                        Text(verbatim: model.signedMoney(change.value)).foregroundStyle(tint)
-                        ChangeText(change: change.percent)
-                            .padding(.horizontal, 8).padding(.vertical, 4)
-                            .background(tint.opacity(0.14), in: Capsule())
+                        CountValue(text: model.signedMoney(change.value, fixedDigits: 2))
+                            .foregroundStyle(tint)
+                        if let percent = change.percent {
+                            CountValue(text: Display.percent(percent))
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(tint)
+                                .padding(.horizontal, 8).padding(.vertical, 4)
+                                .background(tint.opacity(0.17), in: Capsule())
+                        }
                     }
                     .font(.subheadline.weight(.semibold).monospacedDigit())
                     .lineLimit(1).minimumScaleFactor(0.65)

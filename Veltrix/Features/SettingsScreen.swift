@@ -38,7 +38,7 @@ struct SettingsScreen: View {
                     Label("App language", systemImage: "globe")
                 }
                 Toggle("Haptic feedback", isOn: $hapticsEnabled)
-                NavigationLink("Quick actions") { QuickActionsSettings() }
+                NavigationLink("Preferred operations") { QuickActionsSettings() }
             }
             Section { portfolioControls }
             Section("Filming") {
@@ -342,7 +342,7 @@ private struct QuickActionsSettings: View {
             Button("Restore default actions") { model.quickActionIDs = VeltrixModel.standardActions.map(\.rawValue) }
                 .buttonStyle(.bordered)
         }
-        .navigationTitle("Quick actions")
+        .navigationTitle("Preferred operations")
         .navigationBarTitleDisplayMode(.inline)
     }
 }

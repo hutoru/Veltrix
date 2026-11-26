@@ -2,13 +2,13 @@ import SwiftUI
 import UIKit
 
 enum VeltrixTheme {
-    static let background = adaptive(0x0B0B0D, 0xFFFFFF)
+    static let background = adaptive(0x000000, 0xFFFFFF)
     static let secondaryBackground = adaptive(0x101012, 0xF0F0F2)
-    static let surface = adaptive(0x19191C, 0xF2F2F5)
-    static let elevated = adaptive(0x242428, 0xE8E8EC)
+    static let surface = adaptive(0x19191B, 0xF2F2F5)
+    static let elevated = adaptive(0x242426, 0xE8E8EC)
     static let border = adaptive(0x27272C, 0xE0E0E5)
     static let text = adaptive(0xFFFFFF, 0x101012)
-    static let muted = adaptive(0x97979F, 0x73737C)
+    static let muted = adaptive(0x96969C, 0x73737C)
     static let highlight = adaptive(0xD2D2D7, 0x52525A)
     static let positive = adaptive(0x30D158, 0x12773B)
     static let negative = adaptive(0xFF453A, 0xB9222C)
