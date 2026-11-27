@@ -3,6 +3,7 @@ import UniformTypeIdentifiers
 import UserNotifications
 
 struct SettingsScreen: View {
+    @Environment(\.veltrixTheme) private var theme
     @EnvironmentObject private var model: VeltrixModel
     @EnvironmentObject private var lock: AuthCoordinator
     @Environment(\.scenePhase) private var notificationPhase
@@ -33,7 +34,14 @@ struct SettingsScreen: View {
                 LabeledContent("Portfolio created", value: model.portfolio.createdAt.formatted(date: .abbreviated, time: .omitted))
             }
             Section("Preferences") {
-                display
+                display.listRowBackground(theme.surface)
+                NavigationLink {
+                    AppearanceSettings()
+                } label: {
+                    LabeledContent("Theme") { Text(model.theme.title).foregroundStyle(theme.muted) }
+                }
+                .listRowBackground(theme.surface)
+                .accessibilityIdentifier("settings.theme")
                 Link(destination: URL(string: UIApplication.openSettingsURLString)!) {
                     Label("App language", systemImage: "globe")
                 }
@@ -44,13 +52,13 @@ struct SettingsScreen: View {
             Section("Filming") {
                 Toggle("On-set portfolio", isOn: Binding(get: { model.onSet }, set: model.setOnSet))
                 Text("The on-set portfolio has separate balances, cards and activity. Its operations stay in the app.")
-                    .font(.caption).foregroundStyle(Color.vxMuted)
+                    .font(.caption).foregroundStyle(theme.muted)
             }
             Section("Notifications") {
                 Toggle("iOS notifications", isOn: Binding(get: { model.pushOperations }, set: updateNotifications))
                 Toggle("Hide amounts in notifications", isOn: $model.privateNotifications)
                 Toggle("Hide balance in notifications", isOn: $model.hideNotificationBalance)
-                Text("iOS controls which details appear on the Lock Screen.").font(.footnote).foregroundStyle(Color.vxMuted)
+                Text("iOS controls which details appear on the Lock Screen.").font(.footnote).foregroundStyle(theme.muted)
                 if model.pushOperations {
                     if systemNotifications.authorizationStatus == .notDetermined {
                         Button("Allow notifications") { requestNotificationPermission() }
@@ -60,14 +68,14 @@ struct SettingsScreen: View {
                     }
                     Button("Send test notification") { systemNotifications.sendTest() }
                         .accessibilityIdentifier("notifications.test")
-                    Text(notificationStatus).font(.footnote).foregroundStyle(Color.vxMuted)
+                    Text(notificationStatus).font(.footnote).foregroundStyle(theme.muted)
                         .accessibilityIdentifier("notifications.authorization")
                     if let error = systemNotifications.error {
-                        Text(verbatim: error).font(.footnote).foregroundStyle(Color.vxDown)
+                        Text(verbatim: error).font(.footnote).foregroundStyle(theme.negative)
                     } else if let delivery = systemNotifications.lastDelivery {
                         Text(delivery == .delivered ? "Last notification delivered" :
                              (delivery == .queued ? "Last notification accepted by iOS" : "Notification alerts are unavailable"))
-                            .font(.caption).foregroundStyle(Color.vxMuted)
+                            .font(.caption).foregroundStyle(theme.muted)
                             .accessibilityIdentifier("notifications.delivery")
                     }
                 }
@@ -87,20 +95,20 @@ struct SettingsScreen: View {
                     openURL(url)
                 } label: {
                     HStack(spacing: 12) {
-                        Image(systemName: "paperplane.fill").foregroundStyle(Color.vxHighlight)
+                        Image(systemName: "paperplane.fill").foregroundStyle(theme.highlight)
                         VStack(alignment: .leading, spacing: 4) {
                             Text(verbatim: "VELTRIX News").font(.subheadline.weight(.semibold))
-                            Text("App news, updates and announcements.").font(.caption).foregroundStyle(Color.vxMuted)
+                            Text("App news, updates and announcements.").font(.caption).foregroundStyle(theme.muted)
                         }
                         Spacer()
-                        Image(systemName: "arrow.up.right").font(.caption).foregroundStyle(Color.vxMuted)
+                        Image(systemName: "arrow.up.right").font(.caption).foregroundStyle(theme.muted)
                     }.frame(minHeight: 44).contentShape(Rectangle())
                 }.buttonStyle(.plain)
             }
             Section {
                 NavigationLink("About VELTRIX") {
                     PageScroll {
-                        Text(verbatim: "Beyond the balance.").font(.title2.bold())
+                        Text(verbatim: "Beyond the balance.").font(.title2.weight(.semibold))
                         sources
                     }.navigationTitle("About VELTRIX")
                 }
@@ -114,7 +122,7 @@ struct SettingsScreen: View {
                     Text(verbatim: "© 2026 VELTRIX")
                     Text("VELTRIX is a simulator. Trades, transfers and card payments use virtual funds on this device.")
                         .accessibilityIdentifier("settings.simulatorDisclosure")
-                }.foregroundStyle(Color.vxMuted)
+                }.foregroundStyle(theme.muted)
             }
         }
         .listStyle(.insetGrouped)
@@ -123,7 +131,7 @@ struct SettingsScreen: View {
             if notificationPhase == .active { await systemNotifications.refresh() }
         }
         .scrollContentBackground(.hidden)
-        .background(Color.vxBackground)
+        .background(theme.background)
         .sheet(item: $panel) { SettingsForm(panel: $0) }
         .alert("Notifications are disabled", isPresented: $notificationPermission) {
             Button("Open Settings") {
@@ -225,12 +233,6 @@ struct SettingsScreen: View {
             }
             .pickerStyle(.navigationLink)
             Stepper("Decimal places · \(model.digits)", value: $model.digits, in: 0...12)
-            Picker("Theme", selection: $model.theme) {
-                Text("System").tag("system")
-                Text("Dark").tag("dark")
-                Text("Light").tag("light")
-            }
-            .pickerStyle(.segmented)
             Button {
                 model.hide.toggle()
                 Feedback.tap()
@@ -239,7 +241,7 @@ struct SettingsScreen: View {
                     Text("Hide balances")
                     Spacer()
                     Image(systemName: model.hide ? "eye.slash.fill" : "eye")
-                        .foregroundStyle(Color.vxHighlight)
+                        .foregroundStyle(theme.highlight)
                         .accessibilityHidden(true)
                 }
                 .frame(minHeight: 44)
@@ -259,7 +261,7 @@ struct SettingsScreen: View {
             }))
             .disabled(lock.busy)
             Text("Unlock using Face ID, Touch ID or your iPhone passcode.")
-                .font(.caption).foregroundStyle(Color.vxMuted)
+                .font(.caption).foregroundStyle(theme.muted)
             Picker("Lock after leaving the app", selection: .init(get: { lock.timeout }, set: { lock.setTimeout($0) })) {
                 Text("Immediately").tag(0)
                 Text("30 seconds").tag(30)
@@ -269,7 +271,7 @@ struct SettingsScreen: View {
             }
             .pickerStyle(.menu)
             if lock.enabled { settingsButton("Lock now", "lock.fill") { lock.lockNow() } }
-            if let error = lock.error { Text(verbatim: error).font(.caption).foregroundStyle(Color.vxDown) }
+            if let error = lock.error { Text(verbatim: error).font(.caption).foregroundStyle(theme.negative) }
         }
 
     }
@@ -283,7 +285,7 @@ struct SettingsScreen: View {
             }
             settingsButton("Import backup", "square.and.arrow.down") { takeFile = true }
             Text("The backup contains balances and activity. Store it somewhere private.")
-                .font(.caption).foregroundStyle(Color.vxMuted)
+                .font(.caption).foregroundStyle(theme.muted)
         }
 
     }
@@ -317,11 +319,76 @@ struct SettingsScreen: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .foregroundStyle(destructive ? Color.vxDown : Color.vxHighlight)
+        .foregroundStyle(destructive ? theme.negative : theme.highlight)
+    }
+}
+
+private struct AppearanceSettings: View {
+    @Environment(\.veltrixTheme) private var theme
+    @EnvironmentObject private var model: VeltrixModel
+
+    var body: some View {
+        PageScroll(spacing: 10) {
+            ForEach(VeltrixAppearance.allCases) { appearance in
+                let selected = model.theme == appearance
+                Button {
+                    guard !selected else { return }
+                    model.theme = appearance
+                    Feedback.tap()
+                } label: {
+                    HStack(spacing: 14) {
+                        AppearancePreview(appearance: appearance)
+                        Text(appearance.title).font(.body.weight(.medium))
+                        Spacer(minLength: 4)
+                        Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+                            .font(.body.weight(.medium))
+                            .foregroundStyle(selected ? theme.accent : theme.muted)
+                            .accessibilityHidden(true)
+                    }
+                    .padding(10)
+                    .background(theme.surface, in: RoundedRectangle(cornerRadius: 18))
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(selected ? .isSelected : [])
+                .accessibilityIdentifier("theme." + appearance.rawValue)
+            }
+        }
+        .navigationTitle("Theme")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+private struct AppearancePreview: View {
+    let appearance: VeltrixAppearance
+
+    var body: some View {
+        HStack(spacing: 0) {
+            swatch(VeltrixTheme(appearance == .system ? .obsidian : appearance))
+            if appearance == .system { swatch(VeltrixTheme(.light)) }
+        }
+        .frame(width: 76, height: 43)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .accessibilityHidden(true)
+    }
+
+    private func swatch(_ palette: VeltrixTheme) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Capsule().fill(palette.text).frame(width: 16, height: 3)
+            HStack {
+                Circle().fill(palette.accent).frame(width: 5, height: 5)
+                Spacer(minLength: 0)
+            }
+            .padding(3)
+            .background(palette.elevated, in: RoundedRectangle(cornerRadius: 3))
+        }
+        .padding(5)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        .background(palette.background)
     }
 }
 
 private struct QuickActionsSettings: View {
+    @Environment(\.veltrixTheme) private var theme
     @EnvironmentObject private var model: VeltrixModel
 
     var body: some View {
@@ -337,7 +404,7 @@ private struct QuickActionsSettings: View {
                     Label(action.title, systemImage: action.icon)
                 }
                 .disabled(selected ? model.quickActions.count == 1 : model.quickActions.count >= 5)
-                Divider().overlay(Color.vxSeparator)
+                Divider().overlay(theme.separator)
             }
             Button("Restore default actions") { model.quickActionIDs = VeltrixModel.standardActions.map(\.rawValue) }
                 .buttonStyle(.bordered)
@@ -362,6 +429,7 @@ enum SettingsPanel: String, Identifiable {
 }
 
 struct SettingsForm: View {
+    @Environment(\.veltrixTheme) private var theme
     @EnvironmentObject private var model: VeltrixModel
     @Environment(\.dismiss) private var dismiss
     let panel: SettingsPanel
@@ -378,15 +446,15 @@ struct SettingsForm: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section { fields }
+                Section { fields.listRowBackground(theme.surface) }
                 if let error = message {
-                    Text(verbatim: error).font(.footnote).foregroundStyle(Color.vxDown)
+                    Text(verbatim: error).font(.footnote).foregroundStyle(theme.negative)
                 }
                 Button("Save") { submit() }
                     .buttonStyle(PrimaryButtonStyle()).listRowBackground(Color.clear)
                     .disabled(processing)
             }
-            .scrollContentBackground(.hidden).background(Color.vxBackground)
+            .scrollContentBackground(.hidden).background(theme.background)
             .scrollDismissesKeyboard(.interactively)
             .dismissibleKeyboard()
             .navigationTitle(panel.title)
@@ -418,11 +486,11 @@ struct SettingsForm: View {
         case .fee:
             TextField("Fee (%)", text: $amount).keyboardType(.decimalPad)
             Text("The fee applies to market and limit orders and swaps.")
-                .font(.caption).foregroundStyle(Color.vxMuted)
+                .font(.caption).foregroundStyle(theme.muted)
         case .key:
             SecureField("CoinGecko API key", text: $secret).textInputAutocapitalization(.never).autocorrectionDisabled()
             Text("Leave blank and save to use the public feed without a key.")
-                .font(.caption).foregroundStyle(Color.vxMuted)
+                .font(.caption).foregroundStyle(theme.muted)
         }
     }
 

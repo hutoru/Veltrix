@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct NotificationScreen: View {
+    @Environment(\.veltrixTheme) private var theme
     @EnvironmentObject private var model: VeltrixModel
     @State private var confirmClear = false
 
@@ -26,13 +27,13 @@ struct NotificationScreen: View {
                                 .onAppear { model.readNotification(entry) }
                         } label: {
                             HStack(spacing: 8) {
-                                Circle().fill(model.isUnread(entry) ? Color.vxAccent : .clear).frame(width: 6, height: 6)
+                                Circle().fill(model.isUnread(entry) ? theme.accent : .clear).frame(width: 6, height: 6)
                                 EntryRow(entry: entry)
                             }
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
-                        Divider().overlay(Color.vxSeparator)
+                        Divider().overlay(theme.separator)
                     }
                 }
             }

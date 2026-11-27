@@ -59,12 +59,17 @@ if (-not $artifact) { throw "Run $RunId has no available Veltrix-unsigned-ipa ar
 
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $stage = New-Item -ItemType Directory -Path (Join-Path ([IO.Path]::GetTempPath()) ('veltrix-' + [Guid]::NewGuid().ToString('N')))
+$outNames = @()
 try {
     $archivePath = Join-Path $stage.FullName 'artifact.zip'
     Invoke-WebRequest -UseBasicParsing -Uri "$api/actions/artifacts/$($artifact.id)/zip" -Headers $headers -OutFile $archivePath
     $artifactZip = [IO.Compression.ZipFile]::OpenRead($archivePath)
     try {
-        foreach ($name in @('Veltrix.ipa', 'Veltrix.ipa.sha256')) {
+        $entries = @($artifactZip.Entries | Where-Object { $_.FullName -match '^(Veltrix|VELTRIX-[0-9]+\.[0-9]+\.[0-9]+-Midnight)\.ipa$' })
+        if ($entries.Count -ne 1) { throw 'Expected exactly one IPA in the build artifact.' }
+        $ipaName = $entries[0].Name
+        $outNames = @($ipaName, "$ipaName.sha256")
+        foreach ($name in $outNames) {
             $entry = $artifactZip.GetEntry($name)
             if (-not $entry) { throw "Artifact is missing $name." }
             [IO.Compression.ZipFileExtensions]::ExtractToFile($entry, (Join-Path $stage.FullName $name))
@@ -73,8 +78,8 @@ try {
         $artifactZip.Dispose()
     }
 
-    $ipa = Join-Path $stage.FullName 'Veltrix.ipa'
-    $manifest = Join-Path $stage.FullName 'Veltrix.ipa.sha256'
+    $ipa = Join-Path $stage.FullName $ipaName
+    $manifest = Join-Path $stage.FullName "$ipaName.sha256"
     $actual = (Get-FileHash -LiteralPath $ipa -Algorithm SHA256).Hash
     $expected = ((Get-Content -Raw -LiteralPath $manifest).Trim() -split '\s+')[0]
     if ($actual -ne $expected) { throw 'SHA-256 verification failed.' }
@@ -90,9 +95,9 @@ try {
     }
     $null = New-Item -ItemType Directory -Path $Destination -Force
     Copy-Item -LiteralPath $ipa,$manifest -Destination $Destination -Force
-    Get-Item -LiteralPath (Join-Path $Destination 'Veltrix.ipa')
+    Get-Item -LiteralPath (Join-Path $Destination $ipaName)
 } finally {
-    foreach ($name in @('artifact.zip', 'Veltrix.ipa', 'Veltrix.ipa.sha256')) {
+    foreach ($name in (@('artifact.zip') + $outNames)) {
         $temporaryFile = Join-Path $stage.FullName $name
         if (Test-Path -LiteralPath $temporaryFile) { Remove-Item -LiteralPath $temporaryFile -Force }
     }

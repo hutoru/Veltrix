@@ -2,6 +2,8 @@ import SwiftUI
 import UIKit
 
 struct PortfolioShare: View {
+    @Environment(\.veltrixTheme) private var theme
+    @Environment(\.colorScheme) private var colorScheme
     @EnvironmentObject private var model: VeltrixModel
     @Environment(\.dismiss) private var dismiss
     let portfolio: Portfolio
@@ -35,12 +37,12 @@ struct PortfolioShare: View {
     private var signature: some View {
         VStack(alignment: .leading, spacing: 11) {
             HStack {
-                VeltrixMark().fill(Color.vxHighlight).frame(width: 28, height: 28)
+                VeltrixMark().fill(theme.highlight).frame(width: 28, height: 28)
                 Text(verbatim: "VELTRIX").font(.headline).tracking(2)
                 Spacer()
                 Text("Local portfolio").font(.caption.weight(.semibold))
             }
-            Text(verbatim: portfolio.name).font(.subheadline).foregroundStyle(Color.vxMuted)
+            Text(verbatim: portfolio.name).font(.subheadline).foregroundStyle(theme.muted)
             Text(verbatim: model.money(try? portfolio.value(prices: model.prices)))
                 .font(.system(size: 38, weight: .medium, design: .rounded))
                 .lineLimit(1).minimumScaleFactor(0.45)
@@ -70,17 +72,19 @@ struct PortfolioShare: View {
                         if index == 0 { line.move(to: CGPoint(x: x, y: y)) }
                         else { line.addLine(to: CGPoint(x: x, y: y)) }
                     }
-                    context.stroke(line, with: .color(.vxHighlight), style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
+                    context.stroke(line, with: .color(theme.highlight), style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
                 }
                 .frame(height: 160)
             } else {
-                Text("No chart data").font(.subheadline).foregroundStyle(Color.vxMuted).frame(height: 70)
+                Text("No chart data").font(.subheadline).foregroundStyle(theme.muted).frame(height: 70)
             }
-            Text(verbatim: "Beyond the balance.").font(.caption).foregroundStyle(Color.vxMuted)
+            Text(verbatim: "Beyond the balance.").font(.caption).foregroundStyle(theme.muted)
         }
         .padding(24).frame(width: 420)
-        .background(Color.vxBackground)
-        .environment(\.colorScheme, .dark)
+        .background(theme.background)
+        .foregroundStyle(theme.text)
+        .environment(\.veltrixTheme, theme)
+        .environment(\.colorScheme, colorScheme)
     }
 }
 

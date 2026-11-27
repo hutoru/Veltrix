@@ -16,7 +16,7 @@ import SwiftUI
     @Published var currency: String { didSet { defaults.set(currency, forKey: "currency") } }
     @Published var digits: Int { didSet { defaults.set(digits, forKey: "digits") } }
     @Published var hide: Bool { didSet { defaults.set(hide, forKey: "hide") } }
-    @Published var theme: String { didSet { defaults.set(theme, forKey: "theme") } }
+    @Published var theme: VeltrixAppearance { didSet { defaults.set(theme.rawValue, forKey: "theme") } }
     @Published private(set) var fee: Decimal { didSet { defaults.set(DisplayStored.string(fee), forKey: "fee") } }
     @Published var favorites: Set<String> { didSet { defaults.set(Array(favorites), forKey: "favorites") } }
     @Published var pushOperations: Bool { didSet { defaults.set(pushOperations, forKey: "pushOperations") } }
@@ -75,7 +75,8 @@ import SwiftUI
         currency = defaults.string(forKey: "currency").flatMap { Fiat.currencies.contains($0) ? $0 : nil } ?? "USD"
         digits = min(12, max(0, defaults.object(forKey: "digits") as? Int ?? 2))
         hide = defaults.bool(forKey: "hide")
-        theme = defaults.string(forKey: "theme") ?? "dark"
+        let savedTheme = defaults.string(forKey: "theme").flatMap(VeltrixAppearance.init(rawValue:))
+        theme = savedTheme ?? .midnight
         fee = defaults.string(forKey: "fee").flatMap { MoneyMath.parse($0, separator: ".") } ?? Decimal(1) / 1_000
         favorites = Set(defaults.stringArray(forKey: "favorites") ?? [])
         pushOperations = defaults.object(forKey: "pushOperations") as? Bool ?? true
@@ -95,7 +96,12 @@ import SwiftUI
         do {
             mainStore = suppliedStore
             let storage = try (onSet ? onSetStore : mainStore) ?? CoreDataLedgerStore(inMemory: testing, onSet: onSet)
-            ledger = try Self.loadLedger(from: storage)
+            let loaded = try Self.loadLedger(from: storage)
+            ledger = loaded.ledger
+            if savedTheme == nil {
+                theme = loaded.existing ? .obsidian : .midnight
+                defaults.set(theme.rawValue, forKey: "theme")
+            }
             if onSet { onSetStore = storage } else { mainStore = storage }
             store = storage
         } catch {
@@ -124,7 +130,7 @@ import SwiftUI
         guard onSet != enabled else { return }
         do {
             let storage = try (enabled ? onSetStore : mainStore) ?? CoreDataLedgerStore(inMemory: testing, onSet: enabled)
-            let next = try Self.loadLedger(from: storage)
+            let next = try Self.loadLedger(from: storage).ledger
             if enabled { onSetStore = storage } else { mainStore = storage }
             store = storage
             ledger = next
@@ -139,11 +145,11 @@ import SwiftUI
         }
     }
 
-    private static func loadLedger(from storage: any LedgerStore) throws -> Ledger {
-        if let loaded = try storage.load() { return loaded }
+    private static func loadLedger(from storage: any LedgerStore) throws -> (ledger: Ledger, existing: Bool) {
+        if let loaded = try storage.load() { return (loaded, true) }
         let fresh = Ledger.fresh(name: L.text("Main portfolio"))
         try storage.save(fresh)
-        return fresh
+        return (fresh, false)
     }
 
     private func notificationKey(_ key: String) -> String { onSet ? "onSet." + key : key }

@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct PortfolioAnalyticsScreen: View {
+    @Environment(\.veltrixTheme) private var theme
     private struct Allocation: Identifiable {
         let asset: Asset
         let weight: Decimal
@@ -46,7 +47,7 @@ struct PortfolioAnalyticsScreen: View {
                 metric("Available cash", value: model.money(try? portfolio.freeCash()))
                 metric("Unrealized P&L", value: model.signedMoney(try? portfolio.unrealized(prices: model.prices)))
             }
-            Divider().overlay(Color.vxSeparator)
+            Divider().overlay(theme.separator)
             if !model.hide {
                 HStack {
                     Text("Portfolio history").font(.headline)
@@ -68,7 +69,7 @@ struct PortfolioAnalyticsScreen: View {
             }
             Text("Open positions").font(.headline)
             if portfolio.positions.isEmpty {
-                Text("No positions yet").font(.subheadline).foregroundStyle(Color.vxMuted)
+                Text("No positions yet").font(.subheadline).foregroundStyle(theme.muted)
             }
             ForEach(Asset.catalog.filter { portfolio.positions[$0.id] != nil }) { coin in
                 NavigationLink(value: coin) {
@@ -80,12 +81,12 @@ struct PortfolioAnalyticsScreen: View {
                             VStack(alignment: .trailing, spacing: 3) {
                                 Text(verbatim: model.units(position.units))
                                 Text(verbatim: model.money(position.average, price: true))
-                                    .font(.caption).foregroundStyle(Color.vxMuted)
+                                    .font(.caption).foregroundStyle(theme.muted)
                             }
                         }
                     }.frame(minHeight: 48).contentShape(Rectangle())
                 }.buttonStyle(.plain)
-                Divider().overlay(Color.vxSeparator)
+                Divider().overlay(theme.separator)
             }
             let closed = Asset.catalog.filter { coin in
                 portfolio.positions[coin.id] == nil && realizedTrades.contains { $0.asset == coin.id }
@@ -102,7 +103,7 @@ struct PortfolioAnalyticsScreen: View {
                             Text(verbatim: model.money(profit)).monospacedDigit()
                         }.frame(minHeight: 48).contentShape(Rectangle())
                     }.buttonStyle(.plain)
-                    Divider().overlay(Color.vxSeparator)
+                    Divider().overlay(theme.separator)
                 }
             }
             if !realizedTrades.isEmpty {
@@ -135,7 +136,7 @@ struct PortfolioAnalyticsScreen: View {
 
     private func metric(_ label: LocalizedStringKey, value: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(label).font(.caption).foregroundStyle(Color.vxMuted)
+            Text(label).font(.caption).foregroundStyle(theme.muted)
             CountValue(text: value).font(.headline).lineLimit(1).minimumScaleFactor(0.5)
         }.frame(maxWidth: .infinity, alignment: .leading)
     }

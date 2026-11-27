@@ -4,6 +4,7 @@ import PhotosUI
 import UIKit
 
 struct CardsScreen: View {
+    @Environment(\.veltrixTheme) private var theme
     @EnvironmentObject private var model: VeltrixModel
     @Environment(\.scenePhase) private var phase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -79,11 +80,11 @@ struct CardsScreen: View {
         VStack(spacing: 14) {
             ZStack {
                 if model.cards.count > 2 {
-                    RoundedRectangle(cornerRadius: 21).fill(Color.vxSurface)
+                    RoundedRectangle(cornerRadius: 21).fill(theme.elevated)
                         .padding(.horizontal, 22).offset(y: -17)
                 }
                 if model.cards.count > 1 {
-                    RoundedRectangle(cornerRadius: 21).fill(Color.vxAccent.opacity(0.35))
+                    RoundedRectangle(cornerRadius: 21).fill(theme.accent.opacity(0.35))
                         .padding(.horizontal, 11).offset(y: -9)
                 }
                 Button {
@@ -120,7 +121,7 @@ struct CardsScreen: View {
                             } label: {
                                 Text(verbatim: item.name).lineLimit(1)
                                     .padding(.horizontal, 12).padding(.vertical, 8)
-                                    .background(item.id == card.id ? Color.vxAccent.opacity(0.18) : Color.vxSurface, in: Capsule())
+                                    .background(item.id == card.id ? theme.accent.opacity(0.18) : theme.elevated, in: Capsule())
                             }
                             .buttonStyle(.plain)
                             .accessibilityAddTraits(item.id == card.id ? .isSelected : [])
@@ -201,14 +202,14 @@ struct CardsScreen: View {
                 Text(verbatim: model.money(total)).font(.headline.monospacedDigit())
                     .lineLimit(1).minimumScaleFactor(0.6)
             }
-            Text("Net spending").font(.caption).foregroundStyle(Color.vxMuted)
+            Text("Net spending").font(.caption).foregroundStyle(theme.muted)
             if !subscriptionPayments.isEmpty {
                 LabeledContent("Subscriptions", value: model.money(netSpending(
                     paid: subscriptionPayments, refunds: subscriptionRefunds)))
                     .font(.subheadline)
             }
             if entries.isEmpty {
-                Text("Card operations will appear here.").font(.footnote).foregroundStyle(Color.vxMuted)
+                Text("Card operations will appear here.").font(.footnote).foregroundStyle(theme.muted)
             } else {
                 ForEach(entries.reversed()) { entry in
                     NavigationLink {
@@ -323,7 +324,7 @@ struct CardFace: View, Animatable {
             VStack(alignment: .leading, spacing: compact ? 4 : 9) {
                 HStack(alignment: .top) {
                     Text(verbatim: "VELTRIX")
-                        .font(.system(compact ? .caption2 : .subheadline, design: typeface).weight(.bold)).tracking(compact ? 1.5 : 3)
+                        .font(.system(compact ? .caption2 : .subheadline, design: typeface).weight(.semibold)).tracking(compact ? 1.5 : 3)
                     Spacer()
                     if !compact {
                         Text(artwork.title)
@@ -351,7 +352,7 @@ struct CardFace: View, Animatable {
                         .shadow(color: .black.opacity(0.65), radius: 0, x: 0, y: 1)
                 }
                 HStack {
-                    Text(tier.title).font((compact ? Font.caption2 : .caption).weight(.bold))
+                    Text(tier.title).font((compact ? Font.caption2 : .caption).weight(.semibold))
                         .textCase(.uppercase).tracking(compact ? 0.4 : 1.5)
                         .lineLimit(1).minimumScaleFactor(0.65)
                     Spacer()
@@ -422,6 +423,7 @@ private struct CardIntent: Identifiable {
 }
 
 private struct CardForm: View {
+    @Environment(\.veltrixTheme) private var theme
     let intent: CardIntent
     let onCreate: (UUID) -> Void
     @EnvironmentObject private var model: VeltrixModel
@@ -459,7 +461,7 @@ private struct CardForm: View {
                         TextField("Amount (USD)", text: $amount).keyboardType(.decimalPad).panel(padding: 12)
                     }
                 }
-                if let error { Text(verbatim: error).font(.footnote).foregroundStyle(Color.vxDown) }
+                if let error { Text(verbatim: error).font(.footnote).foregroundStyle(theme.negative) }
             }
             .scrollDismissesKeyboard(.interactively)
             .dismissibleKeyboard()
@@ -468,7 +470,7 @@ private struct CardForm: View {
                     .buttonStyle(PrimaryButtonStyle())
                     .accessibilityIdentifier("card.confirm")
                     .padding(.horizontal, 16).padding(.vertical, 8)
-                    .background(Color.vxBackground)
+                    .background(theme.background)
             }
             .navigationTitle(intent.title)
             .navigationBarTitleDisplayMode(.inline)
@@ -519,7 +521,7 @@ private struct CardForm: View {
                 design.markX = min(0.87, max(0.13, x))
                 design.markY = min(0.82, max(0.14, y))
             })
-            Text("Drag the emblem to reposition it.").font(.caption).foregroundStyle(Color.vxMuted)
+            Text("Drag the emblem to reposition it.").font(.caption).foregroundStyle(theme.muted)
             Button {
                 showsCatalog = true
             } label: {
@@ -533,7 +535,7 @@ private struct CardForm: View {
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("card.catalog")
-            Divider().overlay(Color.vxSeparator)
+            Divider().overlay(theme.separator)
             Picker("Material", selection: $design.material) {
                 ForEach(CardMaterial.allCases, id: \.self) { Text($0.title).tag($0) }
             }
@@ -553,7 +555,7 @@ private struct CardForm: View {
             if design.portrait != nil {
                 Button("Remove card image") { photo = nil; design.portrait = nil }
             }
-            Divider().overlay(Color.vxSeparator)
+            Divider().overlay(theme.separator)
             TextField("Card name", text: $name).panel(padding: 12)
             TextField("Per-payment limit (USD)", text: $limit).keyboardType(.decimalPad).panel(padding: 12)
         }
@@ -605,6 +607,7 @@ private struct CardForm: View {
 }
 
 private struct CardCatalog: View {
+    @Environment(\.veltrixTheme) private var theme
     @Environment(\.dismiss) private var dismiss
     @State private var filter: CardCollection?
     let selection: CardTier
@@ -638,7 +641,7 @@ private struct CardCatalog: View {
                                             .padding(3)
                                             .overlay {
                                                 if tier == selection {
-                                                    RoundedRectangle(cornerRadius: 23).strokeBorder(Color.vxHighlight)
+                                                    RoundedRectangle(cornerRadius: 23).strokeBorder(theme.highlight)
                                                 }
                                             }
                                     }
@@ -651,7 +654,7 @@ private struct CardCatalog: View {
                         }
                     }
                 }
-                Text("VELTRIX card designs inspired by payment networks.").font(.footnote).foregroundStyle(Color.vxMuted)
+                Text("VELTRIX card designs inspired by payment networks.").font(.footnote).foregroundStyle(theme.muted)
             }
             .navigationTitle("Card catalog")
             .navigationBarTitleDisplayMode(.inline)

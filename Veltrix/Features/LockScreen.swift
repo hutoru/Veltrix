@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct LockScreen: View {
+    @Environment(\.veltrixTheme) private var theme
     @EnvironmentObject private var lock: AuthCoordinator
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage("profileName") private var name = ""
@@ -11,7 +12,7 @@ struct LockScreen: View {
             ScrollView {
                 VStack(spacing: 0) {
                     HStack(spacing: 9) {
-                        Image("LaunchMark").resizable().frame(width: 19, height: 19)
+                        VeltrixMark().fill(theme.text).frame(width: 19, height: 19)
                         Text(verbatim: "VELTRIX").font(.caption.weight(.semibold)).tracking(5)
                     }
                     .padding(.top, 24)
@@ -26,14 +27,14 @@ struct LockScreen: View {
                         Text("Welcome back").font(.system(size: 34, weight: .semibold)).tracking(-1)
                             .accessibilityAddTraits(.isHeader)
                         if !name.isEmpty {
-                            Text(verbatim: name).font(.subheadline).foregroundStyle(.white.opacity(0.62))
+                            Text(verbatim: name).font(.subheadline).foregroundStyle(theme.muted)
                                 .lineLimit(1).minimumScaleFactor(0.65)
                         }
                     }
                     Spacer(minLength: 40)
                     VStack(spacing: 16) {
                         if let error = lock.error {
-                            Text(verbatim: error).font(.footnote).foregroundStyle(.white.opacity(0.68))
+                            Text(verbatim: error).font(.footnote).foregroundStyle(theme.negative)
                                 .multilineTextAlignment(.center)
                         }
                         Button {
@@ -42,7 +43,7 @@ struct LockScreen: View {
                         } label: {
                             HStack(spacing: 10) {
                                 if lock.busy {
-                                    ProgressView().tint(.black).accessibilityHidden(true)
+                                    ProgressView().tint(theme.buttonInk).accessibilityHidden(true)
                                 } else {
                                     Image(systemName: "lock.open").accessibilityHidden(true)
                                 }
@@ -51,8 +52,8 @@ struct LockScreen: View {
                             .frame(maxWidth: .infinity, minHeight: 52)
                         }
                         .buttonStyle(.plain)
-                        .foregroundStyle(.black)
-                        .background(.white, in: RoundedRectangle(cornerRadius: 14))
+                        .foregroundStyle(theme.buttonInk)
+                        .background(theme.text, in: RoundedRectangle(cornerRadius: 14))
                         .disabled(lock.busy)
                         .accessibilityIdentifier("lock.unlock")
                     }
@@ -64,9 +65,8 @@ struct LockScreen: View {
                 .frame(maxWidth: .infinity)
             }
         }
-        .background(Color.black.ignoresSafeArea())
-        .foregroundStyle(.white)
-        .environment(\.colorScheme, .dark)
+        .background(theme.background.ignoresSafeArea())
+        .foregroundStyle(theme.text)
         .onAppear { withAnimation(reduceMotion || UITestMode.enabled ? nil : .easeOut(duration: 0.35)) { appeared = true } }
     }
 }

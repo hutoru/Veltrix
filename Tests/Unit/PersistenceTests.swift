@@ -44,9 +44,26 @@ final class PersistenceTests: XCTestCase {
         let model = VeltrixModel(defaults: defaults, store: store, testing: true)
         XCTAssertEqual(model.ledger, withCard)
         XCTAssertEqual(model.currency, "RUB")
+        XCTAssertEqual(model.theme, .obsidian)
         XCTAssertEqual(model.favorites, Set(["bitcoin"]))
         XCTAssertTrue(AuthCoordinator(defaults: defaults, testing: true).locked)
         XCTAssertEqual(defaults.string(forKey: "profileName"), "Trader")
+    }
+
+    @MainActor func testAppearanceDefaultsAndSelectionSurviveRelaunch() throws {
+        let suite = "Veltrix-Appearance-" + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = try CoreDataLedgerStore(inMemory: true)
+        let model = VeltrixModel(defaults: defaults, store: store, testing: true)
+        XCTAssertEqual(model.theme, .midnight)
+        XCTAssertEqual(VeltrixModel(defaults: defaults, store: store, testing: true).theme, .midnight)
+        for appearance in VeltrixAppearance.allCases {
+            model.theme = appearance
+            XCTAssertEqual(VeltrixModel(defaults: defaults, store: store, testing: true).theme, appearance)
+        }
+        defaults.set("dark", forKey: "theme")
+        XCTAssertEqual(VeltrixModel(defaults: defaults, store: store, testing: true).theme, .obsidian)
     }
 
     func testCorruptBackupCannotReplaceLedger() throws {

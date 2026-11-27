@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct PortfolioBalanceHeader: View {
+    @Environment(\.veltrixTheme) private var theme
     @EnvironmentObject private var model: VeltrixModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ScaledMetric(relativeTo: .largeTitle) private var balanceSize: CGFloat = 46
@@ -13,7 +14,7 @@ struct PortfolioBalanceHeader: View {
         let change = portfolio.performance(since: .distantPast, until: now,
                                            liveValue: try? portfolio.value(prices: model.usablePrices),
                                            includesPoints: false).change
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 2) {
             HStack {
                 Menu {
                     ForEach(model.ledger.portfolios) { item in
@@ -26,11 +27,11 @@ struct PortfolioBalanceHeader: View {
                     }
                 } label: {
                     HStack(spacing: 6) {
-                        Text(verbatim: portfolio.name).font(.subheadline.weight(.medium))
+                        Text(verbatim: portfolio.name).font(.subheadline)
                             .lineLimit(1)
                         Image(systemName: "chevron.down").font(.caption.weight(.semibold))
                     }
-                    .foregroundStyle(Color.vxMuted)
+                    .foregroundStyle(theme.muted)
                     .frame(minHeight: 44)
                 }
                 .accessibilityLabel(Text("Portfolios"))
@@ -44,7 +45,7 @@ struct PortfolioBalanceHeader: View {
                 } label: {
                     Image(systemName: model.hide ? "eye.slash" : "eye")
                         .font(.subheadline)
-                        .foregroundStyle(Color.vxMuted)
+                        .foregroundStyle(theme.muted)
                         .frame(width: 44, height: 44)
                 }
                 .buttonStyle(.plain)
@@ -52,30 +53,30 @@ struct PortfolioBalanceHeader: View {
             }
 
             CountValue(text: model.money(value, fixedDigits: 2))
-                .font(.system(size: balanceSize, weight: .semibold))
-                .tracking(-1.5)
+                .font(.system(size: balanceSize, weight: .medium))
+                .tracking(-1.2)
                 .lineLimit(1)
                 .minimumScaleFactor(0.3)
                 .accessibilityIdentifier("portfolio.total")
 
             if !model.hide {
                 if let change {
-                    let tint: Color = change.value < 0 ? .vxDown : (change.value > 0 ? .vxUp : .vxMuted)
-                    HStack(spacing: 8) {
+                    let tint: Color = change.value < 0 ? theme.negative : (change.value > 0 ? theme.positive : theme.muted)
+                    HStack(spacing: 6) {
                         CountValue(text: model.signedMoney(change.value, fixedDigits: 2))
                             .foregroundStyle(tint)
                         if let percent = change.percent {
                             CountValue(text: Display.percent(percent))
                                 .font(.caption.weight(.semibold))
                                 .foregroundStyle(tint)
-                                .padding(.horizontal, 8).padding(.vertical, 4)
-                                .background(tint.opacity(0.17), in: Capsule())
+                                .padding(.horizontal, 7).padding(.vertical, 3)
+                                .background(tint.opacity(0.13), in: Capsule())
                         }
                     }
-                    .font(.subheadline.weight(.semibold).monospacedDigit())
+                    .font(.subheadline.weight(.medium).monospacedDigit())
                     .lineLimit(1).minimumScaleFactor(0.65)
                 } else {
-                    Text("Not enough history").font(.subheadline).foregroundStyle(Color.vxMuted)
+                    Text("Not enough history").font(.subheadline).foregroundStyle(theme.muted)
                 }
             }
         }

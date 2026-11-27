@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct GlobalSearchScreen: View {
+    @Environment(\.veltrixTheme) private var theme
     @EnvironmentObject private var model: VeltrixModel
     @Environment(\.dismiss) private var dismiss
     @State private var query = ""
@@ -12,7 +13,7 @@ struct GlobalSearchScreen: View {
     var body: some View {
         PageScroll {
             HStack(spacing: 10) {
-                Image(systemName: "magnifyingglass").foregroundStyle(Color.vxMuted)
+                Image(systemName: "magnifyingglass").foregroundStyle(theme.muted)
                 TextField("Search assets and operations", text: $query)
                     .focused($focused)
                     .textInputAutocapitalization(.never)
@@ -31,7 +32,7 @@ struct GlobalSearchScreen: View {
             }
             .padding(.leading, 12)
             .frame(minHeight: 48)
-            .background(Color.vxCard, in: RoundedRectangle(cornerRadius: 15))
+            .background(theme.surface, in: RoundedRectangle(cornerRadius: 15))
             results
         }
         .scrollDismissesKeyboard(.interactively)
@@ -70,7 +71,7 @@ struct GlobalSearchScreen: View {
                         CoinIcon(asset: asset, url: model.quotes[asset.id]?.image, size: 34)
                         Text(verbatim: asset.name)
                         Spacer()
-                        Text(verbatim: asset.ticker).foregroundStyle(Color.vxMuted)
+                        Text(verbatim: asset.ticker).foregroundStyle(theme.muted)
                     }
                     .frame(minHeight: 44)
                     .contentShape(Rectangle())
@@ -118,7 +119,7 @@ struct GlobalSearchScreen: View {
         }
         if !term.isEmpty && assets.isEmpty && actions.isEmpty && entries.isEmpty && cards.isEmpty
             && !showCards && !showActivity && !showSettings {
-            Text("No results").foregroundStyle(Color.vxMuted)
+            Text("No results").foregroundStyle(theme.muted)
         }
     }
 

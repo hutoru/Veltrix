@@ -41,13 +41,23 @@ enum FinancialFormatter {
         return format.string(from: NSDecimalNumber(decimal: number)) ?? "—"
     }
 
-    static func money(_ value: Decimal, currency: String, digits: Int, minimum: Int? = nil) -> String {
+    static func money(_ value: Decimal, currency: String, digits: Int, minimum: Int? = nil,
+                      locale: Locale = .current) -> String {
         let format = NumberFormatter()
+        format.locale = locale
         format.numberStyle = .currency
         format.currencyCode = currency
         format.maximumFractionDigits = digits
         format.minimumFractionDigits = minimum ?? digits
         format.minusSign = "−"
+        if let symbol = ["USD": "$", "EUR": "€", "RUB": "₽"][currency] {
+            let prefix = currency == "USD" ? symbol : ""
+            let suffix = currency == "USD" ? "" : "\u{00A0}" + symbol
+            format.positivePrefix = prefix
+            format.negativePrefix = "−" + prefix
+            format.positiveSuffix = suffix
+            format.negativeSuffix = suffix
+        }
         let displayedValue = value < 0 && MoneyMath.round(value, scale: digits) == 0 ? .zero : value
         return format.string(from: NSDecimalNumber(decimal: displayedValue)) ?? "—"
     }

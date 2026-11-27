@@ -2,6 +2,7 @@ import SwiftUI
 import UIKit
 
 struct PortfolioScreen: View {
+    @Environment(\.veltrixTheme) private var theme
     private enum HomeTab: String, CaseIterable {
         case assets, favorites
 
@@ -25,9 +26,7 @@ struct PortfolioScreen: View {
     }
 
     @EnvironmentObject private var model: VeltrixModel
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var homeTab = HomeTab.assets
-    @State private var query = ""
     @State private var trade: TradeIntent?
     @AppStorage("holdingSort") private var sort = HoldingSort.value
     @AppStorage("hideZeroHoldings") private var hideZero = true
@@ -39,12 +38,8 @@ struct PortfolioScreen: View {
     private var value: Decimal? { try? portfolio.value(prices: model.prices) }
 
     var body: some View {
-        PageScroll {
-            HStack {
-                Text(verbatim: "VELTRIX")
-                    .font(.title2.weight(.semibold))
-                    .tracking(2)
-                    .accessibilityAddTraits(.isHeader)
+        PageScroll(spacing: 12) {
+            HStack(spacing: 8) {
                 NavigationLink {
                     ProfileScreen()
                 } label: {
@@ -54,17 +49,21 @@ struct PortfolioScreen: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel(Text("Profile"))
                 .accessibilityIdentifier("home.profile")
+                Text(verbatim: "VELTRIX")
+                    .font(.title3.weight(.medium))
+                    .tracking(2)
+                    .accessibilityAddTraits(.isHeader)
                 Spacer(minLength: 4)
                 IconButton(icon: "qrcode.viewfinder", label: "Scan QR code") { Feedback.tap(); scanner = true }
                 NavigationLink {
                     NotificationScreen()
                 } label: {
-                    Image(systemName: "bell").font(.body.weight(.medium))
+                    Image(systemName: "bell").font(.system(size: 17, weight: .regular))
                         .frame(width: 44, height: 44)
-                        .background(Color.vxCard, in: Circle())
+                        .background(theme.surface, in: Circle())
                         .overlay(alignment: .topTrailing) {
                             if model.hasUnreadNotifications {
-                                Circle().fill(Color.vxAccent).frame(width: 7, height: 7).offset(x: -7, y: 7)
+                                Circle().fill(theme.accent).frame(width: 7, height: 7).offset(x: -7, y: 7)
                             }
                         }
                 }
@@ -72,29 +71,31 @@ struct PortfolioScreen: View {
                 .accessibilityLabel(Text("Notifications"))
             }
             PortfolioBalanceHeader(portfolio: portfolio, value: value)
-                .padding(.top, 10)
             actions
             NavigationLink {
                 AvailableCashScreen()
             } label: {
-                HStack(spacing: 12) {
-                    Image(systemName: "banknote")
-                        .foregroundStyle(Color.vxMuted)
+                HStack(spacing: 10) {
+                    Image(systemName: UIImage(systemName: "wallet.pass") == nil ? "creditcard" : "wallet.pass")
+                        .font(.system(size: 18, weight: .regular))
+                        .foregroundStyle(theme.muted)
                         .accessibilityHidden(true)
-                    Text("Available").fontWeight(.medium)
+                    Text("Available").font(.subheadline)
                     Spacer(minLength: 8)
                     CountValue(text: model.money(try? portfolio.freeCash(), fixedDigits: 2))
+                        .font(.body.weight(.medium))
                         .lineLimit(1).minimumScaleFactor(0.55)
                 }
-                .font(.body)
-                .padding(.horizontal, 18)
-                .frame(minHeight: 64)
-                .background(Color.vxCard, in: RoundedRectangle(cornerRadius: 25))
+                .padding(.horizontal, 16)
+                .frame(minHeight: 54)
+                .background(theme.surface, in: RoundedRectangle(cornerRadius: 21))
             }
-            .buttonStyle(.plain)
-            HStack {
+            .buttonStyle(HomeActionButtonStyle())
+            .simultaneousGesture(TapGesture().onEnded { Feedback.tap() })
+            HStack(spacing: 6) {
                 homeTabs
-                IconButton(icon: "plus", label: "Add holding") { addAsset = true }
+                sortMenu
+                IconButton(icon: "plus", label: "Add holding") { Feedback.tap(); addAsset = true }
             }
             positions
             MarketStatus()
@@ -120,17 +121,16 @@ struct PortfolioScreen: View {
             ForEach(HomeTab.allCases, id: \.self) { item in
                 Button {
                     guard homeTab != item else { return }
-                    query = ""
                     homeTab = item
                     Feedback.tap()
                 } label: {
                     Text(item.title)
                         .font(.subheadline.weight(homeTab == item ? .semibold : .medium))
                         .lineLimit(1).minimumScaleFactor(0.7)
-                        .foregroundStyle(homeTab == item ? Color.vxText : Color.vxMuted)
+                        .foregroundStyle(homeTab == item ? theme.text : theme.muted)
                         .padding(.horizontal, 9)
                         .frame(maxWidth: .infinity, minHeight: 44)
-                        .background(homeTab == item ? Color.vxSurface : .clear, in: Capsule())
+                        .background(homeTab == item ? theme.elevated : .clear, in: Capsule())
                 }
                 .buttonStyle(.plain)
                 .accessibilityAddTraits(homeTab == item ? .isSelected : [])
@@ -141,10 +141,10 @@ struct PortfolioScreen: View {
 
     private var actions: some View {
         HStack(spacing: 10) {
-            shortcut(.send, icon: "paperplane.fill")
+            shortcut(.send, icon: "paperplane")
             shortcut(.deposit, icon: "plus")
         }
-        .buttonStyle(HomeActionButtonStyle(animate: !reduceMotion && !UITestMode.enabled))
+        .buttonStyle(HomeActionButtonStyle())
     }
 
     private func shortcut(_ action: TradeAction, icon: String) -> some View {
@@ -152,45 +152,42 @@ struct PortfolioScreen: View {
             Feedback.tap()
             trade = TradeIntent(action: action)
         } label: {
-            Label(action.title, systemImage: icon)
-                .font(.subheadline.weight(.semibold))
+            Label {
+                Text(action.title).font(.subheadline.weight(.medium))
+            } icon: {
+                Image(systemName: icon).font(.system(size: 17, weight: .medium))
+            }
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
                 .padding(.horizontal, 10)
-                .padding(.vertical, 8)
-                .frame(maxWidth: .infinity, minHeight: 50)
-                .background(Color.vxCard, in: Capsule())
+                .padding(.vertical, 10)
+                .frame(maxWidth: .infinity, minHeight: 52)
+                .background(theme.surface, in: Capsule())
         }
         .accessibilityIdentifier("trade." + action.rawValue)
     }
 
-    private var positions: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Image(systemName: "magnifyingglass").foregroundStyle(Color.vxMuted)
-                TextField("Search assets", text: $query)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .accessibilityIdentifier("home.assets.search")
-                if !query.isEmpty {
-                    Button { query = "" } label: { Image(systemName: "xmark.circle.fill") }
-                        .accessibilityLabel(Text("Clear search"))
-                }
-                Menu {
-                    Picker("Sort by", selection: $sort) {
-                        ForEach(HoldingSort.allCases, id: \.self) { Text($0.label).tag($0) }
-                    }
-                    if homeTab == .assets { Toggle("Hide zero balances", isOn: $hideZero) }
-                } label: {
-                    Image(systemName: "line.3.horizontal.decrease").frame(width: 44, height: 44)
-                }
-                .accessibilityLabel(Text("Sort holdings"))
+    private var sortMenu: some View {
+        Menu {
+            Picker("Sort by", selection: $sort) {
+                ForEach(HoldingSort.allCases, id: \.self) { Text($0.label).tag($0) }
             }
-            .padding(.leading, 12)
-            .background(Color.vxCard, in: RoundedRectangle(cornerRadius: 12))
+            if homeTab == .assets { Toggle("Hide zero balances", isOn: $hideZero) }
+        } label: {
+            Image(systemName: "line.3.horizontal.decrease")
+                .font(.system(size: 16, weight: .regular))
+                .foregroundStyle(theme.text)
+                .frame(width: 44, height: 44)
+                .background(theme.surface, in: Circle())
+        }
+        .accessibilityLabel(Text("Sort holdings"))
+    }
+
+    private var positions: some View {
+        LazyVStack(alignment: .leading, spacing: 7) {
             if holdings.isEmpty {
-                Text(query.isEmpty ? (homeTab == .favorites ? "No favorites yet" : "No positions yet") : "No matching assets")
-                    .font(.subheadline).foregroundStyle(Color.vxMuted).padding(.vertical, 8)
+                Text(homeTab == .favorites ? "No favorites yet" : "No positions yet")
+                    .font(.subheadline).foregroundStyle(theme.muted).padding(.vertical, 8)
             } else {
                 ForEach(holdings) { asset in
                     holdingRow(asset)
@@ -209,23 +206,23 @@ struct PortfolioScreen: View {
         let profitText = model.signedMoney(profit, fixedDigits: 2)
         let profitColor: Color
         switch profit {
-        case let amount? where amount > 0: profitColor = .vxUp
-        case let amount? where amount < 0: profitColor = .vxDown
-        default: profitColor = .vxMuted
+        case let amount? where amount > 0: profitColor = theme.positive
+        case let amount? where amount < 0: profitColor = theme.negative
+        default: profitColor = theme.muted
         }
         let isFavorite = model.favorites.contains(asset.id)
 
         return NavigationLink(value: asset) {
             HStack(spacing: 10) {
-                CoinIcon(asset: asset, url: model.quotes[asset.id]?.image, size: 40)
+                CoinIcon(asset: asset, url: model.quotes[asset.id]?.image, size: 36)
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(verbatim: asset.name).font(.subheadline.weight(.medium))
+                    Text(verbatim: asset.name).font(.body.weight(.medium))
                     Text(verbatim: model.units(units) + " " + asset.ticker)
-                        .font(.caption).foregroundStyle(Color.vxMuted)
+                        .font(.caption).foregroundStyle(theme.muted)
                 }
                 Spacer(minLength: 6)
                 VStack(alignment: .trailing, spacing: 4) {
-                    CountValue(text: model.money(value, fixedDigits: 2)).font(.subheadline)
+                    CountValue(text: model.money(value, fixedDigits: 2)).font(.subheadline.weight(.medium))
                     if !model.hide, units > 0 {
                         CountValue(text: profitText)
                             .font(.caption)
@@ -238,10 +235,10 @@ struct PortfolioScreen: View {
             .lineLimit(1)
             .minimumScaleFactor(0.65)
             .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-            .frame(minHeight: 66)
-            .background(Color.vxCard, in: RoundedRectangle(cornerRadius: 24))
-            .contentShape(RoundedRectangle(cornerRadius: 24))
+            .padding(.vertical, 8)
+            .frame(minHeight: 60)
+            .background(theme.surface, in: RoundedRectangle(cornerRadius: 22))
+            .contentShape(RoundedRectangle(cornerRadius: 22))
         }
         .buttonStyle(.plain)
         .contextMenu {
@@ -267,12 +264,10 @@ struct PortfolioScreen: View {
     }
 
     private var holdings: [Asset] {
-        let term = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        return Asset.catalog.filter {
+        Asset.catalog.filter {
             let held = (portfolio.positions[$0.id]?.units ?? 0) > 0
             let listed = !$0.isTokenizedStock || model.quotes[$0.id]?.price != nil || held
-            let included = homeTab == .favorites ? model.favorites.contains($0.id) : (held || (!hideZero && listed))
-            return included && (term.isEmpty || $0.name.localizedCaseInsensitiveContains(term) || $0.ticker.localizedCaseInsensitiveContains(term))
+            return homeTab == .favorites ? model.favorites.contains($0.id) : (held || (!hideZero && listed))
         }.sorted { left, right in
             let a = sort == .change ? model.quotes[left.id]?.change : positionValue(left)
             let b = sort == .change ? model.quotes[right.id]?.change : positionValue(right)
@@ -294,7 +289,7 @@ private struct AvailableCashScreen: View {
         let available = try? portfolio.freeCash()
         PageScroll {
             CountValue(text: model.money(available, fixedDigits: 2))
-                .font(.largeTitle.bold())
+                .font(.largeTitle.weight(.medium))
                 .lineLimit(1)
                 .minimumScaleFactor(0.45)
             LabeledContent("Cash balance", value: model.money(portfolio.cash, fixedDigits: 2))
@@ -311,12 +306,13 @@ private struct AvailableCashScreen: View {
 }
 
 private struct HomeActionButtonStyle: ButtonStyle {
-    let animate: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .opacity(configuration.isPressed ? 0.72 : 1)
-            .scaleEffect(configuration.isPressed && animate ? 0.94 : 1)
+        let animate = !reduceMotion && !UITestMode.enabled
+        return configuration.label
+            .opacity(configuration.isPressed ? 0.83 : 1)
+            .scaleEffect(configuration.isPressed && animate ? 0.975 : 1)
             .animation(animate ? .easeOut(duration: 0.15) : nil, value: configuration.isPressed)
     }
 }

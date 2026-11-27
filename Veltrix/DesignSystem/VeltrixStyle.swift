@@ -1,39 +1,82 @@
 import SwiftUI
 import UIKit
 
-enum VeltrixTheme {
-    static let background = adaptive(0x000000, 0xFFFFFF)
-    static let secondaryBackground = adaptive(0x101012, 0xF0F0F2)
-    static let surface = adaptive(0x19191B, 0xF2F2F5)
-    static let elevated = adaptive(0x242426, 0xE8E8EC)
-    static let border = adaptive(0x27272C, 0xE0E0E5)
-    static let text = adaptive(0xFFFFFF, 0x101012)
-    static let muted = adaptive(0x96969C, 0x73737C)
-    static let highlight = adaptive(0xD2D2D7, 0x52525A)
-    static let positive = adaptive(0x30D158, 0x12773B)
-    static let negative = adaptive(0xFF453A, 0xB9222C)
-    static let buttonInk = adaptive(0x080809, 0xFFFFFF)
-    static let darkBackground = Color(uiColor: UIColor(rgb: 0x080809))
+enum VeltrixAppearance: String, CaseIterable, Identifiable {
+    case midnight, obsidian = "dark", light, system
 
-    private static func adaptive(_ dark: UInt32, _ light: UInt32) -> Color {
-        Color(uiColor: UIColor { traits in
-            UIColor(rgb: traits.userInterfaceStyle == .dark ? dark : light)
-        })
+    var id: String { rawValue }
+
+    var title: LocalizedStringKey {
+        switch self {
+        case .midnight: return "Midnight Blue"
+        case .obsidian: return "Obsidian Black"
+        case .light: return "Light"
+        case .system: return "System"
+        }
+    }
+
+    var colorScheme: ColorScheme? {
+        switch self {
+        case .midnight, .obsidian: return .dark
+        case .light: return .light
+        case .system: return nil
+        }
     }
 }
 
-extension Color {
-    static let vxDarkBackground = VeltrixTheme.darkBackground
-    static let vxBackground = VeltrixTheme.background
-    static let vxText = VeltrixTheme.text
-    static let vxCard = VeltrixTheme.surface
-    static let vxSurface = VeltrixTheme.elevated
-    static let vxMuted = VeltrixTheme.muted
-    static let vxSeparator = VeltrixTheme.border
-    static let vxAccent = VeltrixTheme.text
-    static let vxHighlight = VeltrixTheme.highlight
-    static let vxUp = VeltrixTheme.positive
-    static let vxDown = VeltrixTheme.negative
+struct VeltrixTheme {
+    let background: Color
+    let surface: Color
+    let elevated: Color
+    let text: Color
+    let muted: Color
+    let accent: Color
+    let separator: Color
+    let positive: Color
+    let negative: Color
+    let highlight: Color
+    let buttonInk: Color
+    let navigationSelection: Color
+
+    init(_ appearance: VeltrixAppearance) {
+        func color(_ midnight: UInt32, _ obsidian: UInt32, _ light: UInt32) -> Color {
+            let rgb: UInt32
+            switch appearance {
+            case .midnight: rgb = midnight
+            case .obsidian: rgb = obsidian
+            case .light: rgb = light
+            case .system:
+                return Color(uiColor: UIColor { traits in
+                    UIColor(rgb: traits.userInterfaceStyle == .dark ? obsidian : light)
+                })
+            }
+            return Color(uiColor: UIColor(rgb: rgb))
+        }
+
+        background = color(0x0F111B, 0x000000, 0xFFFFFF)
+        surface = color(0x191D2B, 0x19191B, 0xF2F2F5)
+        elevated = color(0x242938, 0x242426, 0xE8E8EC)
+        text = color(0xF5F6FA, 0xFFFFFF, 0x101012)
+        muted = color(0x9298AB, 0x96969C, 0x666670)
+        accent = color(0x397BFF, 0x77A4FF, 0x1756C6)
+        separator = color(0x303649, 0x27272C, 0xE0E0E5)
+        positive = color(0x30D158, 0x30D158, 0x12773B)
+        negative = color(0xFF5252, 0xFF453A, 0xB9222C)
+        highlight = color(0xC4CBDD, 0xD2D2D7, 0x52525A)
+        buttonInk = color(0x0F111B, 0x080809, 0xFFFFFF)
+        navigationSelection = color(0x121624, 0x101012, 0xDADDE5)
+    }
+}
+
+private struct VeltrixThemeKey: EnvironmentKey {
+    static let defaultValue = VeltrixTheme(.midnight)
+}
+
+extension EnvironmentValues {
+    var veltrixTheme: VeltrixTheme {
+        get { self[VeltrixThemeKey.self] }
+        set { self[VeltrixThemeKey.self] = newValue }
+    }
 }
 
 private extension UIColor {
@@ -97,17 +140,18 @@ struct OrbitLines: View {
 }
 
 struct PrimaryButtonStyle: ButtonStyle {
+    @Environment(\.veltrixTheme) private var theme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    var tint: Color = .vxAccent
-    var ink: Color = VeltrixTheme.buttonInk
+    var tint: Color? = nil
+    var ink: Color? = nil
     var height: CGFloat = 48
     var cornerRadius: CGFloat = 12
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.headline)
             .frame(maxWidth: .infinity, minHeight: height)
-            .foregroundStyle(ink)
-            .background(tint, in: RoundedRectangle(cornerRadius: cornerRadius))
+            .foregroundStyle(ink ?? theme.buttonInk)
+            .background(tint ?? theme.text, in: RoundedRectangle(cornerRadius: cornerRadius))
             .opacity(configuration.isPressed ? 0.76 : 1)
             .scaleEffect(configuration.isPressed && !reduceMotion ? 0.98 : 1)
             .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: configuration.isPressed)
@@ -115,6 +159,7 @@ struct PrimaryButtonStyle: ButtonStyle {
 }
 
 struct PageHeader<Trailing: View>: View {
+    @Environment(\.veltrixTheme) private var theme
     let title: LocalizedStringKey
     let detail: LocalizedStringKey
     @ViewBuilder let trailing: () -> Trailing
@@ -123,7 +168,7 @@ struct PageHeader<Trailing: View>: View {
         HStack(alignment: .top, spacing: 12) {
             VStack(alignment: .leading, spacing: 7) {
                 Text(title).font(.largeTitle.weight(.semibold)).accessibilityAddTraits(.isHeader)
-                Text(detail).font(.subheadline).foregroundStyle(Color.vxMuted)
+                Text(detail).font(.subheadline).foregroundStyle(theme.muted)
             }
             Spacer(minLength: 0)
             trailing().padding(.top, 6)
@@ -132,16 +177,17 @@ struct PageHeader<Trailing: View>: View {
 }
 
 struct EmptyPanel: View {
+    @Environment(\.veltrixTheme) private var theme
     let icon: String
     let title: LocalizedStringKey
     let detail: LocalizedStringKey
 
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
-            Image(systemName: icon).font(.title3).foregroundStyle(Color.vxHighlight)
-                .frame(width: 42, height: 42).background(Color.vxAccent.opacity(0.13), in: RoundedRectangle(cornerRadius: 13))
+            Image(systemName: icon).font(.title3).foregroundStyle(theme.highlight)
+                .frame(width: 42, height: 42).background(theme.accent.opacity(0.13), in: RoundedRectangle(cornerRadius: 13))
             Text(title).font(.headline)
-            Text(detail).font(.footnote).foregroundStyle(Color.vxMuted)
+            Text(detail).font(.footnote).foregroundStyle(theme.muted)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .panel()
@@ -149,6 +195,7 @@ struct EmptyPanel: View {
 }
 
 struct IconButton: View {
+    @Environment(\.veltrixTheme) private var theme
     let icon: String
     let label: LocalizedStringKey
     let action: () -> Void
@@ -157,9 +204,9 @@ struct IconButton: View {
         Button(action: action) {
             Image(systemName: icon)
                 .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(Color.vxText)
+                .foregroundStyle(theme.text)
                 .frame(width: 44, height: 44)
-                .background(Color.vxCard, in: Circle())
+                .background(theme.surface, in: Circle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(Text(label))
@@ -179,11 +226,12 @@ struct CountValue: View {
             }
         }
         .monospacedDigit()
-        .animation(reduceMotion ? nil : .easeOut(duration: 0.25), value: text)
+        .animation(reduceMotion || UITestMode.enabled ? nil : .easeInOut(duration: 0.22), value: text)
     }
 }
 
 struct Skeleton: View {
+    @Environment(\.veltrixTheme) private var theme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var phase
 
@@ -191,7 +239,7 @@ struct Skeleton: View {
         TimelineView(.animation(minimumInterval: 1 / 24, paused: UITestMode.enabled || reduceMotion || phase != .active)) { timeline in
             let pulse = UITestMode.enabled || reduceMotion ? 0.5 : (sin(timeline.date.timeIntervalSinceReferenceDate * 4) + 1) / 2
             RoundedRectangle(cornerRadius: 9)
-                .fill(LinearGradient(colors: [.vxSurface, .vxAccent.opacity(0.07 + 0.12 * pulse), .vxSurface],
+                .fill(LinearGradient(colors: [theme.elevated, theme.accent.opacity(0.07 + 0.12 * pulse), theme.elevated],
                                      startPoint: .leading, endPoint: .trailing))
         }
         .accessibilityLabel(Text("Loading"))
@@ -200,9 +248,7 @@ struct Skeleton: View {
 
 extension View {
     func panel(padding: CGFloat = 16) -> some View {
-        self.padding(padding)
-            .background(Color.vxCard, in: RoundedRectangle(cornerRadius: 15))
-            .overlay(RoundedRectangle(cornerRadius: 15).strokeBorder(Color.vxSeparator, lineWidth: 1).allowsHitTesting(false))
+        modifier(PanelSurface(padding: padding))
     }
 
     func glass(radius: CGFloat) -> some View {
@@ -210,42 +256,67 @@ extension View {
     }
 }
 
+private struct PanelSurface: ViewModifier {
+    @Environment(\.veltrixTheme) private var theme
+    let padding: CGFloat
+
+    func body(content: Content) -> some View {
+        content.padding(padding)
+            .background(theme.surface, in: RoundedRectangle(cornerRadius: 15))
+            .overlay {
+                RoundedRectangle(cornerRadius: 15)
+                    .strokeBorder(theme.separator, lineWidth: 1)
+                    .allowsHitTesting(false)
+            }
+    }
+}
+
 private struct GlassSurface: ViewModifier {
+    @Environment(\.veltrixTheme) private var theme
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     let radius: CGFloat
 
     @ViewBuilder func body(content: Content) -> some View {
-        #if compiler(>=6.2)
-        if #available(iOS 26.0, *) {
-            content.glassEffect(.regular, in: RoundedRectangle(cornerRadius: radius))
+        let shape = RoundedRectangle(cornerRadius: radius)
+        if reduceTransparency {
+            content.background(theme.elevated, in: shape)
         } else {
-            fallback(content)
+            #if compiler(>=6.2)
+            if #available(iOS 26.0, *) {
+                content.glassEffect(.regular.tint(theme.surface.opacity(0.48)), in: shape)
+            } else {
+                fallback(content, shape: shape)
+            }
+            #else
+            fallback(content, shape: shape)
+            #endif
         }
-        #else
-        fallback(content)
-        #endif
     }
 
-    private func fallback(_ content: Content) -> some View {
+    private func fallback(_ content: Content, shape: RoundedRectangle) -> some View {
         content
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: radius))
-            .overlay(RoundedRectangle(cornerRadius: radius).strokeBorder(.primary.opacity(0.11), lineWidth: 1).allowsHitTesting(false))
+            .background(theme.surface.opacity(0.56), in: shape)
+            .background(.regularMaterial, in: shape)
+            .overlay(shape.strokeBorder(theme.separator.opacity(0.65), lineWidth: 1).allowsHitTesting(false))
     }
 }
 
 struct PageScroll<Content: View>: View {
+    @Environment(\.veltrixTheme) private var theme
+    var spacing: CGFloat = 16
     @ViewBuilder let content: () -> Content
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16, content: content)
-                .foregroundStyle(Color.vxText)
+            VStack(alignment: .leading, spacing: spacing, content: content)
+                .foregroundStyle(theme.text)
                 .padding(.horizontal, 16)
                 .padding(.top, 16)
                 .padding(.bottom, 24)
                 .frame(maxWidth: 700)
                 .frame(maxWidth: .infinity)
         }
-        .background(Color.vxBackground.ignoresSafeArea())
+        .background(theme.background.ignoresSafeArea())
     }
 }
 

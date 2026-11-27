@@ -45,6 +45,7 @@ struct TradeScreen: View {
 }
 
 struct TradeEditor: View {
+    @Environment(\.veltrixTheme) private var theme
     private enum Field: Hashable { case amount, limit, counterparty }
 
     @EnvironmentObject private var model: VeltrixModel
@@ -95,7 +96,7 @@ struct TradeEditor: View {
                             editor
                         }
                         if let error, review != nil && !done && !processing {
-                            Text(verbatim: error).font(.footnote).foregroundStyle(Color.vxDown)
+                            Text(verbatim: error).font(.footnote).foregroundStyle(theme.negative)
                         }
                     }
                     .padding(.horizontal, 20)
@@ -104,7 +105,7 @@ struct TradeEditor: View {
                     .frame(maxWidth: .infinity)
             }
             .scrollDismissesKeyboard(.interactively)
-            .background(Color.vxBackground.ignoresSafeArea())
+            .background(theme.background.ignoresSafeArea())
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 if !processing && focusedField == nil { footer }
             }
@@ -116,8 +117,8 @@ struct TradeEditor: View {
                         if review != nil && !done { review = nil; error = nil }
                         else { dismiss() }
                     }
-                    .foregroundStyle(Color.vxText)
-                    .tint(.vxText)
+                    .foregroundStyle(theme.text)
+                    .tint(theme.text)
                     .disabled(processing)
                 }
                 ToolbarItemGroup(placement: .keyboard) {
@@ -132,7 +133,7 @@ struct TradeEditor: View {
             }
             .animation(reduceMotion ? nil : .easeInOut(duration: 0.22), value: review != nil)
             .animation(reduceMotion ? nil : .easeInOut(duration: 0.22), value: done)
-            .tint(.vxHighlight)
+            .tint(theme.highlight)
             .onChange(of: asset) { _ in amount = ""; exactMaxUnits = nil; error = nil }
         }
     }
@@ -157,12 +158,12 @@ struct TradeEditor: View {
                         .focused($focusedField, equals: .counterparty)
                     IconButton(icon: "qrcode.viewfinder", label: "Scan QR code") { scanner = true }
                 }.padding(.horizontal, 12)
-                    .background(Color.vxCard, in: RoundedRectangle(cornerRadius: 12))
+                    .background(theme.surface, in: RoundedRectangle(cornerRadius: 12))
             }
             amountDisplay
             LabeledContent("Available balance", value: availableLabel)
                 .font(.footnote)
-                .foregroundStyle(Color.vxMuted)
+                .foregroundStyle(theme.muted)
             if available != nil {
                 HStack(spacing: 8) {
                     ForEach([25, 50, 75, 100], id: \.self) { fraction in
@@ -173,7 +174,7 @@ struct TradeEditor: View {
                             Text(verbatim: fraction == 100 ? "MAX" : "\(fraction)%")
                                 .font(.caption.weight(.semibold))
                                 .frame(maxWidth: .infinity, minHeight: 44)
-                                .overlay(alignment: .bottom) { Rectangle().fill(Color.vxSeparator).frame(height: 1) }
+                                .overlay(alignment: .bottom) { Rectangle().fill(theme.separator).frame(height: 1) }
                                 .contentShape(Rectangle())
                         }.buttonStyle(.plain)
                     }
@@ -181,7 +182,7 @@ struct TradeEditor: View {
             }
 
             if let error {
-                Text(verbatim: error).font(.footnote).foregroundStyle(Color.vxDown)
+                Text(verbatim: error).font(.footnote).foregroundStyle(theme.negative)
             }
         }
     }
@@ -213,14 +214,14 @@ struct TradeEditor: View {
                 .accessibilityIdentifier("trade.review")
             }
         }
-        .buttonStyle(PrimaryButtonStyle(tint: done ? .vxText : actionColor,
+        .buttonStyle(PrimaryButtonStyle(tint: done ? theme.text : actionColor,
                                          height: 52))
         .frame(maxWidth: 490)
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
         .frame(maxWidth: .infinity)
-        .background(Color.vxBackground)
-        .overlay(alignment: .top) { Rectangle().fill(Color.vxSeparator).frame(height: 1).allowsHitTesting(false) }
+        .background(theme.background)
+        .overlay(alignment: .top) { Rectangle().fill(theme.separator).frame(height: 1).allowsHitTesting(false) }
     }
 
     private let reviewLifetime: TimeInterval = 15
@@ -228,9 +229,9 @@ struct TradeEditor: View {
     private var isTrading: Bool { [.buy, .sell, .swap].contains(intent.action) }
     private var actionColor: Color {
         switch intent.action {
-        case .buy: return .vxUp
-        case .sell: return .vxDown
-        default: return .vxText
+        case .buy: return theme.positive
+        case .sell: return theme.negative
+        default: return theme.text
         }
     }
 
@@ -258,14 +259,14 @@ struct TradeEditor: View {
                     }
                 }
             }
-            .overlay(alignment: .bottom) { Rectangle().fill(Color.vxSeparator).frame(height: 1) }
+            .overlay(alignment: .bottom) { Rectangle().fill(theme.separator).frame(height: 1) }
 
             if intent.action == .swap {
                 HStack {
                     if let source = model.usablePrices[asset], let destination = model.usablePrices[target],
                        let rate = try? MoneyMath.divide(source, destination) {
                         Text(verbatim: "1 \(Asset.ticker(asset)) ≈ \(Display.number(rate)) \(Asset.ticker(target))")
-                            .font(.caption.monospacedDigit()).foregroundStyle(Color.vxMuted)
+                            .font(.caption.monospacedDigit()).foregroundStyle(theme.muted)
                     }
                     Spacer()
                     unitControl
@@ -286,7 +287,7 @@ struct TradeEditor: View {
                         .keyboardType(.decimalPad)
                         .focused($focusedField, equals: .limit)
                         .padding(10)
-                        .background(Color.vxSurface, in: RoundedRectangle(cornerRadius: 10))
+                        .background(theme.elevated, in: RoundedRectangle(cornerRadius: 10))
                 }
             }
         }
@@ -316,7 +317,7 @@ struct TradeEditor: View {
                 Image(systemName: "arrow.left.arrow.right").font(.caption2.weight(.semibold))
             }
             .padding(.horizontal, 10).frame(minHeight: 40)
-            .background(Color.vxSurface, in: Capsule())
+            .background(theme.elevated, in: Capsule())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(Text("Switch amount unit"))
@@ -333,13 +334,13 @@ struct TradeEditor: View {
             })
                 .labelsHidden()
                 .pickerStyle(.menu)
-                .tint(.vxText)
+                .tint(theme.text)
         } label: {
             HStack(spacing: 8) {
                 if let coin = Asset.catalog.first(where: { $0.id == selection.wrappedValue }) {
                     CoinIcon(asset: coin, url: model.quotes[coin.id]?.image, size: 30)
                 }
-                Text(title).foregroundStyle(Color.vxMuted)
+                Text(title).foregroundStyle(theme.muted)
             }
         }
         .font(.subheadline)
@@ -365,12 +366,12 @@ struct TradeEditor: View {
                 .accessibilityIdentifier("trade.amount")
                 Text(verbatim: amountUnit)
                     .font(.subheadline.weight(.semibold).monospacedDigit())
-                    .foregroundStyle(Color.vxMuted)
+                    .foregroundStyle(theme.muted)
                     .accessibilityIdentifier("trade.amount.unit")
             }
             CountValue(text: equivalent ?? " ")
                 .font(.footnote)
-                .foregroundStyle(Color.vxMuted)
+                .foregroundStyle(theme.muted)
                 .accessibilityHidden(equivalent == nil)
         }
         .frame(maxWidth: .infinity, minHeight: isTrading ? 84 : 72)
@@ -447,44 +448,44 @@ struct TradeEditor: View {
             if let coin = Asset.catalog.first(where: { $0.id == asset }), intent.action != .deposit {
                 CoinIcon(asset: coin, url: model.quotes[asset]?.image, size: 46)
             }
-            Text("Review order").font(.subheadline.weight(.medium)).foregroundStyle(Color.vxMuted)
+            Text("Review order").font(.subheadline.weight(.medium)).foregroundStyle(theme.muted)
                 .accessibilityIdentifier("trade.review.title")
             Text(verbatim: review.total.map { model.money($0, price: true, minimumDigits: 2) } ?? review.summary)
                 .font(.system(size: 38, weight: .semibold).monospacedDigit())
                 .lineLimit(1).minimumScaleFactor(0.4)
             if review.total != nil {
-                Text(verbatim: review.summary).font(.subheadline.monospacedDigit()).foregroundStyle(Color.vxMuted)
+                Text(verbatim: review.summary).font(.subheadline.monospacedDigit()).foregroundStyle(theme.muted)
             }
             VStack(spacing: 9) {
                 if isTrading {
                     if intent.action != .swap {
                         LabeledContent("Order type", value: L.text(isLimit ? "Limit" : "Market"))
-                        Divider().overlay(Color.vxSeparator)
+                        Divider().overlay(theme.separator)
                     }
                     LabeledContent(isLimit ? "Limit price" : "Market price", value: model.money(review.price, privateValue: false, price: true))
-                    Divider().overlay(Color.vxSeparator)
+                    Divider().overlay(theme.separator)
                 }
                 if intent.action == .send || intent.action == .receive {
                     if let network { LabeledContent("Network", value: network.rawValue) }
                     LabeledContent(network == nil ? (intent.action == .send ? "Recipient label" : "Sender label") : "Public address",
                                    value: label).lineLimit(2)
-                    Divider().overlay(Color.vxSeparator)
+                    Divider().overlay(theme.separator)
                 }
                 if let estimate = review.estimate {
                     LabeledContent("Cost", value: model.money(estimate, price: true, minimumDigits: 2))
                 }
                 if let fee = review.fee {
-                    Divider().overlay(Color.vxSeparator)
+                    Divider().overlay(theme.separator)
                     LabeledContent("Fee", value: "≈ " + model.money(fee, price: true, minimumDigits: 2))
                 }
                 if let total = review.total {
-                    Divider().overlay(Color.vxSeparator)
+                    Divider().overlay(theme.separator)
                     LabeledContent("Total ≈", value: model.money(total, price: true, minimumDigits: 2)).fontWeight(.semibold)
                 }
                 if let quantity = review.received {
                     LabeledContent("Receive asset", value: "\(model.units(quantity)) \(Asset.ticker(target))")
                 }
-                Divider().overlay(Color.vxSeparator)
+                Divider().overlay(theme.separator)
                 LabeledContent("Balance", value: availableLabel)
             }.font(.subheadline.monospacedDigit()).panel(padding: 12)
             if !review.prices.isEmpty, let reviewedAt {
@@ -609,6 +610,7 @@ struct TradeEditor: View {
 }
 
 private struct QuoteCountdown: View {
+    @Environment(\.veltrixTheme) private var theme
     let expiration: Date
     @State private var now = Date()
 
@@ -621,7 +623,7 @@ private struct QuoteCountdown: View {
             Image(systemName: "clock")
         }
         .font(.caption)
-        .foregroundStyle(seconds == 0 ? Color.vxDown : Color.vxMuted)
+        .foregroundStyle(seconds == 0 ? theme.negative : theme.muted)
         .accessibilityIdentifier("trade.quote.countdown")
         .task(id: expiration) {
             guard !UITestMode.enabled else { return }
@@ -637,6 +639,7 @@ private struct QuoteCountdown: View {
 }
 
 struct TransactionSuccessView: View {
+    @Environment(\.veltrixTheme) private var theme
     @EnvironmentObject private var model: VeltrixModel
     let entry: Entry?
     let order: LimitOrder?
@@ -650,15 +653,15 @@ struct TransactionSuccessView: View {
         VStack(spacing: 14) {
             mark
             if processing {
-                Text("Updating portfolio").font(.footnote).foregroundStyle(Color.vxMuted)
+                Text("Updating portfolio").font(.footnote).foregroundStyle(theme.muted)
             } else {
                 Text(order != nil && entry == nil ? "Limit order placed" : "Operation saved")
-                    .font(.title2.bold()).accessibilityIdentifier("trade.saved")
+                    .font(.title2.weight(.semibold)).accessibilityIdentifier("trade.saved")
                 CountValue(text: entry?.settlementUSD.map { model.money($0, price: true, minimumDigits: 2) } ?? summary)
                     .font(.largeTitle.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.35)
                 if let entry, entry.asset != "USD", entry.settlementUSD != nil {
                     Text(verbatim: summary).font(.subheadline.monospacedDigit())
-                        .foregroundStyle(Color.vxMuted).lineLimit(1).minimumScaleFactor(0.55)
+                        .foregroundStyle(theme.muted).lineLimit(1).minimumScaleFactor(0.55)
                 }
                 details
                 if let entry {
@@ -679,20 +682,20 @@ struct TransactionSuccessView: View {
 
     private var mark: some View {
         ZStack(alignment: .bottomTrailing) {
-            Circle().strokeBorder(Color.vxSeparator, lineWidth: 2)
+            Circle().strokeBorder(theme.separator, lineWidth: 2)
             Circle().trim(from: 0, to: progress)
-                .stroke(Color.vxHighlight, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                .stroke(theme.highlight, style: StrokeStyle(lineWidth: 2, lineCap: .round))
                 .rotationEffect(.degrees(-90))
             Group {
                 if let coin = Asset.catalog.first(where: { $0.id == iconAsset }), entry?.asset != "USD" {
                     CoinIcon(asset: coin, url: model.quotes[coin.id]?.image, size: 48)
                 } else {
-                    VeltrixMark().fill(Color.vxText).frame(width: 31, height: 31)
+                    VeltrixMark().fill(theme.text).frame(width: 31, height: 31)
                 }
             }.frame(width: 80, height: 80)
             Image(systemName: "checkmark.circle.fill")
-                .font(.title2).foregroundStyle(Color.vxHighlight)
-                .background(Color.vxCard, in: Circle())
+                .font(.title2).foregroundStyle(theme.highlight)
+                .background(theme.surface, in: Circle())
                 .opacity(processing ? 0 : 1)
         }.frame(width: 80, height: 80).accessibilityHidden(true)
     }

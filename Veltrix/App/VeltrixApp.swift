@@ -44,6 +44,7 @@ struct VeltrixApp: App {
     }
 
     var body: some Scene {
+        let theme = VeltrixTheme(model.theme)
         WindowGroup {
             Group {
                 if UITestMode.enabled {
@@ -59,8 +60,9 @@ struct VeltrixApp: App {
                 .environmentObject(model)
                 .environmentObject(lock)
                 .defaultAppStorage(defaults)
-                .preferredColorScheme(model.theme == "system" ? nil : (model.theme == "light" ? .light : .dark))
-                .tint(.vxHighlight)
+                .environment(\.veltrixTheme, theme)
+                .preferredColorScheme(model.theme.colorScheme)
+                .tint(theme.accent)
         }
     }
 }
@@ -84,6 +86,7 @@ private enum Destination: String, CaseIterable {
 }
 
 struct VeltrixRoot: View {
+    @Environment(\.veltrixTheme) private var theme
     @EnvironmentObject private var model: VeltrixModel
     @EnvironmentObject private var lock: AuthCoordinator
     @Environment(\.scenePhase) private var phase
@@ -102,7 +105,7 @@ struct VeltrixRoot: View {
         Group {
             if model.storageError {
                 VStack(spacing: 20) {
-                    VeltrixMark().fill(Color.vxHighlight).frame(width: 45, height: 45)
+                    VeltrixMark().fill(theme.highlight).frame(width: 45, height: 45)
                     EmptyPanel(icon: "externaldrive.badge.exclamationmark", title: "Local storage unavailable",
                                detail: "Reopen VELTRIX to retry. Your saved files have been kept.")
                 }
@@ -131,11 +134,11 @@ struct VeltrixRoot: View {
         }
         .animation(reduceMotion || lock.locked ? nil : .easeOut(duration: 0.25), value: lock.locked)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.vxBackground.ignoresSafeArea())
+        .background(theme.background.ignoresSafeArea())
         .overlay {
             if phase != .active && !lock.locked {
-                Color.vxBackground.ignoresSafeArea()
-                    .overlay(VeltrixMark().fill(Color.vxHighlight).frame(width: 52, height: 52))
+                theme.background.ignoresSafeArea()
+                    .overlay(VeltrixMark().fill(theme.highlight).frame(width: 52, height: 52))
                     .accessibilityHidden(true)
             }
         }
@@ -256,7 +259,7 @@ struct VeltrixRoot: View {
                 if !keyboardVisible {
                     VeltrixGlassTabBar(selection: $tab) { showSearch = true }
                         .background {
-                            Color.vxBackground.ignoresSafeArea(edges: .bottom)
+                            theme.background.ignoresSafeArea(edges: .bottom)
                         }
                 }
             }
@@ -289,6 +292,7 @@ struct VeltrixRoot: View {
 }
 
 private struct VeltrixGlassTabBar: View {
+    @Environment(\.veltrixTheme) private var theme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Binding var selection: Destination
     let openSearch: () -> Void
@@ -303,7 +307,7 @@ private struct VeltrixGlassTabBar: View {
                         selection = destination
                     } label: {
                         Image(systemName: destination.icon)
-                            .font(.system(size: 24, weight: .semibold))
+                            .font(.system(size: 25, weight: .regular))
                             .frame(maxWidth: .infinity, minHeight: 48)
                             .contentShape(Rectangle())
                     }
@@ -319,7 +323,7 @@ private struct VeltrixGlassTabBar: View {
                     let slot = proxy.size.width / CGFloat(destinations.count)
                     let index = destinations.firstIndex(of: selection) ?? 0
                     Capsule()
-                        .fill(Color.vxBackground.opacity(0.92))
+                        .fill(theme.navigationSelection)
                         .frame(width: slot, height: proxy.size.height)
                         .offset(x: CGFloat(index) * slot)
                         .animation(reduceMotion || UITestMode.enabled ? nil : .easeInOut(duration: 0.23),
@@ -335,7 +339,7 @@ private struct VeltrixGlassTabBar: View {
                 openSearch()
             } label: {
                 Image(systemName: "magnifyingglass")
-                    .font(.system(size: 24, weight: .semibold))
+                    .font(.system(size: 25, weight: .regular))
                     .frame(width: 56, height: 56)
                     .contentShape(Circle())
                     .glass(radius: 28)
@@ -344,7 +348,7 @@ private struct VeltrixGlassTabBar: View {
             .accessibilityLabel(Text("Search"))
             .accessibilityIdentifier("tab.search")
         }
-        .foregroundStyle(Color.vxText)
+        .foregroundStyle(theme.text)
         .frame(maxWidth: 460)
         .padding(.horizontal, 16)
         .padding(.vertical, 5)

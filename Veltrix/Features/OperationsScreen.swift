@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct OperationsScreen: View {
+    @Environment(\.veltrixTheme) private var theme
     @EnvironmentObject private var model: VeltrixModel
     @State private var trade: TradeIntent?
     @State private var scanner = false
@@ -13,7 +14,7 @@ struct OperationsScreen: View {
     var body: some View {
         PageScroll {
             Text("Operations Center")
-                .font(.largeTitle.bold())
+                .font(.largeTitle.weight(.semibold))
                 .accessibilityAddTraits(.isHeader)
             VStack(spacing: 0) {
                 ForEach(actions) { action in
@@ -24,7 +25,7 @@ struct OperationsScreen: View {
                         OperationsRow(title: action.title, icon: action.icon)
                     }
                     .accessibilityIdentifier("trade.action." + action.rawValue)
-                    Divider().overlay(Color.vxSeparator)
+                    Divider().overlay(theme.separator)
                 }
                 Button {
                     Feedback.tap()
@@ -39,12 +40,12 @@ struct OperationsScreen: View {
                     OperationsRow(title: "Activity", icon: "clock.arrow.circlepath")
                 }
                 .accessibilityIdentifier("operations.activity")
-                Divider().overlay(Color.vxSeparator)
+                Divider().overlay(theme.separator)
                 NavigationLink { CardsScreen() } label: {
                     OperationsRow(title: "Cards", icon: "creditcard")
                 }
                 .accessibilityIdentifier("operations.cards")
-                Divider().overlay(Color.vxSeparator)
+                Divider().overlay(theme.separator)
                 NavigationLink { PortfolioAnalyticsScreen() } label: {
                     OperationsRow(title: "Analytics", icon: "chart.xyaxis.line")
                 }
@@ -58,6 +59,7 @@ struct OperationsScreen: View {
 }
 
 struct OperationsRow: View {
+    @Environment(\.veltrixTheme) private var theme
     let title: LocalizedStringKey
     let icon: String
 
@@ -70,7 +72,7 @@ struct OperationsRow: View {
             Spacer()
             Image(systemName: "chevron.right")
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(Color.vxMuted)
+                .foregroundStyle(theme.muted)
                 .accessibilityHidden(true)
         }
         .font(.subheadline.weight(.medium))

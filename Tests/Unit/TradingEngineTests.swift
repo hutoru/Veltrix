@@ -2,6 +2,20 @@ import XCTest
 @testable import Veltrix
 
 final class TradingEngineTests: XCTestCase {
+    func testCurrencySymbolPlacementAndLocale() throws {
+        let amount = try XCTUnwrap(Decimal(string: "20520.76"))
+        let english = Locale(identifier: "en_US")
+        let russian = Locale(identifier: "ru_RU")
+        func normalize(_ value: String) -> String {
+            value.replacingOccurrences(of: "\u{00A0}", with: " ")
+                .replacingOccurrences(of: "\u{202F}", with: " ")
+        }
+        XCTAssertEqual(Display.money(amount, currency: "USD", digits: 2, locale: english), "$20,520.76")
+        XCTAssertEqual(normalize(Display.money(amount, currency: "EUR", digits: 2, locale: russian)), "20 520,76 €")
+        XCTAssertEqual(normalize(Display.money(amount, currency: "RUB", digits: 2, locale: russian)), "20 520,76 ₽")
+        XCTAssertEqual(normalize(Display.money(-amount, currency: "USD", digits: 2, locale: russian)), "−$20 520,76")
+    }
+
     private let btc = "bitcoin"
     private let eth = "ethereum"
     private let start = Date(timeIntervalSince1970: 1_700_000_000)

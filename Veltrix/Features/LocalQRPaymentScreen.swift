@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct LocalQRPaymentScreen: View {
+    @Environment(\.veltrixTheme) private var theme
     @EnvironmentObject private var model: VeltrixModel
     @Environment(\.dismiss) private var dismiss
     @State private var payFrom: UUID?
@@ -16,14 +17,14 @@ struct LocalQRPaymentScreen: View {
             PageScroll {
                 if saved {
                     Label("Operation saved", systemImage: "checkmark.circle.fill")
-                        .font(.title2.bold()).foregroundStyle(Color.vxUp)
+                        .font(.title2.weight(.semibold)).foregroundStyle(theme.positive)
                         .accessibilityIdentifier("scanner.paymentSaved")
                 } else if let request, let receiver = model.ledger.portfolios.first(where: { $0.id == request.recipient }) {
                     payment(request, receiver: receiver)
                 } else {
                     Text(model.ledger.operationIDs.contains(requestID) ? "This request was already paid." : "This request is unavailable on this device.")
                 }
-                if let error { Text(verbatim: error).font(.footnote).foregroundStyle(Color.vxDown) }
+                if let error { Text(verbatim: error).font(.footnote).foregroundStyle(theme.negative) }
             }
             .navigationTitle("Local QR payment")
             .navigationBarTitleDisplayMode(.inline)

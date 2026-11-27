@@ -7,6 +7,7 @@ on:
         description: Build the Release IPA or run a simulator test suite
         type: choice
         options:
+          - release_with_tests
           - release
           - tests
           - unit_tests
@@ -22,7 +23,8 @@ concurrency:
 
 jobs:
   release:
-    if: ${{ inputs.task == 'release' }}
+    needs: tests
+    if: ${{ !cancelled() && (inputs.task == 'release' || (inputs.task == 'release_with_tests' && needs.tests.result == 'success')) }}
     runs-on: macos-15
     timeout-minutes: 10
     steps:
@@ -53,8 +55,8 @@ jobs:
         with:
           name: Veltrix-unsigned-ipa
           path: |
-            build/Veltrix.ipa
-            build/Veltrix.ipa.sha256
+            build/VELTRIX-*-Midnight.ipa
+            build/VELTRIX-*-Midnight.ipa.sha256
           if-no-files-found: error
           retention-days: 7
 
@@ -62,4 +64,4 @@ jobs:
     if: ${{ inputs.task != 'release' }}
     uses: ./.github/workflows/test-ios.yml
     with:
-      scope: ${{ inputs.task }}
+      scope: ${{ inputs.task == 'release_with_tests' && 'tests' || inputs.task }}

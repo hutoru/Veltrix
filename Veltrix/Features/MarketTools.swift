@@ -9,6 +9,7 @@ struct PriceAlert: Codable, Identifiable {
 }
 
 struct PriceAlertsScreen: View {
+    @Environment(\.veltrixTheme) private var theme
     @EnvironmentObject private var model: VeltrixModel
     @State private var asset: String
     @State private var threshold = ""
@@ -22,7 +23,7 @@ struct PriceAlertsScreen: View {
     var body: some View {
         PageScroll {
             Text("Alerts use the latest market quotes while Veltrix is open.")
-                .font(.footnote).foregroundStyle(Color.vxMuted)
+                .font(.footnote).foregroundStyle(theme.muted)
             AssetPicker(title: "Asset", asset: $asset)
             TextField("Target price (USD)", text: $threshold).keyboardType(.decimalPad).panel(padding: 12)
             Picker("Trigger", selection: $above) {
@@ -39,22 +40,22 @@ struct PriceAlertsScreen: View {
                 validation = false
                 Feedback.success()
             }.buttonStyle(PrimaryButtonStyle())
-            if validation { Text("Enter a valid amount.").font(.footnote).foregroundStyle(Color.vxDown) }
+            if validation { Text("Enter a valid amount.").font(.footnote).foregroundStyle(theme.negative) }
             ForEach(model.priceAlerts.reversed()) { alert in
                 HStack(spacing: 12) {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(verbatim: Asset.ticker(alert.asset)).font(.subheadline.bold())
+                        Text(verbatim: Asset.ticker(alert.asset)).font(.subheadline.weight(.semibold))
                         Text(verbatim: (alert.above ? "≥ " : "≤ ") + Display.money(alert.threshold, currency: "USD", digits: 8, minimum: 2))
                             .font(.caption.monospacedDigit())
                         if let date = alert.triggeredAt {
                             Text("Triggered · \(date.formatted(date: .abbreviated, time: .shortened))")
-                                .font(.caption2).foregroundStyle(Color.vxUp)
+                                .font(.caption2).foregroundStyle(theme.positive)
                         }
                     }
                     Spacer()
                     IconButton(icon: "trash", label: "Delete price alert") { model.removePriceAlert(alert.id) }
                 }
-                Divider().overlay(Color.vxSeparator)
+                Divider().overlay(theme.separator)
             }
         }
         .navigationTitle("Price alerts")
@@ -65,6 +66,7 @@ struct PriceAlertsScreen: View {
 }
 
 struct CurrencyConverter: View {
+    @Environment(\.veltrixTheme) private var theme
     @EnvironmentObject private var model: VeltrixModel
     @State private var asset = "bitcoin"
     @State private var currency = "USD"
@@ -77,7 +79,7 @@ struct CurrencyConverter: View {
             Picker("Display currency", selection: $currency) {
                 ForEach(Fiat.currencies, id: \.self) { Text(verbatim: $0).tag($0) }
             }
-            Divider().overlay(Color.vxSeparator)
+            Divider().overlay(theme.separator)
             CountValue(text: result)
                 .font(.system(size: 46, weight: .semibold))
                 .lineLimit(1).minimumScaleFactor(0.4)

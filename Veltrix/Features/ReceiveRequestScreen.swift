@@ -4,6 +4,7 @@ import SwiftUI
 import UIKit
 
 struct ReceiveRequestScreen: View {
+    @Environment(\.veltrixTheme) private var theme
     @EnvironmentObject private var model: VeltrixModel
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -45,7 +46,7 @@ struct ReceiveRequestScreen: View {
                         .font(.system(size: 48, weight: .semibold).monospacedDigit())
                         .accessibilityIdentifier("receive.amount")
                 }
-                if let error { Text(verbatim: error).font(.footnote).foregroundStyle(Color.vxDown) }
+                if let error { Text(verbatim: error).font(.footnote).foregroundStyle(theme.negative) }
             }
             .scrollDismissesKeyboard(.interactively)
             .dismissibleKeyboard()
@@ -73,7 +74,7 @@ struct ReceiveRequestScreen: View {
                     .buttonStyle(PrimaryButtonStyle())
                     .accessibilityIdentifier("receive.generate")
                     .padding(.horizontal, 16).padding(.vertical, 8)
-                    .background(Color.vxBackground)
+                    .background(theme.background)
             }
         }
     }
@@ -93,7 +94,7 @@ struct ReceiveRequestScreen: View {
                 .accessibilityLabel(Text("QR code"))
                 .accessibilityIdentifier("receive.qr")
             VStack(spacing: 4) {
-                Text("Request ID").font(.caption).foregroundStyle(Color.vxMuted)
+                Text("Request ID").font(.caption).foregroundStyle(theme.muted)
                 Text(verbatim: request.id.uuidString)
                     .font(.caption.monospaced()).multilineTextAlignment(.center).textSelection(.enabled)
                     .accessibilityIdentifier("receive.requestID")

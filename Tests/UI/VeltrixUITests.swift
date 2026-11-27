@@ -93,6 +93,34 @@ final class VeltrixUITests: XCTestCase {
         activity.tap()
     }
 
+    func testAppearancePreviewsAndLiveSwitching() {
+        let app = launch()
+        for (key, title) in [("midnight", "Midnight Blue"), ("dark", "Obsidian Black"),
+                             ("light", "Light"), ("system", "System")] {
+            app.buttons["home.profile"].tap()
+            let settings = app.buttons["profile.settings"]
+            XCTAssertTrue(settings.waitForExistence(timeout: 5))
+            settings.tap()
+            let themeSettings = app.buttons["settings.theme"]
+            for _ in 0..<3 where !themeSettings.isHittable || themeSettings.frame.midY > app.frame.maxY - 80 {
+                app.swipeUp()
+            }
+            XCTAssertTrue(themeSettings.isHittable)
+            themeSettings.tap()
+            let option = app.buttons["theme." + key]
+            XCTAssertTrue(option.waitForExistence(timeout: 5))
+            if key == "midnight" { XCTAssertTrue(option.isSelected) }
+            option.tap()
+            XCTAssertTrue(option.isSelected)
+            capture(app, name: "Appearance " + title)
+            for _ in 0..<3 { app.navigationBars.buttons.element(boundBy: 0).tap() }
+            XCTAssertTrue(app.staticTexts["portfolio.total"].waitForExistence(timeout: 5))
+            XCTAssertTrue(app.buttons["trade.send"].isHittable)
+            XCTAssertTrue(app.buttons["tab.search"].isHittable)
+            capture(app, name: "Home " + title)
+        }
+    }
+
     func testMarketSearchAndNativeDetail() {
         let app = launch()
         app.buttons["tab.markets"].tap()
@@ -173,7 +201,8 @@ final class VeltrixUITests: XCTestCase {
         app.buttons["home.section.favorites"].tap()
         XCTAssertTrue(app.staticTexts["No favorites yet"].waitForExistence(timeout: 5))
         app.buttons["home.section.assets"].tap()
-        XCTAssertTrue(app.textFields["home.assets.search"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.textFields["home.assets.search"].exists)
+        XCTAssertTrue(app.buttons["Sort holdings"].isHittable)
         capture(app, name: "Home Assets")
         app.buttons["Add holding"].tap()
         XCTAssertTrue(app.textFields["Quantity"].waitForExistence(timeout: 5))

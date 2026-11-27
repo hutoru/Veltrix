@@ -5,6 +5,7 @@ import SwiftUI
 import UIKit
 
 struct QRScanner: View {
+    @Environment(\.veltrixTheme) private var theme
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var phase
     var onScan: ((String) -> Void)?
@@ -22,7 +23,7 @@ struct QRScanner: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            theme.background.ignoresSafeArea()
             if available && !failed {
                 CameraPreview(running: phase == .active && result == nil && !loadingPhoto, torch: torch, onTorch: { hasTorch = $0 },
                               onFailure: { failed = true }, onCode: accept)
@@ -34,6 +35,7 @@ struct QRScanner: View {
                             .transition(reduceMotion ? .identity : .opacity)
                         Text("Align a QR code inside the frame")
                             .font(.footnote.weight(.semibold))
+                            .foregroundStyle(.white)
                             .padding(12).background(.black.opacity(0.72), in: Capsule())
                     }
                     .allowsHitTesting(false)
@@ -50,7 +52,7 @@ struct QRScanner: View {
                     }
                 }.accessibilityIdentifier("scanner.unavailable")
             } else {
-                ProgressView().tint(.white)
+                ProgressView().tint(theme.accent)
             }
 
             VStack {
@@ -61,7 +63,8 @@ struct QRScanner: View {
                         PhotosPicker(selection: $photo, matching: .images) {
                             Image(systemName: "photo.on.rectangle").font(.body.weight(.semibold))
                                 .frame(width: 48, height: 48)
-                                .background(.black.opacity(0.72), in: Circle())
+                                .foregroundStyle(cameraControlInk)
+                                .background(cameraControlSurface, in: Circle())
                         }.accessibilityLabel(Text("Scan QR from Photos"))
                     }
                     if hasTorch && result == nil && !failed {
@@ -96,12 +99,12 @@ struct QRScanner: View {
                         }
                         .buttonStyle(.bordered)
                     }
-                    .padding(16).background(Color.vxCard, in: RoundedRectangle(cornerRadius: 16))
+                    .padding(16).background(theme.surface, in: RoundedRectangle(cornerRadius: 16))
                 }
             }.padding(24)
-            if loadingPhoto { ProgressView().tint(.white).allowsHitTesting(false) }
+            if loadingPhoto { ProgressView().tint(cameraControlInk).allowsHitTesting(false) }
         }
-        .preferredColorScheme(.dark)
+        .foregroundStyle(theme.text)
         .alert("No QR code found in this image", isPresented: $photoError) {
             Button("OK", role: .cancel) {}
         }
@@ -159,6 +162,10 @@ struct QRScanner: View {
         return request.results?.compactMap(\.payloadStringValue).first
     }
 
+    private var showsCamera: Bool { available && !failed }
+    private var cameraControlInk: Color { showsCamera ? .white : theme.text }
+    private var cameraControlSurface: Color { showsCamera ? .black.opacity(0.72) : theme.surface }
+
     private func cameraButton(_ icon: String, _ title: LocalizedStringKey, action: @escaping () -> Void) -> some View {
         Button {
             Feedback.tap()
@@ -166,7 +173,8 @@ struct QRScanner: View {
         } label: {
             Image(systemName: icon).font(.body.weight(.semibold))
                 .frame(width: 48, height: 48)
-                .background(.black.opacity(0.72), in: Circle())
+                .foregroundStyle(cameraControlInk)
+                .background(cameraControlSurface, in: Circle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(Text(title))

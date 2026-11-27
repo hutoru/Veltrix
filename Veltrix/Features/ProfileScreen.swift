@@ -21,6 +21,7 @@ struct ProfileAvatar: View {
 }
 
 struct ProfileScreen: View {
+    @Environment(\.veltrixTheme) private var theme
     @EnvironmentObject private var model: VeltrixModel
     @AppStorage("profileName") private var name = ""
     @AppStorage("profileUsername") private var username = ""
@@ -34,7 +35,7 @@ struct ProfileScreen: View {
     var body: some View {
         PageScroll {
             HStack {
-                Text("Profile").font(.largeTitle.bold())
+                Text("Profile").font(.largeTitle.weight(.semibold))
                 Spacer()
                 NavigationLink {
                     SettingsScreen()
@@ -44,16 +45,16 @@ struct ProfileScreen: View {
             HStack(spacing: 14) {
                 PhotosPicker(selection: $picture, matching: .images) {
                     ProfileAvatar(size: 72).overlay(alignment: .bottomTrailing) {
-                        Image(systemName: "pencil.circle.fill").font(.title3).foregroundStyle(Color.vxHighlight)
+                        Image(systemName: "pencil.circle.fill").font(.title3).foregroundStyle(theme.highlight)
                     }
                 }.accessibilityLabel(Text("Choose profile photo"))
                 VStack(alignment: .leading, spacing: 5) {
-                    Text(verbatim: name.isEmpty ? L.text("My profile") : name).font(.title2.bold())
-                    if !username.isEmpty { Text(verbatim: "@" + username).font(.subheadline).foregroundStyle(Color.vxMuted) }
-                    Text(verbatim: L.trades(trades.count)).font(.caption).foregroundStyle(Color.vxMuted)
+                    Text(verbatim: name.isEmpty ? L.text("My profile") : name).font(.title2.weight(.semibold))
+                    if !username.isEmpty { Text(verbatim: "@" + username).font(.subheadline).foregroundStyle(theme.muted) }
+                    Text(verbatim: L.trades(trades.count)).font(.caption).foregroundStyle(theme.muted)
                     if createdAt > 0 {
                         LabeledContent("Profile created", value: Date(timeIntervalSince1970: createdAt).formatted(date: .abbreviated, time: .omitted))
-                            .font(.caption2).foregroundStyle(Color.vxMuted)
+                            .font(.caption2).foregroundStyle(theme.muted)
                     }
                 }
             }

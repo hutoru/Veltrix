@@ -2,6 +2,7 @@ import Charts
 import SwiftUI
 
 struct VeltrixChart: View {
+    @Environment(\.veltrixTheme) private var theme
     let samples: [ChartSample]
     @Binding var range: ChartRange
     @Binding var candles: Bool
@@ -36,13 +37,13 @@ struct VeltrixChart: View {
                 if let focus {
                     HStack(spacing: 6) {
                         Text(focus.date.formatted(date: .abbreviated, time: .shortened))
-                            .foregroundStyle(Color.vxMuted)
+                            .foregroundStyle(theme.muted)
                         Spacer(minLength: 0)
                         Text(verbatim: format(focus.close))
                     }.lineLimit(1).minimumScaleFactor(0.65)
                 }
                 if samples.isEmpty {
-                    Text("No chart data").foregroundStyle(Color.vxMuted)
+                    Text("No chart data").foregroundStyle(theme.muted)
                 } else {
                     plotting.frame(height: height)
                         .accessibilityLabel(Text("Historical chart"))
@@ -90,8 +91,8 @@ struct VeltrixChart: View {
                     } label: {
                         Text(verbatim: rangeLabel(value)).font(.system(size: 11, weight: .semibold, design: .monospaced))
                             .frame(maxWidth: .infinity, minHeight: 40)
-                            .foregroundStyle(range == value ? Color.vxHighlight : Color.vxMuted)
-                            .background(range == value ? Color.vxAccent.opacity(0.15) : .clear,
+                            .foregroundStyle(range == value ? theme.highlight : theme.muted)
+                            .background(range == value ? theme.accent.opacity(0.15) : .clear,
                                         in: RoundedRectangle(cornerRadius: 9))
                     }
                     .buttonStyle(.plain)
@@ -99,7 +100,7 @@ struct VeltrixChart: View {
                 }
             }
             .padding(.vertical, 4)
-            .overlay(alignment: .top) { Rectangle().fill(Color.vxSeparator).frame(height: 1) }
+            .overlay(alignment: .top) { Rectangle().fill(theme.separator).frame(height: 1) }
 
             HStack(spacing: 12) {
                 if allowsCandles {
@@ -131,7 +132,7 @@ struct VeltrixChart: View {
             }
             .font(.caption.weight(.semibold))
             .buttonStyle(.bordered)
-            .tint(.vxHighlight)
+            .tint(theme.highlight)
         }
     }
 
@@ -147,7 +148,7 @@ struct VeltrixChart: View {
             if let value = focus ?? visible.last {
                 VStack(alignment: .leading, spacing: 3) {
                     CountValue(text: format(value.close)).font(.title3.weight(.semibold))
-                    Text(value.date.formatted(date: .abbreviated, time: .shortened)).font(.caption2).foregroundStyle(Color.vxMuted)
+                    Text(value.date.formatted(date: .abbreviated, time: .shortened)).font(.caption2).foregroundStyle(theme.muted)
                 }
             }
             Spacer()
@@ -165,7 +166,7 @@ struct VeltrixChart: View {
 
     private func comparison(_ text: String, value: Decimal) -> some View {
         Text(verbatim: text).font(.subheadline.weight(.semibold).monospacedDigit())
-            .foregroundStyle(value >= 0 ? Color.vxUp : Color.vxDown)
+            .foregroundStyle(value >= 0 ? theme.positive : theme.negative)
     }
 
     private var plotting: some View {
@@ -174,7 +175,7 @@ struct VeltrixChart: View {
         let visibleChange = (plotted.last?.close ?? 0) - (plotted.first?.close ?? 0)
         let periodChange = (samples.last?.close ?? 0) - (samples.first?.close ?? 0)
         let change = MoneyMath.round(mini || compareAmounts ? periodChange : visibleChange, scale: 8)
-        let trend = change == 0 ? Color.vxHighlight : (change > 0 ? Color.vxUp : Color.vxDown)
+        let trend = change == 0 ? theme.highlight : (change > 0 ? theme.positive : theme.negative)
         let hasGaps = plotted.first?.series != plotted.last?.series
         let seriesSizes = Dictionary(grouping: plotted) { $0.series ?? 0 }.mapValues(\.count)
         let prices = plotted.flatMap { sample -> [Double] in
@@ -188,7 +189,7 @@ struct VeltrixChart: View {
         return Chart {
             ForEach(data) { sample in
                 if candles, let open = sample.open, let high = sample.high, let low = sample.low {
-                    let shade = sample.close >= open ? Color.vxUp : Color.vxDown
+                    let shade = sample.close >= open ? theme.positive : theme.negative
                     RuleMark(x: .value("Date", sample.date), yStart: .value("Low", double(low)), yEnd: .value("High", double(high)))
                         .foregroundStyle(shade)
                     RectangleMark(x: .value("Date", sample.date), yStart: .value("Open", double(open)),
@@ -201,14 +202,14 @@ struct VeltrixChart: View {
                 } else {
                     if plotted.count >= 2 && !hasGaps { AreaMark(x: .value("Date", sample.date), yStart: .value("Floor", minimum - padding),
                              yEnd: .value("Price", double(sample.close)))
-                        .interpolationMethod(.linear)
+                        .interpolationMethod(mini ? .monotone : .linear)
                         .foregroundStyle(LinearGradient(colors: [trend.opacity(0.19), trend.opacity(0.01)],
                                                         startPoint: .top, endPoint: .bottom)) }
                     if plotted.count >= 2 {
                         LineMark(x: .value("Date", sample.date), y: .value("Price", double(sample.close)),
                                  series: .value("Series", sample.series ?? 0))
                             .foregroundStyle(trend)
-                            .interpolationMethod(.linear)
+                            .interpolationMethod(mini ? .monotone : .linear)
                             .lineStyle(StrokeStyle(lineWidth: 1.8, lineCap: .round, lineJoin: .round))
                     }
                     if data.count == 1 || seriesSizes[sample.series ?? 0] == 1 ||
@@ -224,15 +225,15 @@ struct VeltrixChart: View {
             }
             if let anchor, anchor.date >= first, anchor.date <= last {
                 RuleMark(x: .value("Date", anchor.date))
-                    .foregroundStyle(Color.vxMuted).lineStyle(StrokeStyle(dash: [3, 3]))
+                    .foregroundStyle(theme.muted).lineStyle(StrokeStyle(dash: [3, 3]))
             }
             if let focus, focus.date >= first, focus.date <= last {
                 RuleMark(x: .value("Date", focus.date))
-                    .foregroundStyle(Color.vxHighlight).lineStyle(StrokeStyle(lineWidth: 0.9))
+                    .foregroundStyle(theme.highlight).lineStyle(StrokeStyle(lineWidth: 0.9))
                 RuleMark(y: .value("Selected price", double(focus.close)))
-                    .foregroundStyle(Color.vxMuted.opacity(0.5)).lineStyle(StrokeStyle(lineWidth: 0.7, dash: [3, 3]))
+                    .foregroundStyle(theme.muted.opacity(0.5)).lineStyle(StrokeStyle(lineWidth: 0.7, dash: [3, 3]))
                 PointMark(x: .value("Date", focus.date), y: .value("Price", double(focus.close)))
-                    .foregroundStyle(Color.vxHighlight).symbolSize(48)
+                    .foregroundStyle(theme.highlight).symbolSize(48)
             }
         }
         .chartYScale(domain: (minimum - padding)...(maximum + padding))
@@ -240,7 +241,7 @@ struct VeltrixChart: View {
         .chartXAxis {
             if !mini && !compact && (!compareAmounts || last.timeIntervalSince(first) >= 60) {
                 AxisMarks(values: .automatic(desiredCount: 3)) { _ in
-                    AxisValueLabel().foregroundStyle(Color.vxMuted)
+                    AxisValueLabel().foregroundStyle(theme.muted)
                 }
             }
         }
@@ -252,7 +253,7 @@ struct VeltrixChart: View {
             } else if !mini && !compact {
                 AxisMarks(position: .trailing, values: .automatic(desiredCount: 3)) { value in
                     AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [3, 4]))
-                        .foregroundStyle(Color.vxMuted.opacity(0.36))
+                        .foregroundStyle(theme.muted.opacity(0.36))
                     if let amount = value.as(Double.self), amount.isFinite {
                         AxisValueLabel { Text(verbatim: format(Decimal(amount))).font(.caption2) }
                     }

@@ -50,6 +50,7 @@ extension OperationKind {
 }
 
 struct ActivityScreen: View {
+    @Environment(\.veltrixTheme) private var theme
     private enum Category: String, CaseIterable {
         case trades, transfers, cards
 
@@ -87,7 +88,7 @@ struct ActivityScreen: View {
     var body: some View {
         PageScroll {
             if adjustmentsOnly {
-                Text("Adjustment journal").font(.largeTitle.bold()).accessibilityAddTraits(.isHeader)
+                Text("Adjustment journal").font(.largeTitle.weight(.semibold)).accessibilityAddTraits(.isHeader)
             } else {
                 PageHeader(title: "Activity", detail: "Transactions and open orders") { EmptyView() }
                 Picker("Activity view", selection: $showOrders) {
@@ -97,7 +98,7 @@ struct ActivityScreen: View {
                 .pickerStyle(.segmented)
             }
             HStack(spacing: 9) {
-                Image(systemName: "magnifyingglass").foregroundStyle(Color.vxMuted)
+                Image(systemName: "magnifyingglass").foregroundStyle(theme.muted)
                 TextField("Search activity", text: $query).textInputAutocapitalization(.never).autocorrectionDisabled()
                 if !query.isEmpty {
                     Button { query = "" } label: { Image(systemName: "xmark.circle.fill") }.accessibilityLabel(Text("Clear search"))
@@ -184,14 +185,14 @@ struct ActivityScreen: View {
             } else {
                 ForEach(groups.keys.sorted(by: descending ? (>) : (<)), id: \.self) { day in
                     VStack(alignment: .leading, spacing: 8) {
-                        Text(day, style: .date).font(.subheadline.weight(.semibold)).foregroundStyle(Color.vxMuted)
+                        Text(day, style: .date).font(.subheadline.weight(.semibold)).foregroundStyle(theme.muted)
                         LazyVStack(spacing: 0) {
                             ForEach(sortedEntries(groups[day] ?? [])) { entry in
                                 NavigationLink {
                                     EntryScreen(entry: entry)
                                 } label: { EntryRow(entry: entry) }
                                 .buttonStyle(.plain)
-                                Divider().overlay(Color.vxSeparator)
+                                Divider().overlay(theme.separator)
                             }
                         }
                     }
@@ -220,7 +221,7 @@ struct ActivityScreen: View {
                             .font(.headline)
                         Text(verbatim: Asset.ticker(order.asset)).font(.subheadline.monospaced())
                         Spacer()
-                        Text(order.status.title).font(.caption.weight(.semibold)).foregroundStyle(Color.vxHighlight)
+                        Text(order.status.title).font(.caption.weight(.semibold)).foregroundStyle(theme.highlight)
                     }
                     LabeledContent("Quantity", value: model.units(order.units))
                     LabeledContent("Limit price", value: model.money(order.limit, privateValue: false, price: true))
@@ -228,10 +229,10 @@ struct ActivityScreen: View {
                         LabeledContent("Fill price", value: model.money(filled, privateValue: false, price: true))
                     }
                     Text(order.date.formatted(date: .abbreviated, time: .shortened))
-                        .font(.caption).foregroundStyle(Color.vxMuted)
+                        .font(.caption).foregroundStyle(theme.muted)
                     if let closed = order.closedAt {
                         Text("Closed · \(closed.formatted(date: .abbreviated, time: .shortened))")
-                            .font(.caption).foregroundStyle(Color.vxMuted)
+                            .font(.caption).foregroundStyle(theme.muted)
                     }
                     if order.status == .open {
                         Button("Cancel order", role: .destructive) { cancelOrder = order }
@@ -282,6 +283,7 @@ struct ActivityScreen: View {
 }
 
 struct EntryRow: View {
+    @Environment(\.veltrixTheme) private var theme
     @EnvironmentObject private var model: VeltrixModel
     let entry: Entry
 
@@ -291,13 +293,13 @@ struct EntryRow: View {
                 CoinIcon(asset: asset, url: model.quotes[asset.id]?.image, size: 36)
             } else {
                 Image(systemName: entry.kind.icon)
-                    .font(.subheadline.weight(.semibold)).foregroundStyle(Color.vxHighlight)
-                    .frame(width: 36, height: 36).background(Color.vxAccent.opacity(0.12), in: Circle())
+                    .font(.subheadline.weight(.semibold)).foregroundStyle(theme.highlight)
+                    .frame(width: 36, height: 36).background(theme.accent.opacity(0.12), in: Circle())
             }
             VStack(alignment: .leading, spacing: 4) {
                 Text(entry.kind.title).font(.subheadline.weight(.semibold)).lineLimit(1)
                 Text(verbatim: assetLabel + " · " + entry.date.formatted(date: .omitted, time: .shortened))
-                    .font(.caption2).foregroundStyle(Color.vxMuted).lineLimit(1)
+                    .font(.caption2).foregroundStyle(theme.muted).lineLimit(1)
             }
             Spacer(minLength: 5)
             VStack(alignment: .trailing, spacing: 4) {
@@ -305,7 +307,7 @@ struct EntryRow: View {
                       "\(model.units(entry.amount)) \(Asset.ticker(entry.asset))")
                     .font(.subheadline.weight(.semibold).monospacedDigit()).foregroundStyle(amountColor)
                 if let usd = entry.usd, entry.asset != "USD" {
-                    Text(verbatim: model.money(usd)).font(.caption2).foregroundStyle(Color.vxMuted)
+                    Text(verbatim: model.money(usd)).font(.caption2).foregroundStyle(theme.muted)
                 }
             }
             .lineLimit(1).minimumScaleFactor(0.52)
@@ -322,14 +324,15 @@ struct EntryRow: View {
 
     private var amountColor: Color {
         switch entry.kind {
-        case .buy, .receive, .deposit, .refund: return .vxUp
-        case .sell, .send, .cardPayment, .qrPayment: return .vxDown
+        case .buy, .receive, .deposit, .refund: return theme.positive
+        case .sell, .send, .cardPayment, .qrPayment: return theme.negative
         default: return .primary
         }
     }
 }
 
 struct EntryScreen: View {
+    @Environment(\.veltrixTheme) private var theme
     @EnvironmentObject private var model: VeltrixModel
     let entry: Entry
     @State private var refund = false
@@ -357,7 +360,7 @@ struct EntryScreen: View {
             .panel()
             if entry.kind == .cardPayment, let card = entry.cardID, model.cards.contains(where: { $0.id == card }) {
                 if model.portfolio.entries.contains(where: { $0.reference == entry.id }) {
-                    Label("Refunded", systemImage: "checkmark.circle").foregroundStyle(Color.vxUp)
+                    Label("Refunded", systemImage: "checkmark.circle").foregroundStyle(theme.positive)
                 } else {
                     Button("Refund payment") { refund = true }.buttonStyle(PrimaryButtonStyle())
                 }
