@@ -59,7 +59,7 @@ final class NotificationDelegate: NSObject, UIApplicationDelegate, UNUserNotific
         let identifier = response.notification.request.identifier
         DispatchQueue.main.async {
             if response.actionIdentifier == UNNotificationDefaultActionIdentifier,
-               UUID(uuidString: identifier) != nil || identifier.hasPrefix("price-") || identifier.hasPrefix("order-") {
+               UUID(uuidString: identifier) != nil || identifier.hasPrefix("price-") || identifier.hasPrefix("order-") || identifier.hasPrefix("stake-") {
                 UserDefaults.standard.set(identifier, forKey: "pendingOperationNotification")
                 NotificationCenter.default.post(name: Self.opened, object: nil)
             }

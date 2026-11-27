@@ -268,6 +268,8 @@ struct VeltrixRoot: View {
         UserDefaults.standard.removeObject(forKey: "pendingOperationNotification")
         if let id = UUID(uuidString: value) {
             notificationEntry = model.openNotification(id)
+        } else if value.hasPrefix("stake-") {
+            showEarn = true
         } else if value.hasPrefix("price-") {
             showPriceAlerts = true
         } else if value.hasPrefix("order-"), let id = UUID(uuidString: String(value.dropFirst(6))) {

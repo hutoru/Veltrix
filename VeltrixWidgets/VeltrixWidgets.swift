@@ -46,6 +46,10 @@ private struct Provider: TimelineProvider {
 
 private struct PortfolioWidget: Widget {
     let section: WidgetSection
+
+    init() { section = .portfolio }
+    init(section: WidgetSection) { self.section = section }
+
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: section.rawValue, provider: Provider()) { entry in
             WidgetPanel(section: section, data: entry.data)
