@@ -11,7 +11,7 @@
 ## Скачать IPA на Windows
 
 1. Откройте [Build iOS IPA](https://github.com/hutoru/Veltrix/actions/workflows/build-ios.yml). Чтобы запустить новую сборку, выберите нужную ветку в меню **Run workflow**. Вариант **release_with_tests** сначала запускает регрессии в симуляторе, затем собирает IPA.
-2. В успешном запуске скачайте **Veltrix-unsigned-ipa** и распакуйте артефакт. Для 9.2.0 внутри находятся `VELTRIX-9.2.0-Midnight.ipa` и контрольная сумма SHA-256.
+2. В успешном запуске скачайте **Veltrix-unsigned-ipa** и распакуйте артефакт. Для 9.3.0 внутри находятся `VELTRIX-9.3.0-Experience.ipa` и контрольная сумма SHA-256.
 3. Через PowerShell можно скачать и одновременно проверить последний успешный артефакт. Скрипт использует вход через Git Credential Manager или GitHub CLI.
 
 ```powershell
@@ -24,10 +24,12 @@
 
 Артефакт GitHub нужно подписать перед установкой. Для бесплатного Apple ID подпись обычно действует 7 дней, после чего приложение нужно обновить через инструмент подписи. AltStore Classic допускает до трёх активных приложений, установленных таким способом. На iOS 16 может потребоваться «Режим разработчика» в разделе «Конфиденциальность и безопасность». [AltStore Classic](https://faq.altstore.io/altstore-classic/your-altstore) · [Режим разработчика Apple](https://developer.apple.com/documentation/xcode/enabling-developer-mode-on-a-device)
 
-- **Sideloadly.** Установите рекомендованные разработчиком версии iTunes и iCloud с сайта Apple. Подключите разблокированный iPhone по USB, подтвердите доверие этому компьютеру, выберите устройство и `VELTRIX-9.2.0-Midnight.ipa`. Введите Apple ID в Sideloadly, нажмите **Start** и следуйте подсказкам на iPhone. [Sideloadly](https://sideloadly.io/)
-- **AltStore Classic.** Установите AltServer на Windows, через него установите AltStore на iPhone, перенесите `VELTRIX-9.2.0-Midnight.ipa` на телефон и откройте через **My Apps → +**. Для обновления подписи AltServer должен быть доступен. [Установка AltStore на Windows](https://faq.altstore.io/altstore-classic/how-to-install-altstore-windows)
+- **Sideloadly.** Установите рекомендованные разработчиком версии iTunes и iCloud с сайта Apple. Подключите разблокированный iPhone по USB, подтвердите доверие этому компьютеру, выберите устройство и `VELTRIX-9.3.0-Experience.ipa`. Введите Apple ID в Sideloadly, нажмите **Start** и следуйте подсказкам на iPhone. [Sideloadly](https://sideloadly.io/)
+- **AltStore Classic.** Установите AltServer на Windows, через него установите AltStore на iPhone, перенесите `VELTRIX-9.3.0-Experience.ipa` на телефон и откройте через **My Apps → +**. Для обновления подписи AltServer должен быть доступен. [Установка AltStore на Windows](https://faq.altstore.io/altstore-classic/how-to-install-altstore-windows)
 
-## Данные и поведение симуляции
+Виджеты и Live Activities входят в расширение WidgetKit для iOS 16.1+. Обмен данными с виджетами требует профиля подписи, который разрешает одну и ту же App Group приложению и расширению.
+
+## Данные и операции
 
 - **Криптовалюты.** CoinGecko предоставляет сводные котировки, капитализацию, объём и историю. Kraken поставляет поток сделок по выбранным USD-парам и свечи для поддерживаемых пар. Для `ALL` без подходящей пары Kraken используется доступная годовая история CoinGecko с явной пометкой. [CoinGecko](https://docs.coingecko.com/reference/coins-id-market-chart) · [Условия](https://www.coingecko.com/en/api_terms) · [Kraken OHLC](https://docs.kraken.com/api/docs/rest-api/get-ohlc-data/)
 - **Доступность.** Публичный CoinGecko может ограничить анонимные запросы. Необязательный бесплатный ключ Demo хранится в Keychain. Если сеть недоступна, приложение показывает последние сохранённые данные с датой. Рыночные операции и исполнение лимитных ордеров используют свежие котировки при активном приложении. Исполнение по пропущенным движениям рынка в фоне не моделируется.

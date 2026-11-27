@@ -178,6 +178,9 @@ final class VeltrixUITests: XCTestCase {
         XCTAssertTrue(card.waitForExistence(timeout: 5))
         XCTAssertEqual(card.value as? String, "$0.00")
         capture(app, name: "Cards")
+        card.tap()
+        XCTAssertTrue(card.isHittable)
+        capture(app, name: "Card Reverse")
         app.navigationBars.buttons.element(boundBy: 0).tap()
         app.buttons["profile.settings"].tap()
         let privacyButton = app.buttons["settings.hide"]
@@ -276,7 +279,7 @@ final class VeltrixUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["activity.sell"].exists)
     }
 
-    func testSendRecordsSimulatedTransfer() {
+    func testSendRecordsTransfer() {
         let app = launch()
         openOperation("buy", in: app)
         XCTAssertTrue(app.buttons["25%"].waitForExistence(timeout: 5))
@@ -344,18 +347,19 @@ final class VeltrixUITests: XCTestCase {
         capture(app, name: "iOS Notification Diagnostics")
     }
 
-    func testSimulatorDisclosureAppearsAtBottomOfSettings() {
+    func testSettingsFooterAndPortfolioShare() {
         let app = launch()
-        let disclosure = app.staticTexts["settings.simulatorDisclosure"]
-        XCTAssertFalse(disclosure.exists)
+        app.buttons["Share portfolio"].tap()
+        XCTAssertTrue(app.buttons["Share image"].waitForExistence(timeout: 5))
+        capture(app, name: "Portfolio Share")
+        app.buttons["Done"].tap()
         app.buttons["home.profile"].tap()
         app.buttons["profile.settings"].tap()
-        for _ in 0..<9 where !disclosure.isHittable { app.swipeUp() }
-        XCTAssertTrue(disclosure.isHittable)
-        XCTAssertTrue(disclosure.label.hasPrefix("VELTRIX is a simulator."))
-        XCTAssertTrue(disclosure.label.contains("Cards have no payment credentials."))
-        XCTAssertTrue(disclosure.label.contains("QR payments work between portfolios on this device."))
-        capture(app, name: "Settings disclosure")
+        let about = app.buttons["About VELTRIX"]
+        for _ in 0..<12 where !about.isHittable { app.swipeUp() }
+        XCTAssertTrue(about.isHittable)
+        XCTAssertFalse(app.staticTexts["settings.simulatorDisclosure"].exists)
+        capture(app, name: "Settings Footer")
     }
 
     func testQRScannerOpensAndCanBeDismissed() {
@@ -369,6 +373,18 @@ final class VeltrixUITests: XCTestCase {
         capture(app, name: "QR Scanner")
         app.buttons["Close"].tap()
         XCTAssertTrue(app.buttons["Scan QR code"].waitForExistence(timeout: 5))
+    }
+
+    func testQRPaymentUsesCompactConfirmation() {
+        let app = launch(["--qr-payment-fixture"])
+        app.buttons["Scan QR code"].tap()
+        let confirm = app.buttons["scanner.confirmPayment"]
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5))
+        XCTAssertTrue(confirm.isHittable)
+        capture(app, name: "QR Payment")
+        confirm.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["scanner.paymentSaved"].waitForExistence(timeout: 5))
+        capture(app, name: "QR Payment Saved")
     }
 
     func testReceiveCreatesAndRefreshesLocalQRRequest() {

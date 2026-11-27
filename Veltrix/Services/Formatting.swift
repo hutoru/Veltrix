@@ -85,6 +85,7 @@ enum FinancialFormatter {
     static func error(_ error: Error) -> String {
         if let issue = error as? SimulationError {
             switch issue {
+            case .stakeLocked: return L.text("The staking term has not ended.")
             case .invalidAmount: return L.text("Enter a valid amount.")
             case .precision: return L.text("The amount exceeds the supported decimal precision.")
             case .insufficientCash: return L.text("Insufficient available balance.")

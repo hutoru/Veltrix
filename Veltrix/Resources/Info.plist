@@ -12,6 +12,8 @@
   <key>CFBundleShortVersionString</key><string>$(MARKETING_VERSION)</string>
   <key>CFBundleVersion</key><string>$(CURRENT_PROJECT_VERSION)</string>
   <key>LSRequiresIPhoneOS</key><true/>
+  <key>NSSupportsLiveActivities</key><true/>
+  <key>CFBundleURLTypes</key><array><dict><key>CFBundleURLSchemes</key><array><string>veltrix</string></array></dict></array>
   <key>NSFaceIDUsageDescription</key><string>Unlock Veltrix and protect your portfolio.</string>
   <key>NSCameraUsageDescription</key><string>Scan QR codes and read public addresses in Veltrix.</string>
   <key>NSMotionUsageDescription</key><string>Animate card reflections when you tilt your iPhone.</string>

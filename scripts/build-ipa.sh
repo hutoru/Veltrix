@@ -32,10 +32,14 @@ test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$app/Info.plist")" 
 test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Info.plist")" = "app.veltrix.simulation"
 test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIcons:CFBundlePrimaryIcon:CFBundleIconName' "$app/Info.plist")" = "AppIcon"
 test -s "$app/Assets.car"
-if /usr/libexec/PlistBuddy -c 'Print :CFBundleIcons:CFBundleAlternateIcons' "$app/Info.plist" >/dev/null 2>&1; then
-  echo "Unexpected alternate app icon" >&2
-  exit 1
-fi
+for icon in VXWhite VXMidnight VXTitanium VXCarbon VXGold VXOcean VXMono; do
+  /usr/libexec/PlistBuddy -c "Print :CFBundleIcons:CFBundleAlternateIcons:$icon" "$app/Info.plist" >/dev/null
+done
+widget="$app/PlugIns/VeltrixWidgets.appex"
+test "$(xcrun lipo -archs "$widget/VeltrixWidgets")" = "arm64"
+test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$widget/Info.plist")" = "app.veltrix.simulation.widgets"
+test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$widget/Info.plist")" = "$build_number"
+test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$widget/Info.plist")" = "$version"
 source_icon="$PWD/Veltrix/Resources/Assets.xcassets/AppIcon.appiconset/VeltrixIcon.png"
 compiled_icon="$(find "$app" -maxdepth 1 -name 'AppIcon*.png' -size +0c -print -quit)"
 test -n "$compiled_icon"
@@ -75,7 +79,7 @@ test ! -d "$app/_CodeSignature"
 
 staging="$(mktemp -d "$build/ipa.XXXXXXXX")"
 trap 'rm -rf -- "$staging"' EXIT
-ipa="VELTRIX-$version-Midnight.ipa"
+ipa="VELTRIX-$version-Experience.ipa"
 mkdir "$staging/Payload"
 /usr/bin/ditto "$app" "$staging/Payload/Veltrix.app"
 (cd "$staging" && /usr/bin/zip -qry "$ipa" Payload)

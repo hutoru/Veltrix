@@ -18,8 +18,11 @@ final class PersistenceTests: XCTestCase {
             XCTAssertEqual(try store.load(), state)
         }
         let data = try SimulationBackup.export(state)
-        XCTAssertTrue(String(decoding: data, as: UTF8.self).contains("VELTRIX · Simulation"))
+        let exported = String(decoding: data, as: UTF8.self)
+        XCTAssertTrue(exported.contains("VELTRIX Backup"))
         XCTAssertEqual(try SimulationBackup.load(data), state)
+        let legacy = exported.replacingOccurrences(of: "VELTRIX Backup", with: "VELTRIX · Simulation")
+        XCTAssertEqual(try SimulationBackup.load(Data(legacy.utf8)), state)
     }
 
     @MainActor func testRecoveryStoreAndPreferencesReopenWithExistingRecords() throws {

@@ -6,6 +6,9 @@ import UIKit
 
 struct QRScanner: View {
     @Environment(\.veltrixTheme) private var theme
+    #if DEBUG
+    @EnvironmentObject private var model: VeltrixModel
+    #endif
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var phase
     var onScan: ((String) -> Void)?
@@ -75,7 +78,7 @@ struct QRScanner: View {
                 if let result {
                     VStack(alignment: .leading, spacing: 16) {
                         let requestID = LocalPaymentRequest.identifier(from: result)
-                        Text(requestID == nil ? "QR code" : "Payment request").font(.headline)
+                        if requestID == nil { Text("QR code").font(.headline) }
                         ScrollView {
                             Text(verbatim: requestID?.uuidString ?? result)
                                 .textSelection(.enabled)
@@ -83,7 +86,10 @@ struct QRScanner: View {
                         }
                             .frame(maxHeight: 180)
                         if let id = requestID {
-                            Button("Review payment") { showPayment = true }
+                            Button { showPayment = true } label: {
+                                Image(systemName: "arrow.right").frame(minWidth: 26, minHeight: 26)
+                            }
+                                .accessibilityLabel(Text("Pay"))
                                 .buttonStyle(.borderedProminent)
                                 .accessibilityIdentifier("scanner.reviewPayment")
                                 .accessibilityValue(Text(verbatim: id.uuidString))
@@ -133,6 +139,12 @@ struct QRScanner: View {
         }
         .task(id: phase) {
             guard phase == .active else { return }
+            #if DEBUG
+            if UITestMode.fixture("--qr-payment-fixture") {
+                if let request = model.ledger.localPaymentRequests?.values.first { accept(request.payload) }
+                return
+            }
+            #endif
             let status = AVCaptureDevice.authorizationStatus(for: .video)
             let authorized: Bool
             if status == .notDetermined {

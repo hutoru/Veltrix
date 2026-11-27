@@ -23,6 +23,8 @@ enum Command: Sendable {
     case moveCardFunds(UUID, Decimal, toCard: Bool)
     case pay(UUID, Decimal, String, subscription: Bool = false)
     case refund(UUID, UUID)
+    case openStake(String, Decimal, StakeTerm)
+    case claimStake(UUID, close: Bool)
 }
 
 enum TradingEngine {
@@ -163,6 +165,31 @@ enum TradingEngine {
                           usd: flow.map { abs($0) }, externalFlow: flow ?? 0,
                           valuationUnavailable: delta != 0 && flow == nil ? true : nil)
             changedValue = true
+
+        case let .openStake(asset, units, term):
+            guard let rate = Stake.rates[asset], units >= Stake.minimum else { throw SimulationError.invalidAmount }
+            try MoneyMath.quantity(units)
+            try requireUnits(units, asset, portfolio)
+            portfolio.stakes = (portfolio.stakes ?? []) + [Stake(id: id, asset: asset, units: units, rate: rate,
+                                                                term: term, opened: date, creditedUntil: date)]
+
+        case let .claimStake(stakeID, close):
+            guard var stakes = portfolio.stakes, let index = stakes.firstIndex(where: { $0.id == stakeID }) else {
+                throw SimulationError.missingRecord
+            }
+            var stake = stakes[index]
+            if let maturity = stake.maturity, date < maturity { throw SimulationError.stakeLocked }
+            let reward = try stake.rewards(at: date)
+            guard close || reward > 0 else { throw SimulationError.invalidAmount }
+            if reward > 0 {
+                try add(reward, basis: 0, asset: stake.asset, to: &portfolio)
+                stake.creditedUntil = min(date, stake.maturity ?? date)
+                entry = Entry(id: id, date: date, kind: .stakeReward, asset: stake.asset, amount: reward,
+                              usd: prices[stake.asset].flatMap { try? MoneyMath.quotedUSD(reward, at: $0) }, reference: stakeID)
+                changedValue = true
+            }
+            if close { stakes.remove(at: index) } else { stakes[index] = stake }
+            portfolio.stakes = stakes
 
         case let .createPortfolio(name, cash):
             try MoneyMath.nonnegative(cash)

@@ -2,12 +2,6 @@ import SwiftUI
 
 struct PortfolioAnalyticsScreen: View {
     @Environment(\.veltrixTheme) private var theme
-    private struct Allocation: Identifiable {
-        let asset: Asset
-        let weight: Decimal
-        var id: String { asset.id }
-    }
-
     @EnvironmentObject private var model: VeltrixModel
     @State private var range = ChartRange.week
     @State private var candles = false
@@ -65,7 +59,7 @@ struct PortfolioAnalyticsScreen: View {
                 if ranked.count > 1, let worst = ranked.last {
                     LabeledContent("Worst performing asset", value: worst.asset.ticker + " · " + Display.percent(worst.value))
                 }
-                allocation
+                PortfolioAllocation(portfolio: portfolio)
             }
             Text("Open positions").font(.headline)
             if portfolio.positions.isEmpty {
@@ -141,7 +135,25 @@ struct PortfolioAnalyticsScreen: View {
         }.frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    @ViewBuilder private var allocation: some View {
+    private var periodProfit: Decimal? {
+        let start = range.start(from: .now) ?? .distantPast
+        return try? realizedTrades.filter { $0.date >= start }.compactMap(\.profit).reduce(0, MoneyMath.addValuation)
+    }
+}
+
+struct PortfolioAllocation: View {
+    private struct Allocation: Identifiable {
+        let asset: Asset
+        let weight: Decimal
+        var id: String { asset.id }
+    }
+
+    @EnvironmentObject private var model: VeltrixModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var selected: String?
+    let portfolio: Portfolio
+
+    @ViewBuilder var body: some View {
         if let total = try? portfolio.value(prices: model.prices), total > 0 {
             let weights = Asset.catalog.compactMap { asset -> Allocation? in
                 guard let position = portfolio.positions[asset.id], let price = model.prices[asset.id],
@@ -154,21 +166,28 @@ struct PortfolioAnalyticsScreen: View {
                     ForEach(Array(weights.prefix(5))) { allocation in
                         let asset = allocation.asset
                         let weight = allocation.weight
-                        HStack(spacing: 12) {
-                            CoinIcon(asset: asset, url: model.quotes[asset.id]?.image, size: 24)
-                            Text(verbatim: asset.ticker).font(.caption.weight(.semibold)).frame(width: 46, alignment: .leading)
-                            ProgressView(value: min(1, max(0, NSDecimalNumber(decimal: weight).doubleValue)))
-                            Text(verbatim: Display.number(weight * 100, maximum: 1) + "%").font(.caption.monospacedDigit())
-                                .frame(minWidth: 55, alignment: .trailing)
+                        Button {
+                            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.18)) {
+                                selected = selected == asset.id ? nil : asset.id
+                            }
+                        } label: {
+                            HStack(spacing: 12) {
+                                CoinIcon(asset: asset, url: model.quotes[asset.id]?.image, size: 24)
+                                Text(verbatim: asset.ticker).font(.caption.weight(.semibold)).frame(width: 46, alignment: .leading)
+                                ProgressView(value: min(1, max(0, NSDecimalNumber(decimal: weight).doubleValue)))
+                                Text(verbatim: Display.number(weight * 100, maximum: 1) + "%").font(.caption.monospacedDigit())
+                                    .frame(minWidth: 55, alignment: .trailing)
+                            }.frame(minHeight: 44).contentShape(Rectangle())
+                        }.buttonStyle(.plain)
+                        .accessibilityAddTraits(selected == asset.id ? .isSelected : [])
+                        if selected == asset.id {
+                            LabeledContent("Available balance", value: model.units((try? portfolio.freeUnits(asset.id)) ?? 0) + " " + asset.ticker)
+                                .font(.caption).foregroundStyle(.secondary)
+                            NavigationLink(value: asset) { Text(verbatim: asset.name) }.font(.caption)
                         }
                     }
                 }
             }
         }
-    }
-
-    private var periodProfit: Decimal? {
-        let start = range.start(from: .now) ?? .distantPast
-        return try? realizedTrades.filter { $0.date >= start }.compactMap(\.profit).reduce(0, MoneyMath.addValuation)
     }
 }

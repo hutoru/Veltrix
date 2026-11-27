@@ -26,7 +26,6 @@ struct LocalQRPaymentScreen: View {
                 }
                 if let error { Text(verbatim: error).font(.footnote).foregroundStyle(theme.negative) }
             }
-            .navigationTitle("QR payment")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button(saved ? "Done" : "Close") { dismiss() } } }
         }
@@ -45,7 +44,7 @@ struct LocalQRPaymentScreen: View {
                     ForEach(candidates) { item in Text(verbatim: item.name).tag(item.id) }
                 }
                 LabeledContent("Available balance", value: (try? payer.freeUnits(request.asset)).map { model.units($0) } ?? "-")
-                Button("Confirm payment") {
+                Button {
                     if model.execute(.payQR(request.id, from: payer.id), showFeedback: false) {
                         saved = true
                         Feedback.success()
@@ -53,7 +52,12 @@ struct LocalQRPaymentScreen: View {
                         error = model.error
                         model.error = nil
                     }
-                }.buttonStyle(PrimaryButtonStyle()).accessibilityIdentifier("scanner.confirmPayment")
+                } label: {
+                    Image(systemName: "checkmark").accessibilityHidden(true)
+                }
+                .buttonStyle(PrimaryButtonStyle())
+                .accessibilityLabel(Text("Pay"))
+                .accessibilityIdentifier("scanner.confirmPayment")
             } else {
                 Text("Create a second portfolio to pay this request.")
             }

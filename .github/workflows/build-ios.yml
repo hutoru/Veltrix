@@ -26,7 +26,7 @@ jobs:
     needs: tests
     if: ${{ !cancelled() && (inputs.task == 'release' || (inputs.task == 'release_with_tests' && needs.tests.result == 'success')) }}
     runs-on: macos-15
-    timeout-minutes: 10
+    timeout-minutes: 16
     steps:
       - uses: actions/checkout@v6
 
@@ -55,8 +55,8 @@ jobs:
         with:
           name: Veltrix-unsigned-ipa
           path: |
-            build/VELTRIX-*-Midnight.ipa
-            build/VELTRIX-*-Midnight.ipa.sha256
+            build/VELTRIX-*-Experience.ipa
+            build/VELTRIX-*-Experience.ipa.sha256
           if-no-files-found: error
           retention-days: 7
 

@@ -39,8 +39,7 @@ struct PortfolioShare: View {
             HStack {
                 VeltrixMark().fill(theme.highlight).frame(width: 28, height: 28)
                 Text(verbatim: "VELTRIX").font(.headline).tracking(2)
-                Spacer()
-                Text("Portfolio").font(.caption.weight(.semibold))
+                Spacer(minLength: 0)
             }
             Text(verbatim: portfolio.name).font(.subheadline).foregroundStyle(theme.muted)
             Text(verbatim: model.money(try? portfolio.value(prices: model.prices)))
@@ -78,7 +77,6 @@ struct PortfolioShare: View {
             } else {
                 Text("No chart data").font(.subheadline).foregroundStyle(theme.muted).frame(height: 70)
             }
-            Text(verbatim: "Beyond the balance.").font(.caption).foregroundStyle(theme.muted)
         }
         .padding(24).frame(width: 420)
         .background(theme.background)

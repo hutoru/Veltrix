@@ -1,7 +1,7 @@
 import Foundation
 
 struct LocalPaymentRequest: Codable, Equatable, Identifiable, Sendable {
-    static let prefix = "VELTRIX-TEST:v1:"
+    static let prefix = "VELTRIX:v1:"
 
     let id: UUID
     let recipient: UUID
@@ -16,7 +16,8 @@ struct LocalPaymentRequest: Codable, Equatable, Identifiable, Sendable {
     }
 
     static func identifier(from payload: String) -> UUID? {
-        guard payload.hasPrefix(prefix), payload.utf8.count == prefix.utf8.count + 36 else { return nil }
+        guard let prefix = [Self.prefix, "VELTRIX-TEST:v1:"].first(where: payload.hasPrefix),
+              payload.utf8.count == prefix.utf8.count + 36 else { return nil }
         return UUID(uuidString: String(payload.dropFirst(prefix.count)))
     }
 }

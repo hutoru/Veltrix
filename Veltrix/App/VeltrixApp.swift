@@ -95,6 +95,8 @@ struct VeltrixRoot: View {
     @State private var keyboardVisible = false
     @State private var showSplash = !UITestMode.enabled || UITestMode.fixture("--capture-launch")
     @State private var showSearch = false
+    @State private var widgetRoute: URL?
+    @State private var showEarn = false
     @State private var notificationEntry: Entry?
     @State private var notificationOrder: LimitOrder?
     @State private var showPriceAlerts = false
@@ -156,6 +158,7 @@ struct VeltrixRoot: View {
             if value {
                 model.stop()
                 showSearch = false
+                showEarn = false
                 notificationEntry = nil
                 notificationOrder = nil
                 showPriceAlerts = false
@@ -164,6 +167,7 @@ struct VeltrixRoot: View {
                 model.start()
                 openPendingNotification()
                 openPendingShortcut()
+                openWidgetRoute()
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
@@ -176,13 +180,23 @@ struct VeltrixRoot: View {
         .onReceive(NotificationCenter.default.publisher(for: NotificationDelegate.opened)) { _ in openPendingNotification() }
         .onReceive(NotificationCenter.default.publisher(for: AppShortcut.opened)) { _ in openPendingShortcut() }
         .onChange(of: showSplash) { visible in
-            if !visible { openPendingNotification(); openPendingShortcut(); attemptAutomaticUnlock() }
+            if !visible { openPendingNotification(); openPendingShortcut(); openWidgetRoute(); attemptAutomaticUnlock() }
         }
         .onChange(of: model.onSet) { enabled in if !enabled { openPendingNotification() } }
         .onAppear {
             NotificationDelegate.lockState = lock
             if phase == .active && !lock.locked { model.start(); openPendingNotification(); openPendingShortcut() }
             else { attemptAutomaticUnlock() }
+        }
+        .onOpenURL { url in
+            guard url.scheme == "veltrix" else { return }
+            widgetRoute = url
+            openWidgetRoute()
+        }
+        .sheet(isPresented: $showEarn) {
+            NavigationStack {
+                EarnScreen().toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { showEarn = false } } }
+            }
         }
         .sheet(item: $notificationEntry) { entry in
             NavigationStack {
@@ -209,6 +223,21 @@ struct VeltrixRoot: View {
             }
         }
         .fullScreenCover(isPresented: $shortcutScanner) { QRScanner() }
+    }
+
+    private func openWidgetRoute() {
+        guard !showSplash, !lock.locked, !model.storageError, !model.onSet, let url = widgetRoute else { return }
+        widgetRoute = nil
+        switch url.host {
+        case "portfolio": tab = .portfolio; navigationReset = UUID()
+        case "markets": tab = .markets; navigationReset = UUID()
+        case "earn": showEarn = true
+        case "activity":
+            guard let id = UUID(uuidString: url.lastPathComponent) else { return }
+            if let entry = model.openNotification(id) { notificationEntry = entry }
+            else { notificationOrder = model.ledger.portfolios.lazy.compactMap { $0.orders.first { $0.id == id } }.first }
+        default: break
+        }
     }
 
     private func attemptAutomaticUnlock() {
@@ -258,8 +287,10 @@ struct VeltrixRoot: View {
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 if !keyboardVisible {
                     VeltrixGlassTabBar(selection: $tab) { showSearch = true }
-                        .background {
-                            theme.background.ignoresSafeArea(edges: .bottom)
+                        .background(alignment: .bottom) {
+                            LinearGradient(colors: [theme.background.opacity(0), theme.background.opacity(0.74), theme.background],
+                                           startPoint: .top, endPoint: .bottom)
+                                .ignoresSafeArea(edges: .bottom).allowsHitTesting(false)
                         }
                 }
             }

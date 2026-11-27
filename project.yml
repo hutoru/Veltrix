@@ -11,6 +11,8 @@ settings:
     SWIFT_VERSION: "5.0"
     TARGETED_DEVICE_FAMILY: "1"
     ENABLE_USER_SCRIPT_SANDBOXING: YES
+    CURRENT_PROJECT_VERSION: 15
+    MARKETING_VERSION: "9.3.0"
 targets:
   Veltrix:
     type: application
@@ -19,15 +21,20 @@ targets:
       - path: Veltrix
         excludes:
           - Resources/Info.plist
+      - path: Shared
+        excludes: ["*.entitlements"]
+    dependencies:
+      - target: VeltrixWidgets
+        embed: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.veltrix.simulation
         PRODUCT_NAME: Veltrix
         INFOPLIST_FILE: Veltrix/Resources/Info.plist
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: "VXWhite VXMidnight VXTitanium VXCarbon VXGold VXOcean VXMono"
         TARGETED_DEVICE_FAMILY: "1"
-        CURRENT_PROJECT_VERSION: 14
-        MARKETING_VERSION: "9.2.0"
+        CODE_SIGN_ENTITLEMENTS: Shared/WidgetGroup.entitlements
         SUPPORTED_PLATFORMS: "iphoneos iphonesimulator"
         SUPPORTS_MACCATALYST: NO
         SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
@@ -35,6 +42,23 @@ targets:
       configs:
         Debug:
           ENABLE_TESTABILITY: YES
+  VeltrixWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: VeltrixWidgets
+        excludes: [Info.plist]
+      - path: Shared
+        excludes: ["*.entitlements"]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.veltrix.simulation.widgets
+        INFOPLIST_FILE: VeltrixWidgets/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Shared/WidgetGroup.entitlements
+        APPLICATION_EXTENSION_API_ONLY: YES
+        IPHONEOS_DEPLOYMENT_TARGET: "16.1"
+        SKIP_INSTALL: YES
+        "ARCHS[sdk=iphoneos*]": arm64
   VeltrixUnitTests:
     type: bundle.unit-test
     platform: iOS

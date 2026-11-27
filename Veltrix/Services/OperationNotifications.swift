@@ -191,6 +191,20 @@ final class ShortcutSceneDelegate: NSObject, UIWindowSceneDelegate {
         shared.enqueue(UNNotificationRequest(identifier: "order-" + order.id.uuidString, content: content, trigger: nil))
     }
 
+    static func scheduleStakeMaturity(_ stake: Stake) {
+        guard let maturity = stake.maturity, maturity > .now else { return }
+        let content = UNMutableNotificationContent()
+        content.title = "VELTRIX"
+        content.body = L.text("Staking term ended") + " · " + Asset.ticker(stake.asset)
+        content.sound = .default
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: max(1, maturity.timeIntervalSinceNow), repeats: false)
+        shared.enqueue(UNNotificationRequest(identifier: "stake-" + stake.id.uuidString, content: content, trigger: trigger))
+    }
+
+    static func cancelStakeMaturities(_ ids: Set<UUID>) {
+        shared.center.removePendingNotificationRequests(withIdentifiers: ids.map { "stake-" + $0.uuidString })
+    }
+
     func sendTest() {
         let content = UNMutableNotificationContent()
         content.title = "Veltrix"

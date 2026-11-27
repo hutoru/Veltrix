@@ -1,6 +1,7 @@
 import Foundation
 
 enum SimulationError: String, Error, Equatable, Sendable {
+    case stakeLocked
     case invalidAmount, precision, insufficientCash, insufficientAsset, missingQuote
     case missingRecord, duplicate, invalidPair, invalidBackup, reservedAsset
     case cardFrozen, cardLimit, cardHasBalance, alreadyRefunded, invalidName, invalidAddress

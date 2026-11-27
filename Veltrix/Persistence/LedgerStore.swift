@@ -6,6 +6,8 @@ protocol LedgerStore: AnyObject {
 }
 
 struct SimulationBackup: Codable {
+    private static let currentLabel = "VELTRIX Backup"
+
     let label: String
     let createdAt: Date
     let ledger: Ledger
@@ -13,13 +15,15 @@ struct SimulationBackup: Codable {
     static func export(_ ledger: Ledger) throws -> Data {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        return try encoder.encode(Self(label: "VELTRIX · Simulation", createdAt: Date(), ledger: ledger))
+        return try encoder.encode(Self(label: currentLabel, createdAt: Date(), ledger: ledger))
     }
 
     static func load(_ data: Data) throws -> Ledger {
         do {
             let backup = try JSONDecoder().decode(Self.self, from: data)
-            guard backup.label == "VELTRIX · Simulation" else { throw SimulationError.invalidBackup }
+            guard backup.label == currentLabel || backup.label == "VELTRIX · Simulation" else {
+                throw SimulationError.invalidBackup
+            }
             try backup.ledger.validate(assets: Asset.ids)
             return backup.ledger
         } catch {

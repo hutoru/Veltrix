@@ -15,6 +15,7 @@ extension OperationKind {
         case .qrPayment: return "QR payment"
         case .cardPayment: return "Card payment"
         case .refund: return "Refund"
+        case .stakeReward: return "Staking reward"
         }
     }
 
@@ -32,6 +33,7 @@ extension OperationKind {
         case .qrPayment: return "qrcode"
         case .cardPayment: return "creditcard"
         case .refund: return "arrow.counterclockwise"
+        case .stakeReward: return "chart.bar.xaxis"
         }
     }
 
@@ -44,6 +46,7 @@ extension OperationKind {
         case .cardReturn: return L.text("Card funds returned")
         case .qrPayment: return L.text("QR payment")
         case .cardPayment: return L.text("Card payment")
+        case .stakeReward: return L.text("Staking reward")
         default: return L.text(rawValue.capitalized)
         }
     }
@@ -65,7 +68,7 @@ struct ActivityScreen: View {
         func includes(_ kind: OperationKind) -> Bool {
             switch self {
             case .trades: return [.buy, .sell, .swap].contains(kind)
-            case .transfers: return [.send, .receive, .deposit, .qrPayment].contains(kind)
+            case .transfers: return [.send, .receive, .deposit, .qrPayment, .stakeReward].contains(kind)
             case .cards: return [.cardTopUp, .cardReturn, .cardPayment, .refund].contains(kind)
             }
         }
@@ -73,7 +76,12 @@ struct ActivityScreen: View {
 
     var adjustmentsOnly = false
     @EnvironmentObject private var model: VeltrixModel
-    @State private var showOrders = false
+    @State private var showOrders: Bool
+
+    init(adjustmentsOnly: Bool = false, showOrders: Bool = false) {
+        self.adjustmentsOnly = adjustmentsOnly
+        _showOrders = State(initialValue: showOrders)
+    }
     @State private var query = ""
     @State private var category: Category?
     @State private var status: OrderStatus?
@@ -186,13 +194,13 @@ struct ActivityScreen: View {
                 ForEach(groups.keys.sorted(by: descending ? (>) : (<)), id: \.self) { day in
                     VStack(alignment: .leading, spacing: 8) {
                         Text(day, style: .date).font(.subheadline.weight(.semibold)).foregroundStyle(theme.muted)
-                        LazyVStack(spacing: 0) {
+                        LazyVStack(spacing: 6) {
                             ForEach(sortedEntries(groups[day] ?? [])) { entry in
                                 NavigationLink {
                                     EntryScreen(entry: entry)
-                                } label: { EntryRow(entry: entry) }
+                                } label: { EntryRow(entry: entry).padding(.horizontal, 12)
+                                    .background(theme.surface, in: RoundedRectangle(cornerRadius: 15)) }
                                 .buttonStyle(.plain)
-                                Divider().overlay(theme.separator)
                             }
                         }
                     }
@@ -324,7 +332,7 @@ struct EntryRow: View {
 
     private var amountColor: Color {
         switch entry.kind {
-        case .buy, .receive, .deposit, .refund: return theme.positive
+        case .buy, .receive, .deposit, .refund, .stakeReward: return theme.positive
         case .sell, .send, .cardPayment, .qrPayment: return theme.negative
         default: return .primary
         }

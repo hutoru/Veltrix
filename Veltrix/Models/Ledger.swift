@@ -7,7 +7,7 @@ struct Position: Codable, Equatable, Sendable {
 }
 
 enum OperationKind: String, Codable, CaseIterable, Sendable {
-    case buy, sell, swap, send, receive, deposit, adjustment, cardTopUp, cardReturn, cardPayment, refund, qrPayment
+    case buy, sell, swap, send, receive, deposit, adjustment, cardTopUp, cardReturn, cardPayment, refund, qrPayment, stakeReward
 }
 
 struct Entry: Codable, Identifiable, Equatable, Sendable {
@@ -71,6 +71,7 @@ struct Portfolio: Codable, Identifiable, Equatable, Sendable {
     var orders: [LimitOrder] = []
     var history: [PortfolioPoint] = []
     var primaryCardID: UUID?
+    var stakes: [Stake]?
 
     func freeCash() throws -> Decimal {
         try orders.filter { $0.status == .open && $0.side == .buy }
@@ -78,8 +79,10 @@ struct Portfolio: Codable, Identifiable, Equatable, Sendable {
     }
 
     func freeUnits(_ asset: String) throws -> Decimal {
-        try orders.filter { $0.status == .open && $0.side == .sell && $0.asset == asset }
+        let afterOrders = try orders.filter { $0.status == .open && $0.side == .sell && $0.asset == asset }
             .reduce(positions[asset]?.units ?? 0) { try MoneyMath.subtract($0, $1.reserved) }
+        return try (stakes ?? []).filter { $0.asset == asset }
+            .reduce(afterOrders) { try MoneyMath.subtract($0, $1.units) }
     }
 
     func value(prices: [String: Decimal]) throws -> Decimal {
@@ -260,6 +263,16 @@ struct Ledger: Codable, Equatable, Sendable {
                 guard assets.contains(asset), try portfolio.freeUnits(asset) >= 0 else { throw SimulationError.invalidBackup }
                 try MoneyMath.quantity(position.units)
                 try MoneyMath.nonnegative(position.basis)
+            }
+            let stakes = portfolio.stakes ?? []
+            guard Set(stakes.map(\.id)).count == stakes.count else { throw SimulationError.invalidBackup }
+            for stake in stakes {
+                guard operationIDs.contains(stake.id), assets.contains(stake.asset), portfolio.positions[stake.asset] != nil,
+                      stake.units >= Stake.minimum, stake.rate > 0, stake.rate <= 1,
+                      stake.creditedUntil >= stake.opened, stake.creditedUntil <= (stake.maturity ?? .distantFuture) else {
+                    throw SimulationError.invalidBackup
+                }
+                try MoneyMath.quantity(stake.units)
             }
             for order in portfolio.orders {
                 guard orders.insert(order.id).inserted, operationIDs.contains(order.id), assets.contains(order.asset),

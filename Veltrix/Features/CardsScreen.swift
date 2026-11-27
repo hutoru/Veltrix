@@ -234,7 +234,6 @@ private struct MotionCardFace: View {
 
     var body: some View {
         CardFace(tier: card.tier, design: card.design ?? card.tier.defaultDesign, name: card.name, balance: balance, frozen: card.frozen,
-                 cardReference: "VX-" + card.id.uuidString.prefix(8),
                  flip: flipped ? 180 : 0, tilt: motion.tilt)
     }
 }
@@ -246,20 +245,18 @@ struct CardFace: View, Animatable {
     let name: String
     let balance: String
     let frozen: Bool
-    let cardReference: String?
     var flip: Double
     var tilt: CGSize
     var moveMark: ((Double, Double) -> Void)?
     var compact = false
 
     init(tier: CardTier, design: CardDesign, name: String, balance: String, frozen: Bool,
-         cardReference: String? = nil, flip: Double, tilt: CGSize, compact: Bool = false, moveMark: ((Double, Double) -> Void)? = nil) {
+         flip: Double, tilt: CGSize, compact: Bool = false, moveMark: ((Double, Double) -> Void)? = nil) {
         self.tier = tier
         self.design = design
         self.name = name
         self.balance = balance
         self.frozen = frozen
-        self.cardReference = cardReference
         self.flip = flip
         self.tilt = tilt
         self.compact = compact
@@ -336,12 +333,7 @@ struct CardFace: View, Animatable {
                     if frozen { Image(systemName: "snowflake").accessibilityLabel(Text("Frozen")) }
                 }
                 Spacer()
-                if rotated {
-                    Text("Card details").font(.headline)
-                    if let cardReference {
-                        Text(verbatim: L.format("Card reference: %@", cardReference)).font(.caption.monospaced())
-                    }
-                } else {
+                if !rotated {
                     Text(verbatim: balance).font(.system(size: compact ? 20 : 29, weight: .semibold, design: typeface)).monospacedDigit()
                         .lineLimit(1).minimumScaleFactor(0.38)
                     let engraving = holder.trimmingCharacters(in: .whitespacesAndNewlines)

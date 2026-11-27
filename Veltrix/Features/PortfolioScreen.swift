@@ -98,7 +98,15 @@ struct PortfolioScreen: View {
                 IconButton(icon: "plus", label: "Add holding") { Feedback.tap(); addAsset = true }
             }
             positions
-            MarketStatus()
+            NavigationLink {
+                PageScroll { MarketStatus() }
+                    .navigationTitle("Market data").navigationBarTitleDisplayMode(.inline)
+            } label: {
+                HStack(spacing: 5) {
+                    MarketStatus(compact: true)
+                    Image(systemName: "chevron.right").font(.caption2).foregroundStyle(theme.muted)
+                }
+            }.buttonStyle(.plain)
             if !model.hide {
                 IconButton(icon: "square.and.arrow.up", label: "Share portfolio") { share = true }
             }

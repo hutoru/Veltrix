@@ -14,6 +14,7 @@ struct SettingsScreen: View {
     @AppStorage("hapticsEnabled") private var hapticsEnabled = true
     @State private var panel: SettingsPanel?
     @State private var export = false
+    @State private var search = ""
     @State private var takeFile = false
     @State private var backup = BackupFile()
     @State private var incoming: Data?
@@ -22,94 +23,115 @@ struct SettingsScreen: View {
 
     var body: some View {
         List {
-            Section("Account") {
-                TextField("Display name", text: $profileName)
-                TextField("Username", text: $username)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .onChange(of: username) { value in
-                        let cleaned = String(value.filter { $0.isLetter || $0.isNumber || $0 == "_" || $0 == "." }.prefix(24))
-                        if cleaned != value { username = cleaned }
-                    }
-                LabeledContent("Portfolio created", value: model.portfolio.createdAt.formatted(date: .abbreviated, time: .omitted))
-            }
-            Section("Preferences") {
-                display.listRowBackground(theme.surface)
-                NavigationLink {
-                    AppearanceSettings()
-                } label: {
-                    LabeledContent("Theme") { Text(model.theme.title).foregroundStyle(theme.muted) }
-                }
-                .listRowBackground(theme.surface)
-                .accessibilityIdentifier("settings.theme")
-                Link(destination: URL(string: UIApplication.openSettingsURLString)!) {
-                    Label("App language", systemImage: "globe")
-                }
-                Toggle("Haptic feedback", isOn: $hapticsEnabled)
-                NavigationLink("Preferred operations") { QuickActionsSettings() }
-            }
-            Section { portfolioControls }
-            Section("Notifications") {
-                Toggle("iOS notifications", isOn: Binding(get: { model.pushOperations }, set: updateNotifications))
-                Toggle("Hide amounts in notifications", isOn: $model.privateNotifications)
-                Toggle("Hide balance in notifications", isOn: $model.hideNotificationBalance)
-                Text("iOS controls which details appear on the Lock Screen.").font(.footnote).foregroundStyle(theme.muted)
-                if model.pushOperations {
-                    if systemNotifications.authorizationStatus == .notDetermined {
-                        Button("Allow notifications") { requestNotificationPermission() }
-                    } else {
-                        settingsButton("Open iOS notification settings", "bell.badge") { openNotificationSettings() }
-                        LabeledContent("Show previews", value: previewStatus)
-                    }
-                    Button("Send test notification") { systemNotifications.sendTest() }
-                        .accessibilityIdentifier("notifications.test")
-                    Text(notificationStatus).font(.footnote).foregroundStyle(theme.muted)
-                        .accessibilityIdentifier("notifications.authorization")
-                    if let error = systemNotifications.error {
-                        Text(verbatim: error).font(.footnote).foregroundStyle(theme.negative)
-                    } else if let delivery = systemNotifications.lastDelivery {
-                        Text(delivery == .delivered ? "Last notification delivered" :
-                             (delivery == .queued ? "Last notification accepted by iOS" : "Notification alerts are unavailable"))
-                            .font(.caption).foregroundStyle(theme.muted)
-                            .accessibilityIdentifier("notifications.delivery")
-                    }
-                }
-                NavigationLink("Notification history") { NotificationScreen() }
-                NavigationLink("Price alerts") { PriceAlertsScreen() }
-            }.disabled(model.onSet)
-            Section("Cards") { NavigationLink("Cards") { CardsScreen() } }
-            Section("Security") { security }
-            Section("Data") {
-                backups
-                NavigationLink("Adjustment journal") { ActivityScreen(adjustmentsOnly: true) }
-            }
-            Section("Support") {
-                Button {
-                    guard let url = URL(string: "https://t.me/veltrixlarpwallet") else { return }
-                    Feedback.tap()
-                    openURL(url)
-                } label: {
-                    HStack(spacing: 12) {
-                        Image(systemName: "paperplane.fill").foregroundStyle(theme.highlight)
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(verbatim: "VELTRIX News").font(.subheadline.weight(.semibold))
-                            Text("App news, updates and announcements.").font(.caption).foregroundStyle(theme.muted)
+            if matches("Account", "Display name", "Username") {
+                Section("Account") {
+                    TextField("Display name", text: $profileName)
+                    TextField("Username", text: $username)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .onChange(of: username) { value in
+                            let cleaned = String(value.filter { $0.isLetter || $0.isNumber || $0 == "_" || $0 == "." }.prefix(24))
+                            if cleaned != value { username = cleaned }
                         }
-                        Spacer()
-                        Image(systemName: "arrow.up.right").font(.caption).foregroundStyle(theme.muted)
-                    }.frame(minHeight: 44).contentShape(Rectangle())
-                }.buttonStyle(.plain)
+                    LabeledContent("Portfolio created", value: model.portfolio.createdAt.formatted(date: .abbreviated, time: .omitted))
+                }
             }
-            Section("Filming") {
-                Toggle("On-set portfolio", isOn: Binding(get: { model.onSet }, set: model.setOnSet))
-                Text("The on-set portfolio has separate balances, cards and activity. Its operations stay in the app.")
-                    .font(.caption).foregroundStyle(theme.muted)
+            if matches("Preferences", "Display currency", "Theme", "App language", "Haptic feedback", "Hide balances") {
+                Section("Preferences") {
+                    display.listRowBackground(theme.surface)
+                    NavigationLink {
+                        AppearanceSettings()
+                    } label: {
+                        LabeledContent("Theme") { Text(model.theme.title).foregroundStyle(theme.muted) }
+                    }
+                    .listRowBackground(theme.surface)
+                    .accessibilityIdentifier("settings.theme")
+                    Link(destination: URL(string: UIApplication.openSettingsURLString)!) {
+                        Label("App language", systemImage: "globe")
+                    }
+                    Toggle("Haptic feedback", isOn: $hapticsEnabled)
+                    NavigationLink("Preferred operations") { QuickActionsSettings() }
+                }
+            }
+            if matches("Portfolio controls", "Create portfolio", "Edit holdings") {
+                Section { portfolioControls.listRowBackground(theme.surface) }
+            }
+            if matches("Notifications", "Price alerts", "Live Activities", "Widgets") {
+                Section("Notifications") {
+                    Toggle("Live Activities", isOn: $model.liveActivities)
+                    Toggle("Hide Live Activity amounts", isOn: $model.liveActivityPrivacy)
+                    Toggle("Hide widget amounts", isOn: $model.widgetPrivacy)
+                    Toggle("iOS notifications", isOn: Binding(get: { model.pushOperations }, set: updateNotifications))
+                    Toggle("Hide amounts in notifications", isOn: $model.privateNotifications)
+                    Toggle("Hide balance in notifications", isOn: $model.hideNotificationBalance)
+                    Text("iOS controls which details appear on the Lock Screen.").font(.footnote).foregroundStyle(theme.muted)
+                    if model.pushOperations {
+                        if systemNotifications.authorizationStatus == .notDetermined {
+                            Button("Allow notifications") { requestNotificationPermission() }
+                        } else {
+                            settingsButton("Open iOS notification settings", "bell.badge") { openNotificationSettings() }
+                            LabeledContent("Show previews", value: previewStatus)
+                        }
+                        Button("Send test notification") { systemNotifications.sendTest() }
+                            .accessibilityIdentifier("notifications.test")
+                        Text(notificationStatus).font(.footnote).foregroundStyle(theme.muted)
+                            .accessibilityIdentifier("notifications.authorization")
+                        if let error = systemNotifications.error {
+                            Text(verbatim: error).font(.footnote).foregroundStyle(theme.negative)
+                        } else if let delivery = systemNotifications.lastDelivery {
+                            Text(delivery == .delivered ? "Last notification delivered" :
+                                 (delivery == .queued ? "Last notification accepted by iOS" : "Notification alerts are unavailable"))
+                                .font(.caption).foregroundStyle(theme.muted)
+                                .accessibilityIdentifier("notifications.delivery")
+                        }
+                    }
+                    NavigationLink("Notification history") { NotificationScreen() }
+                    NavigationLink("Price alerts") { PriceAlertsScreen() }
+                }.disabled(model.onSet)
+            }
+            if matches("Cards") {
+                Section("Cards") { NavigationLink("Cards") { CardsScreen() } }
+            }
+            if matches("Security", "Require device authentication", "Lock after leaving the app") {
+                Section("Security") { security.listRowBackground(theme.surface) }
+            }
+            if matches("Data", "Local backup", "Export backup", "Import backup", "Adjustment journal") {
+                Section("Data") {
+                    backups.listRowBackground(theme.surface)
+                    NavigationLink("Adjustment journal") { ActivityScreen(adjustmentsOnly: true) }
+                }
+            }
+            if matches("Support", "App news, updates and announcements.", "Telegram") {
+                Section("Support") {
+                    Button {
+                        guard let url = URL(string: "https://t.me/veltrixlarpwallet") else { return }
+                        Feedback.tap()
+                        openURL(url)
+                    } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: "paperplane.fill").foregroundStyle(theme.highlight)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(verbatim: "VELTRIX News").font(.subheadline.weight(.semibold))
+                                Text("App news, updates and announcements.").font(.caption).foregroundStyle(theme.muted)
+                            }
+                            Spacer()
+                            Image(systemName: "arrow.up.right").font(.caption).foregroundStyle(theme.muted)
+                        }.frame(minHeight: 44).contentShape(Rectangle())
+                    }.buttonStyle(.plain)
+                }
+            }
+            if matches("Portfolio workspace", "Separate portfolio") {
+                Section("Portfolio workspace") {
+                    Toggle("Separate portfolio", isOn: Binding(get: { model.onSet }, set: model.setOnSet))
+                        .listRowBackground(theme.surface)
+                }
             }
             Section {
                 NavigationLink("About VELTRIX") {
                     PageScroll {
                         Text(verbatim: "Beyond the balance.").font(.title2.weight(.semibold))
                         sources
+                        NavigationLink("What’s new") { changes }
                     }.navigationTitle("About VELTRIX")
                 }
             } footer: {
@@ -120,12 +142,11 @@ struct SettingsScreen: View {
                         Text("Version \(version)")
                     }
                     Text(verbatim: "© 2026 VELTRIX")
-                    Text("VELTRIX is a simulator. Trades, transfers and card payments use virtual funds on this device. Cards have no payment credentials. QR payments work between portfolios on this device.")
-                        .accessibilityIdentifier("settings.simulatorDisclosure")
                 }.foregroundStyle(theme.muted)
             }
         }
         .listStyle(.insetGrouped)
+        .searchable(text: $search, prompt: "Search settings")
         .navigationTitle("Settings")
         .task(id: notificationPhase) {
             if notificationPhase == .active { await systemNotifications.refresh() }
@@ -166,6 +187,19 @@ struct SettingsScreen: View {
         } message: {
             Text("The selected portfolio’s balance, positions, orders, cards and activity will be cleared.")
         }
+    }
+
+    private var changes: some View {
+        PageScroll {
+            Text(verbatim: "9.3.0 · Experience Update").font(.title2.weight(.semibold))
+            Text("Portfolio insights, a redesigned Operations Center, staking, widgets and Live Activities.")
+                .font(.subheadline).foregroundStyle(theme.muted)
+        }.navigationTitle("What’s new").navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func matches(_ terms: String...) -> Bool {
+        let query = search.trimmingCharacters(in: .whitespacesAndNewlines)
+        return query.isEmpty || terms.contains { $0.localizedCaseInsensitiveContains(query) || L.text($0).localizedCaseInsensitiveContains(query) }
     }
 
     private var previewStatus: String {
@@ -329,6 +363,9 @@ private struct AppearanceSettings: View {
 
     var body: some View {
         PageScroll(spacing: 10) {
+            NavigationLink { AppIconSettings() } label: {
+                OperationsRow(title: "App icon", icon: "app").panel(padding: 10)
+            }.buttonStyle(.plain)
             ForEach(VeltrixAppearance.allCases) { appearance in
                 let selected = model.theme == appearance
                 Button {

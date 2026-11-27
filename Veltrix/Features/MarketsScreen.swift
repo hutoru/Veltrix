@@ -35,6 +35,7 @@ struct MarketsScreen: View {
     @State private var category = MarketCategory.trending
     @State private var sortOverride = false
     @State private var news: [MarketHeadline] = []
+    @State private var loadingNews = true
     @State private var headlineIndex = 0
     @State private var swap = false
     @State private var showTokenized = false
@@ -75,7 +76,16 @@ struct MarketsScreen: View {
             .panel(padding: 12)
             if query.isEmpty && !displaysTokenized {
                 blueChips
-                if !news.isEmpty { headlines }
+                if !UITestMode.enabled {
+                    Group {
+                        if !news.isEmpty { headlines }
+                        else if loadingNews { Skeleton() }
+                        else {
+                            Button("News unavailable · Retry") { Task { await refreshNews() } }
+                                .font(.footnote).frame(maxWidth: .infinity, alignment: .leading).panel(padding: 12)
+                        }
+                    }.frame(height: 88)
+                }
             }
             HStack(spacing: 8) {
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -298,12 +308,15 @@ struct MarketsScreen: View {
             }
         }
         .padding(11)
+        .frame(maxHeight: .infinity)
         .overlay(RoundedRectangle(cornerRadius: 15).strokeBorder(theme.separator))
     }
 
     private func refreshNews() async {
-        guard !UITestMode.enabled, let current = try? await MarketHeadline.fetch(), !Task.isCancelled else { return }
-        news = current
+        guard !UITestMode.enabled else { return }
+        loadingNews = true
+        defer { loadingNews = false }
+        if let current = try? await MarketHeadline.fetch(), !Task.isCancelled { news = current }
     }
 
     private func sortValue(_ asset: Asset) -> Decimal? {

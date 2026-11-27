@@ -4,6 +4,7 @@ struct PortfolioBalanceHeader: View {
     @Environment(\.veltrixTheme) private var theme
     @EnvironmentObject private var model: VeltrixModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @GestureState private var slide: CGFloat = 0
     @ScaledMetric(relativeTo: .largeTitle) private var balanceSize: CGFloat = 46
 
     let portfolio: Portfolio
@@ -81,5 +82,28 @@ struct PortfolioBalanceHeader: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .offset(x: reduceMotion ? 0 : slide)
+        .simultaneousGesture(DragGesture(minimumDistance: 22)
+            .updating($slide) { gesture, state, _ in
+                guard model.ledger.portfolios.count > 1, abs(gesture.translation.width) > abs(gesture.translation.height) * 2 else { return }
+                state = min(20, max(-20, gesture.translation.width * 0.18))
+            }
+            .onEnded { gesture in
+                guard abs(gesture.translation.width) > max(55, abs(gesture.translation.height) * 2) else { return }
+                let portfolios = model.ledger.portfolios
+                guard portfolios.count > 1, let index = portfolios.firstIndex(where: { $0.id == portfolio.id }) else { return }
+                let next = index + (gesture.translation.width < 0 ? 1 : -1)
+                guard portfolios.indices.contains(next) else { return }
+                if model.execute(.selectPortfolio(portfolios[next].id), showFeedback: false) { Feedback.tap() }
+            })
+        .overlay(alignment: .top) {
+            if model.ledger.portfolios.count > 1 {
+                HStack(spacing: 4) {
+                    ForEach(model.ledger.portfolios.prefix(8)) { item in
+                        Circle().fill(item.id == portfolio.id ? theme.text : theme.separator).frame(width: 4, height: 4)
+                    }
+                }.padding(.top, 2).allowsHitTesting(false).accessibilityHidden(true)
+            }
+        }
     }
 }

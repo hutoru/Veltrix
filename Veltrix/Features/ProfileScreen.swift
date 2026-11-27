@@ -63,6 +63,24 @@ struct ProfileScreen: View {
                 NavigationLink("Cards") { CardsScreen() }.buttonStyle(.bordered)
                     .accessibilityIdentifier("profile.cards")
             }
+            overview
+            VStack(spacing: 0) {
+                NavigationLink { PortfolioAnalyticsScreen() } label: {
+                    OperationsRow(title: "Analytics", icon: "chart.xyaxis.line")
+                }
+                Divider().overlay(theme.separator)
+                NavigationLink { ActivityScreen() } label: {
+                    OperationsRow(title: "Activity", icon: "clock.arrow.circlepath")
+                }
+                Divider().overlay(theme.separator)
+                NavigationLink { favorites } label: {
+                    OperationsRow(title: "Favorites", icon: "star")
+                }
+                Divider().overlay(theme.separator)
+                NavigationLink { PortfolioWorkspace() } label: {
+                    OperationsRow(title: "Portfolios", icon: "square.stack")
+                }
+            }.buttonStyle(.plain).panel(padding: 12)
         }
         .onAppear {
             if createdAt == 0 {
@@ -83,5 +101,58 @@ struct ProfileScreen: View {
             }
         }
         .alert("Photo unavailable", isPresented: $photoError) { Button("OK", role: .cancel) {} }
+    }
+
+    private var overview: some View {
+        let now = Date()
+        let amount = try? portfolio.value(prices: model.usablePrices)
+        let performance = portfolio.performance(since: .distantPast, until: now, liveValue: amount, includesPoints: false)
+        let daily = try? portfolio.daily(now: now, prices: model.usablePrices)
+        return VStack(alignment: .leading, spacing: 10) {
+            Text("Portfolio value").font(.caption).foregroundStyle(theme.muted)
+            CountValue(text: model.money(try? portfolio.value(prices: model.prices)))
+                .font(.largeTitle.weight(.medium)).lineLimit(1).minimumScaleFactor(0.5)
+            LabeledContent("Total return", value: model.hide ? "••••" : Display.percent(performance.change?.percent))
+            LabeledContent("24h P&L", value: model.signedMoney(daily?.value))
+            LabeledContent("Assets", value: String(portfolio.positions.count))
+            LabeledContent("Trades", value: String(trades.count))
+            LabeledContent("Realized P&L", value: model.signedMoney(try? portfolio.realized()))
+            LabeledContent("Unrealized P&L", value: model.signedMoney(try? portfolio.unrealized(prices: model.prices)))
+            if !model.hide { PortfolioAllocation(portfolio: portfolio) }
+        }.font(.subheadline).panel()
+    }
+
+    private var favorites: some View {
+        PageScroll {
+            if model.favorites.isEmpty { Text("No favorites yet").foregroundStyle(theme.muted) }
+            ForEach(Asset.catalog.filter { model.favorites.contains($0.id) }) { asset in
+                NavigationLink(value: asset) {
+                    OperationsRow(title: LocalizedStringKey(asset.name), icon: "star")
+                }.buttonStyle(.plain)
+            }
+        }.navigationTitle("Favorites").navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+struct PortfolioWorkspace: View {
+    @EnvironmentObject private var model: VeltrixModel
+    @State private var adding = false
+
+    var body: some View {
+        PageScroll {
+            ForEach(model.ledger.portfolios) { portfolio in
+                Button { _ = model.execute(.selectPortfolio(portfolio.id), showFeedback: false) } label: {
+                    HStack {
+                        Text(verbatim: portfolio.name)
+                        Spacer()
+                        if portfolio.id == model.ledger.selected { Image(systemName: "checkmark") }
+                    }.panel(padding: 12)
+                }.buttonStyle(.plain)
+                    .accessibilityAddTraits(portfolio.id == model.ledger.selected ? .isSelected : [])
+            }
+            Button("Create portfolio") { adding = true }.buttonStyle(PrimaryButtonStyle())
+        }
+        .navigationTitle("Portfolios").navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $adding) { SettingsForm(panel: .newPortfolio) }
     }
 }

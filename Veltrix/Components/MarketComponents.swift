@@ -3,6 +3,7 @@ import SwiftUI
 import UIKit
 
 struct MarketStatus: View {
+    var compact = false
     @Environment(\.veltrixTheme) private var theme
     @EnvironmentObject private var model: VeltrixModel
 
@@ -22,7 +23,7 @@ struct MarketStatus: View {
                 Circle().fill(stale ? theme.muted : theme.positive).frame(width: 6, height: 6)
                 if let date {
                     Text(stale ? "Saved quotes" : "Market quotes")
-                    if !UITestMode.enabled {
+                    if !UITestMode.enabled && !compact {
                         Text(date, style: .relative)
                         Text("ago")
                     }
@@ -30,9 +31,11 @@ struct MarketStatus: View {
                     Text(model.loading ? "Updating market data" : "Awaiting market data")
                 }
             }
-            if let message = model.marketMessage { Text(verbatim: message) }
-            if let date = model.rates[model.currency]?.date, model.currency != "USD" {
-                Text("FX reference date · \(date)")
+            if !compact {
+                if let message = model.marketMessage { Text(verbatim: message) }
+                if let date = model.rates[model.currency]?.date, model.currency != "USD" {
+                    Text("FX reference date · \(date)")
+                }
             }
         }
         .font(.caption)

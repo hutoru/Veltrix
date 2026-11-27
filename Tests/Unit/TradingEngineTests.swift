@@ -20,6 +20,26 @@ final class TradingEngineTests: XCTestCase {
     private let eth = "ethereum"
     private let start = Date(timeIntervalSince1970: 1_700_000_000)
 
+    func testStakingReservesUnitsAndCreditsFixedRewardsOnce() throws {
+        let initial = Ledger.fresh(cash: 1_000, date: start)
+        let price: [String: Decimal] = [eth: 100]
+        let holding = try TradingEngine.apply(.setPosition(eth, 3, 100), to: initial, at: start, prices: price)
+        let id = UUID()
+        let opened = try TradingEngine.apply(.openStake(eth, 2, .week), to: holding, id: id, at: start, prices: price)
+        XCTAssertEqual(try opened.portfolios[0].freeUnits(eth), 1)
+        XCTAssertEqual(try opened.portfolios[0].value(prices: price), try holding.portfolios[0].value(prices: price))
+        XCTAssertThrowsError(try TradingEngine.apply(.claimStake(id, close: true), to: opened, at: start, prices: price))
+        XCTAssertThrowsError(try TradingEngine.apply(.transfer(receive: false, asset: eth, units: 2, label: "Recipient"),
+                                                     to: opened, at: start, prices: price))
+        let maturity = start.addingTimeInterval(604_800)
+        let claimed = try TradingEngine.apply(.claimStake(id, close: false), to: opened, at: maturity, prices: price)
+        XCTAssertEqual(claimed.portfolios[0].entries.last?.kind, .stakeReward)
+        XCTAssertThrowsError(try TradingEngine.apply(.claimStake(id, close: false), to: claimed, at: maturity, prices: price))
+        let closed = try TradingEngine.apply(.claimStake(id, close: true), to: claimed, at: maturity, prices: price)
+        XCTAssertEqual(try closed.portfolios[0].freeUnits(eth), closed.portfolios[0].positions[eth]?.units)
+        XCTAssertEqual(try SimulationBackup.load(SimulationBackup.export(closed)), closed)
+    }
+
     func testMarketPurchaseSaleFeesAndProfit() throws {
         let initial = Ledger.fresh(cash: 1_000, date: start)
         let bought = try execute(.market(.buy, btc, 2, decimal("0.01")), initial, bitcoin: 100)

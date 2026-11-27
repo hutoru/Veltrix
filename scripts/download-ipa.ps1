@@ -65,7 +65,7 @@ try {
     Invoke-WebRequest -UseBasicParsing -Uri "$api/actions/artifacts/$($artifact.id)/zip" -Headers $headers -OutFile $archivePath
     $artifactZip = [IO.Compression.ZipFile]::OpenRead($archivePath)
     try {
-        $entries = @($artifactZip.Entries | Where-Object { $_.FullName -match '^(Veltrix|VELTRIX-[0-9]+\.[0-9]+\.[0-9]+-Midnight)\.ipa$' })
+        $entries = @($artifactZip.Entries | Where-Object { $_.FullName -match '^(Veltrix|VELTRIX-[0-9]+\.[0-9]+\.[0-9]+-(?:Midnight|Experience))\.ipa$' })
         if ($entries.Count -ne 1) { throw 'Expected exactly one IPA in the build artifact.' }
         $ipaName = $entries[0].Name
         $outNames = @($ipaName, "$ipaName.sha256")

@@ -13,12 +13,15 @@ import SwiftUI
     @Published private(set) var storageError = false
     @Published var error: String?
     @Published var toast: String?
+    @Published var widgetPrivacy: Bool { didSet { defaults.set(widgetPrivacy, forKey: "widgetPrivacy"); WidgetPublisher.publish(self, force: true) } }
+    @Published var liveActivities: Bool { didSet { defaults.set(liveActivities, forKey: "liveActivities"); if !liveActivities { LiveOperation.clear() } } }
+    @Published var liveActivityPrivacy: Bool { didSet { defaults.set(liveActivityPrivacy, forKey: "liveActivityPrivacy"); if liveActivityPrivacy { LiveOperation.clear() } } }
     @Published var currency: String { didSet { defaults.set(currency, forKey: "currency") } }
     @Published var digits: Int { didSet { defaults.set(digits, forKey: "digits") } }
-    @Published var hide: Bool { didSet { defaults.set(hide, forKey: "hide") } }
-    @Published var theme: VeltrixAppearance { didSet { defaults.set(theme.rawValue, forKey: "theme") } }
+    @Published var hide: Bool { didSet { defaults.set(hide, forKey: "hide"); if hide { LiveOperation.clear() }; WidgetPublisher.publish(self, force: true) } }
+    @Published var theme: VeltrixAppearance { didSet { defaults.set(theme.rawValue, forKey: "theme"); WidgetPublisher.publish(self, force: true) } }
     @Published private(set) var fee: Decimal { didSet { defaults.set(DisplayStored.string(fee), forKey: "fee") } }
-    @Published var favorites: Set<String> { didSet { defaults.set(Array(favorites), forKey: "favorites") } }
+    @Published var favorites: Set<String> { didSet { defaults.set(Array(favorites), forKey: "favorites"); WidgetPublisher.publish(self, force: true) } }
     @Published var pushOperations: Bool { didSet { defaults.set(pushOperations, forKey: "pushOperations") } }
     @Published var privateNotifications: Bool { didSet { defaults.set(privateNotifications, forKey: "privateNotifications") } }
     @Published var hideNotificationBalance: Bool { didSet { defaults.set(hideNotificationBalance, forKey: "hideNotificationBalance") } }
@@ -71,6 +74,9 @@ import SwiftUI
         provider = suppliedProvider ?? PublicMarketProvider(http: client, demoKey: testing ? nil : Self.loadDemoKey())
         cache = MarketCache(directory: testing ? nil : try? FileManager.default.url(for: .cachesDirectory,
                                                                                    in: .userDomainMask, appropriateFor: nil, create: true))
+        widgetPrivacy = defaults.object(forKey: "widgetPrivacy") as? Bool ?? true
+        liveActivities = defaults.object(forKey: "liveActivities") as? Bool ?? false
+        liveActivityPrivacy = defaults.object(forKey: "liveActivityPrivacy") as? Bool ?? true
         ledger = Ledger.fresh(name: L.text("Main portfolio"))
         currency = defaults.string(forKey: "currency").flatMap { Fiat.currencies.contains($0) ? $0 : nil } ?? "USD"
         digits = min(12, max(0, defaults.object(forKey: "digits") as? Int ?? 2))
@@ -108,7 +114,16 @@ import SwiftUI
             storageError = true
         }
         #if DEBUG
-        if testing { loadTestMarket() }
+        if testing {
+            loadTestMarket()
+            if UITestMode.fixture("--qr-payment-fixture") {
+                let request = LocalPaymentRequest(id: UUID(), recipient: portfolio.id, asset: "bitcoin",
+                                                  network: .bitcoin, units: Decimal(1) / 100)
+                _ = execute(.registerQR(request, replacing: nil), showFeedback: false)
+                _ = execute(.createPortfolio("Payment portfolio", 0), showFeedback: false)
+                _ = execute(.setPosition("bitcoin", 1, 1), showFeedback: false)
+            }
+        }
         #endif
     }
 
@@ -135,6 +150,8 @@ import SwiftUI
             store = storage
             ledger = next
             onSet = enabled
+            if enabled { LiveOperation.clear() }
+            WidgetPublisher.publish(self, force: true)
             notificationsCleared = defaults.object(forKey: notificationKey("notificationsCleared")) as? Date ?? .distantPast
             notificationsReadDate = defaults.object(forKey: notificationKey("notificationsReadDate")) as? Date ?? Date()
             notificationsRead = Set(defaults.stringArray(forKey: notificationKey("notificationsRead")) ?? [])
@@ -247,6 +264,7 @@ import SwiftUI
 
     func execute(_ command: Command, id: UUID = UUID(), showFeedback: Bool = true,
                  reviewedPrices: [String: Decimal] = [:]) -> Bool {
+        LiveOperation.start(command, id: id, model: self)
         do {
             let live = usablePrices
             guard reviewedPrices.keys.allSatisfy({ live[$0] != nil }) else { throw SimulationError.missingQuote }
@@ -262,16 +280,27 @@ import SwiftUI
                     if !Task.isCancelled { self?.toast = nil }
                 }
             }
+            if case .openStake = command, pushOperations, !testing, !onSet,
+               let stake = portfolio.stakes?.first(where: { $0.id == id }) {
+                NotificationService.scheduleStakeMaturity(stake)
+            }
             if case .limit = command {
                 settle()
+                if portfolio.orders.contains(where: { $0.id == id && $0.status == .open }) {
+                    LiveOperation.finish(id, saved: true, waiting: true)
+                }
                 if pushOperations, !onSet, !testing,
                    let order = portfolio.orders.first(where: { $0.id == id && $0.status == .open }) {
                     let balance = hideNotificationBalance ? nil : notificationMoney((try? portfolio.freeCash()) ?? portfolio.cash)
                     NotificationService.scheduleOrder(order, balance: balance)
                 }
+            } else {
+                if case let .cancel(orderID) = command { LiveOperation.finish(orderID, saved: false, cancelled: true) }
+                LiveOperation.finish(id, saved: true)
             }
             return true
         } catch {
+            LiveOperation.finish(id, saved: false)
             self.error = Display.error(error)
             Feedback.failure()
             return false
@@ -489,6 +518,7 @@ import SwiftUI
         }
         quotes = merged
         quoteDate = merged.values.compactMap(\.updated).max()
+        WidgetPublisher.publish(self)
     }
 
     private func settle() {
@@ -507,6 +537,22 @@ import SwiftUI
         let previous = ledger
         try store.save(next)
         ledger = next
+        WidgetPublisher.publish(self, force: previous.selected != next.selected)
+        if !onSet && !testing {
+            let before = Set(previous.portfolios.flatMap { ($0.stakes ?? []).map(\.id) })
+            let after = Set(next.portfolios.flatMap { ($0.stakes ?? []).map(\.id) })
+            let removed = before.subtracting(after)
+            if !removed.isEmpty { NotificationService.cancelStakeMaturities(removed) }
+        }
+        if notify {
+            for portfolio in next.portfolios {
+                let previousOrders = previous.portfolios.first { $0.id == portfolio.id }?.orders ?? []
+                let alreadyFilled = Set(previousOrders.filter { $0.status == .filled }.map(\.id))
+                for order in portfolio.orders where order.status == .filled && !alreadyFilled.contains(order.id) {
+                    LiveOperation.finish(order.id, saved: true)
+                }
+            }
+        }
         guard notify, pushOperations, !onSet, let notificationSink else { return }
         for portfolio in next.portfolios {
             let count = previous.portfolios.first { $0.id == portfolio.id }?.entries.count ?? 0
