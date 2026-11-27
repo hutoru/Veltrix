@@ -23,6 +23,16 @@ struct SettingsScreen: View {
 
     var body: some View {
         List {
+            HStack(spacing: 10) {
+                Image(systemName: "magnifyingglass").foregroundStyle(theme.muted).accessibilityHidden(true)
+                TextField("Search settings", text: $search)
+                    .submitLabel(.search).autocorrectionDisabled()
+                    .accessibilityIdentifier("settings.search")
+                if !search.isEmpty {
+                    Button { search = "" } label: { Image(systemName: "xmark.circle.fill") }
+                        .buttonStyle(.plain).accessibilityLabel(Text("Clear search"))
+                }
+            }.listRowBackground(theme.surface)
             if matches("Account", "Display name", "Username") {
                 Section("Account") {
                     TextField("Display name", text: $profileName)
@@ -36,7 +46,7 @@ struct SettingsScreen: View {
                     LabeledContent("Portfolio created", value: model.portfolio.createdAt.formatted(date: .abbreviated, time: .omitted))
                 }
             }
-            if matches("Preferences", "Display currency", "Theme", "App language", "Haptic feedback", "Hide balances") {
+            if matches("Preferences", "Display currency", "Theme", "App icon", "App language", "Haptic feedback", "Hide balances") {
                 Section("Preferences") {
                     display.listRowBackground(theme.surface)
                     NavigationLink {
@@ -92,7 +102,7 @@ struct SettingsScreen: View {
             if matches("Cards") {
                 Section("Cards") { NavigationLink("Cards") { CardsScreen() } }
             }
-            if matches("Security", "Require device authentication", "Lock after leaving the app") {
+            if matches("Security", "Face ID", "iPhone passcode", "Require device authentication", "Lock after leaving the app") {
                 Section("Security") { security.listRowBackground(theme.surface) }
             }
             if matches("Data", "Local backup", "Export backup", "Import backup", "Adjustment journal") {
@@ -146,7 +156,8 @@ struct SettingsScreen: View {
             }
         }
         .listStyle(.insetGrouped)
-        .searchable(text: $search, prompt: "Search settings")
+        .scrollDismissesKeyboard(.interactively)
+        .dismissibleKeyboard()
         .navigationTitle("Settings")
         .task(id: notificationPhase) {
             if notificationPhase == .active { await systemNotifications.refresh() }

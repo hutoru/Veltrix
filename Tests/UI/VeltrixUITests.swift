@@ -355,11 +355,21 @@ final class VeltrixUITests: XCTestCase {
         app.buttons["Done"].tap()
         app.buttons["home.profile"].tap()
         app.buttons["profile.settings"].tap()
+        let search = app.textFields["settings.search"]
+        XCTAssertTrue(search.waitForExistence(timeout: 5))
+        search.tap()
+        search.typeText("Theme")
+        dismissKeyboard(in: app)
+        XCTAssertTrue(app.buttons["settings.theme"].isHittable)
+        XCTAssertFalse(app.buttons["Adjustment journal"].exists)
+        app.buttons["Clear search"].tap()
         let about = app.buttons["About VELTRIX"]
         for _ in 0..<12 where !about.isHittable { app.swipeUp() }
         XCTAssertTrue(about.isHittable)
         XCTAssertFalse(app.staticTexts["settings.simulatorDisclosure"].exists)
         capture(app, name: "Settings Footer")
+        about.tap()
+        XCTAssertTrue(app.navigationBars["About VELTRIX"].waitForExistence(timeout: 5))
     }
 
     func testQRScannerOpensAndCanBeDismissed() {
