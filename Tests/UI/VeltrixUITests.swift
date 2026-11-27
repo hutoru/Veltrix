@@ -353,6 +353,8 @@ final class VeltrixUITests: XCTestCase {
         for _ in 0..<9 where !disclosure.isHittable { app.swipeUp() }
         XCTAssertTrue(disclosure.isHittable)
         XCTAssertTrue(disclosure.label.hasPrefix("VELTRIX is a simulator."))
+        XCTAssertTrue(disclosure.label.contains("Cards have no payment credentials."))
+        XCTAssertTrue(disclosure.label.contains("QR payments work between portfolios on this device."))
         capture(app, name: "Settings disclosure")
     }
 

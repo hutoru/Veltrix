@@ -40,7 +40,7 @@ struct PortfolioShare: View {
                 VeltrixMark().fill(theme.highlight).frame(width: 28, height: 28)
                 Text(verbatim: "VELTRIX").font(.headline).tracking(2)
                 Spacer()
-                Text("Local portfolio").font(.caption.weight(.semibold))
+                Text("Portfolio").font(.caption.weight(.semibold))
             }
             Text(verbatim: portfolio.name).font(.subheadline).foregroundStyle(theme.muted)
             Text(verbatim: model.money(try? portfolio.value(prices: model.prices)))

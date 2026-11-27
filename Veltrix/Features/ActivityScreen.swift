@@ -12,7 +12,7 @@ extension OperationKind {
         case .adjustment: return "Adjustment"
         case .cardTopUp: return "Card top-up"
         case .cardReturn: return "Card funds returned"
-        case .qrPayment: return "Local QR payment"
+        case .qrPayment: return "QR payment"
         case .cardPayment: return "Card payment"
         case .refund: return "Refund"
         }
@@ -42,7 +42,7 @@ extension OperationKind {
         case .swap: return L.text("Exchange")
         case .cardTopUp: return L.text("Card top-up")
         case .cardReturn: return L.text("Card funds returned")
-        case .qrPayment: return L.text("Local QR payment")
+        case .qrPayment: return L.text("QR payment")
         case .cardPayment: return L.text("Card payment")
         default: return L.text(rawValue.capitalized)
         }
@@ -366,7 +366,7 @@ struct EntryScreen: View {
                 }
             }
             if !model.hide {
-                ShareLink(item: "VELTRIX · \(L.text("Local record")) · \(entry.kind.localized) · \(summary) · \(entry.date.formatted())") {
+                ShareLink(item: "VELTRIX · \(entry.kind.localized) · \(summary) · \(entry.date.formatted())") {
                     Label("Share operation", systemImage: "square.and.arrow.up")
                 }
                 .buttonStyle(.bordered)

@@ -49,11 +49,6 @@ struct SettingsScreen: View {
                 NavigationLink("Preferred operations") { QuickActionsSettings() }
             }
             Section { portfolioControls }
-            Section("Filming") {
-                Toggle("On-set portfolio", isOn: Binding(get: { model.onSet }, set: model.setOnSet))
-                Text("The on-set portfolio has separate balances, cards and activity. Its operations stay in the app.")
-                    .font(.caption).foregroundStyle(theme.muted)
-            }
             Section("Notifications") {
                 Toggle("iOS notifications", isOn: Binding(get: { model.pushOperations }, set: updateNotifications))
                 Toggle("Hide amounts in notifications", isOn: $model.privateNotifications)
@@ -105,6 +100,11 @@ struct SettingsScreen: View {
                     }.frame(minHeight: 44).contentShape(Rectangle())
                 }.buttonStyle(.plain)
             }
+            Section("Filming") {
+                Toggle("On-set portfolio", isOn: Binding(get: { model.onSet }, set: model.setOnSet))
+                Text("The on-set portfolio has separate balances, cards and activity. Its operations stay in the app.")
+                    .font(.caption).foregroundStyle(theme.muted)
+            }
             Section {
                 NavigationLink("About VELTRIX") {
                     PageScroll {
@@ -120,7 +120,7 @@ struct SettingsScreen: View {
                         Text("Version \(version)")
                     }
                     Text(verbatim: "© 2026 VELTRIX")
-                    Text("VELTRIX is a simulator. Trades, transfers and card payments use virtual funds on this device.")
+                    Text("VELTRIX is a simulator. Trades, transfers and card payments use virtual funds on this device. Cards have no payment credentials. QR payments work between portfolios on this device.")
                         .accessibilityIdentifier("settings.simulatorDisclosure")
                 }.foregroundStyle(theme.muted)
             }

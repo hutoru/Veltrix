@@ -110,13 +110,13 @@
 "Copied" = "Скопировано";
 "Scan QR from Photos" = "Сканировать QR из Фото";
 "No QR code found in this image" = "На изображении нет QR-кода";
-"Review local payment" = "Проверить локальную оплату";
-"Local QR payment" = "Локальная QR-оплата";
+"Review payment" = "Проверить оплату";
+"QR payment" = "QR-оплата";
 "This request was already paid." = "Этот запрос уже оплачен.";
 "This request is unavailable on this device." = "Запрос недоступен на этом устройстве.";
 "Recipient portfolio" = "Портфель получателя";
 "Pay from portfolio" = "Оплатить из портфеля";
-"Confirm local payment" = "Подтвердить локальную оплату";
+"Confirm payment" = "Подтвердить оплату";
 "Create a second portfolio to pay this request." = "Создайте второй портфель, чтобы оплатить запрос.";
 "Record local receipt" = "Записать локальное поступление";
 "Quote refreshed. Review the new amounts and confirm." = "Котировка обновилась. Проверьте суммы и подтвердите.";
@@ -524,8 +524,8 @@
 "When unlocked" = "Без блокировки";
 "Never" = "Никогда";
 "Portfolios" = "Портфели";
-"Demo card details" = "Реквизиты демо-карты";
-"Demo ID: %@" = "Демо-номер: %@";
+"Card details" = "Сведения о карте";
+"Card reference: %@" = "Идентификатор карты: %@";
 "Obsidian Legacy" = "Obsidian Legacy";
 "Limit order filled: %@" = "Лимитный ордер исполнен: %@";
 "Portfolio statistics" = "Статистика портфеля";
@@ -571,7 +571,7 @@
 "Payment request" = "Запрос на получение";
 "Tokenized stocks" = "Токенизированные акции";
 "Tokenized stock tracking an underlying equity." = "Токенизированный инструмент, отслеживающий цену базовой акции.";
-"VELTRIX is a simulator. Trades, transfers and card payments use virtual funds on this device." = "VELTRIX — симулятор. Сделки, переводы и платежи по картам используют виртуальные средства на этом устройстве.";
+"VELTRIX is a simulator. Trades, transfers and card payments use virtual funds on this device. Cards have no payment credentials. QR payments work between portfolios on this device." = "VELTRIX — симулятор. Сделки, переводы и платежи по картам используют виртуальные средства на этом устройстве. У карт нет платёжных реквизитов. QR-оплата работает между портфелями на этом устройстве.";
 "Account" = "Аккаунт";
 "Preferences" = "Предпочтения";
 "Haptic feedback" = "Тактильная отдача";

@@ -328,6 +328,11 @@
 "This operation was already recorded." = "This operation was already recorded.";
 "This file is not a valid VELTRIX backup." = "This file is not a valid VELTRIX backup.";
 "This payment was already refunded." = "This payment was already refunded.";
-"VELTRIX is a simulator. Trades, transfers and card payments use virtual funds on this device." = "VELTRIX is a simulator. Trades, transfers and card payments use virtual funds on this device.";
+"VELTRIX is a simulator. Trades, transfers and card payments use virtual funds on this device. Cards have no payment credentials. QR payments work between portfolios on this device." = "VELTRIX is a simulator. Trades, transfers and card payments use virtual funds on this device. Cards have no payment credentials. QR payments work between portfolios on this device.";
 "Midnight Blue" = "Midnight Blue";
 "Obsidian Black" = "Obsidian Black";
+"Card details" = "Card details";
+"Card reference: %@" = "Card reference: %@";
+"QR payment" = "QR payment";
+"Confirm payment" = "Confirm payment";
+"Review payment" = "Review payment";

@@ -83,7 +83,7 @@ struct QRScanner: View {
                         }
                             .frame(maxHeight: 180)
                         if let id = requestID {
-                            Button("Review local payment") { showPayment = true }
+                            Button("Review payment") { showPayment = true }
                                 .buttonStyle(.borderedProminent)
                                 .accessibilityIdentifier("scanner.reviewPayment")
                                 .accessibilityValue(Text(verbatim: id.uuidString))

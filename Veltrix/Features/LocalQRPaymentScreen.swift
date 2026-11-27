@@ -26,7 +26,7 @@ struct LocalQRPaymentScreen: View {
                 }
                 if let error { Text(verbatim: error).font(.footnote).foregroundStyle(theme.negative) }
             }
-            .navigationTitle("Local QR payment")
+            .navigationTitle("QR payment")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button(saved ? "Done" : "Close") { dismiss() } } }
         }
@@ -45,7 +45,7 @@ struct LocalQRPaymentScreen: View {
                     ForEach(candidates) { item in Text(verbatim: item.name).tag(item.id) }
                 }
                 LabeledContent("Available balance", value: (try? payer.freeUnits(request.asset)).map { model.units($0) } ?? "-")
-                Button("Confirm local payment") {
+                Button("Confirm payment") {
                     if model.execute(.payQR(request.id, from: payer.id), showFeedback: false) {
                         saved = true
                         Feedback.success()

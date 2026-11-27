@@ -47,7 +47,14 @@ jobs:
           set --
           case "$VELTRIX_TEST_SCOPE" in
             unit_tests) set -- -only-testing:VeltrixUnitTests ;;
-            visual_smoke) set -- -only-testing:VeltrixUITests/VeltrixUITests/testOperationsCenterAndTokenizedMarket ;;
+            visual_smoke)
+              set -- \
+                -only-testing:VeltrixUITests/VeltrixUITests/testOperationsCenterAndTokenizedMarket \
+                -only-testing:VeltrixUITests/VeltrixUITests/testSimulatorDisclosureAppearsAtBottomOfSettings \
+                -only-testing:VeltrixUITests/VeltrixUITests/testCreateCardAndHideItsBalanceThroughSettings \
+                -only-testing:VeltrixUITests/VeltrixUITests/testQRScannerOpensAndCanBeDismissed \
+                -only-testing:VeltrixUITests/VeltrixUITests/testReceiveCreatesAndRefreshesLocalQRRequest
+              ;;
           esac
           xcodebuild test -project Veltrix.xcodeproj -scheme Veltrix "$@" \
             -destination "platform=iOS Simulator,id=$simulator" \
