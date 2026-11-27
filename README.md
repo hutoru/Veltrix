@@ -10,8 +10,8 @@
 
 ## Скачать IPA на Windows
 
-1. Откройте [Build iOS IPA](https://github.com/hutoru/Veltrix/actions/workflows/build-ios.yml). Чтобы запустить новую сборку, выберите нужную ветку в меню **Run workflow**.
-2. В успешном запуске скачайте **Veltrix-unsigned-ipa** и распакуйте артефакт. Внутри находятся `Veltrix.ipa` и контрольная сумма SHA-256.
+1. Откройте [Build iOS IPA](https://github.com/hutoru/Veltrix/actions/workflows/build-ios.yml). Чтобы запустить новую сборку, выберите нужную ветку в меню **Run workflow**. Вариант **release_with_tests** сначала запускает регрессии в симуляторе, затем собирает IPA.
+2. В успешном запуске скачайте **Veltrix-unsigned-ipa** и распакуйте артефакт. Для 9.2.0 внутри находятся `VELTRIX-9.2.0-Midnight.ipa` и контрольная сумма SHA-256.
 3. Через PowerShell можно скачать и одновременно проверить последний успешный артефакт. Скрипт использует вход через Git Credential Manager или GitHub CLI.
 
 ```powershell
@@ -24,8 +24,8 @@
 
 Артефакт GitHub нужно подписать перед установкой. Для бесплатного Apple ID подпись обычно действует 7 дней, после чего приложение нужно обновить через инструмент подписи. AltStore Classic допускает до трёх активных приложений, установленных таким способом. На iOS 16 может потребоваться «Режим разработчика» в разделе «Конфиденциальность и безопасность». [AltStore Classic](https://faq.altstore.io/altstore-classic/your-altstore) · [Режим разработчика Apple](https://developer.apple.com/documentation/xcode/enabling-developer-mode-on-a-device)
 
-- **Sideloadly.** Установите рекомендованные разработчиком версии iTunes и iCloud с сайта Apple. Подключите разблокированный iPhone по USB, подтвердите доверие этому компьютеру, выберите устройство и `Veltrix.ipa`. Введите Apple ID в Sideloadly, нажмите **Start** и следуйте подсказкам на iPhone. [Sideloadly](https://sideloadly.io/)
-- **AltStore Classic.** Установите AltServer на Windows, через него установите AltStore на iPhone, перенесите `Veltrix.ipa` на телефон и откройте через **My Apps → +**. Для обновления подписи AltServer должен быть доступен. [Установка AltStore на Windows](https://faq.altstore.io/altstore-classic/how-to-install-altstore-windows)
+- **Sideloadly.** Установите рекомендованные разработчиком версии iTunes и iCloud с сайта Apple. Подключите разблокированный iPhone по USB, подтвердите доверие этому компьютеру, выберите устройство и `VELTRIX-9.2.0-Midnight.ipa`. Введите Apple ID в Sideloadly, нажмите **Start** и следуйте подсказкам на iPhone. [Sideloadly](https://sideloadly.io/)
+- **AltStore Classic.** Установите AltServer на Windows, через него установите AltStore на iPhone, перенесите `VELTRIX-9.2.0-Midnight.ipa` на телефон и откройте через **My Apps → +**. Для обновления подписи AltServer должен быть доступен. [Установка AltStore на Windows](https://faq.altstore.io/altstore-classic/how-to-install-altstore-windows)
 
 ## Данные и поведение симуляции
 

@@ -6,9 +6,10 @@
 - [x] Обновить Home, стеклянную навигацию, типографику, Markets и формат сумм USD/EUR/RUB.
 - [x] Добавить кеш высокодетализированных логотипов из существующего потока котировок CoinGecko.
 - [x] Установить версию 9.2.0 и номер сборки 14.
-- [ ] Выполнить модульные и UI-тесты, просмотреть снимки Midnight Blue, Obsidian Black и Light.
-- [ ] Собрать и проверить Release ARM64 VELTRIX-9.2.0-Midnight.ipa.
-- [ ] Проверить на iPhone XS и iPhone 15 Pro Max установку поверх 9.1, Face ID, код-пароль, баннеры iOS, камеру и Reduce Motion.
+- [x] На iPhone SE (3-го поколения), iOS 26.2, прошли 41 модульный и 15 UI-тестов. Проверены переключение и сохранение тем, покупки и продажи, нативный ввод EN/RU, поиск, уведомления, карты и локальные данные. [Прогон](https://github.com/hutoru/Veltrix/actions/runs/46038255956)
+- [x] Просмотрены снимки Home и настроек в Midnight Blue, Obsidian Black и Light, а также Markets, торги, клавиатура, Card Studio, уведомления, сканер и экран блокировки. Снимки лежат в `dist/qa-46038255956/screens`. Сверены фоны Home `#0F111B`, `#000000` и `#FFFFFF`.
+- [x] Собран и проверен неподписанный Release ARM64 VELTRIX-9.2.0-Midnight.ipa из `68ee0c8`. Подтверждены iOS 16.0, Bundle ID `app.veltrix.simulation`, EN/RU, монохромный AppIcon и Payload. SHA-256 `04b433b8bae17aaf956dda637d68b6fcf7aa348b24a29f99364399a517a5e5cb`. [Сборка](https://github.com/hutoru/Veltrix/actions/runs/46038255956/job/140647374306)
+- [ ] Проверить на iPhone XS и iPhone 15 Pro Max установку поверх 9.1, Face ID, код-пароль, баннеры iOS, камеру и Reduce Motion. К рабочей станции iPhone не подключён. Симулятор подтвердил экран блокировки и доставку локального уведомления.
 
 ## VELTRIX 9.1.0 Premium Refinement
 
