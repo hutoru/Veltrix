@@ -14,7 +14,8 @@ import SwiftUI
     @Published var error: String?
     @Published var toast: String?
     @Published var widgetPrivacy: Bool { didSet { defaults.set(widgetPrivacy, forKey: "widgetPrivacy"); WidgetPublisher.publish(self, force: true) } }
-    @Published var liveActivities: Bool { didSet { defaults.set(liveActivities, forKey: "liveActivities"); if !liveActivities { LiveOperation.clear() } } }
+    @Published var liveActivityResult: String?
+    @Published var liveActivities: Bool { didSet { defaults.set(liveActivities, forKey: "liveActivities"); if !liveActivities { liveActivityResult = nil; LiveOperation.clear() } } }
     @Published var liveActivityPrivacy: Bool { didSet { defaults.set(liveActivityPrivacy, forKey: "liveActivityPrivacy"); if liveActivityPrivacy { LiveOperation.clear() } } }
     @Published var currency: String { didSet { defaults.set(currency, forKey: "currency") } }
     @Published var digits: Int { didSet { defaults.set(digits, forKey: "digits") } }
@@ -75,7 +76,7 @@ import SwiftUI
         cache = MarketCache(directory: testing ? nil : try? FileManager.default.url(for: .cachesDirectory,
                                                                                    in: .userDomainMask, appropriateFor: nil, create: true))
         widgetPrivacy = defaults.object(forKey: "widgetPrivacy") as? Bool ?? true
-        liveActivities = defaults.object(forKey: "liveActivities") as? Bool ?? false
+        liveActivities = defaults.object(forKey: "liveActivities") as? Bool ?? true
         liveActivityPrivacy = defaults.object(forKey: "liveActivityPrivacy") as? Bool ?? true
         ledger = Ledger.fresh(name: L.text("Main portfolio"))
         currency = defaults.string(forKey: "currency").flatMap { Fiat.currencies.contains($0) ? $0 : nil } ?? "USD"
@@ -150,7 +151,8 @@ import SwiftUI
             store = storage
             ledger = next
             onSet = enabled
-            if enabled { LiveOperation.clear() }
+            liveActivityResult = nil
+            LiveOperation.clear()
             WidgetPublisher.publish(self, force: true)
             notificationsCleared = defaults.object(forKey: notificationKey("notificationsCleared")) as? Date ?? .distantPast
             notificationsReadDate = defaults.object(forKey: notificationKey("notificationsReadDate")) as? Date ?? Date()

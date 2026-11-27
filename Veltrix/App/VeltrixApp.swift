@@ -147,6 +147,7 @@ struct VeltrixRoot: View {
         .onChange(of: phase) { next in
             switch next {
             case .active:
+                LiveOperation.clearExpiredReceipts()
                 lock.becomeActive()
                 if !lock.locked { model.start(); openPendingNotification(); openPendingShortcut() }
                 else { attemptAutomaticUnlock() }
@@ -184,6 +185,7 @@ struct VeltrixRoot: View {
         }
         .onChange(of: model.onSet) { enabled in if !enabled { openPendingNotification() } }
         .onAppear {
+            LiveOperation.clearExpiredReceipts()
             NotificationDelegate.lockState = lock
             if phase == .active && !lock.locked { model.start(); openPendingNotification(); openPendingShortcut() }
             else { attemptAutomaticUnlock() }
@@ -226,8 +228,9 @@ struct VeltrixRoot: View {
     }
 
     private func openWidgetRoute() {
-        guard !showSplash, !lock.locked, !model.storageError, !model.onSet, let url = widgetRoute else { return }
+        guard !showSplash, !lock.locked, !model.storageError, let url = widgetRoute else { return }
         widgetRoute = nil
+        if model.onSet && url.host != "activity" { return }
         switch url.host {
         case "portfolio": tab = .portfolio; navigationReset = UUID()
         case "markets": tab = .markets; navigationReset = UUID()

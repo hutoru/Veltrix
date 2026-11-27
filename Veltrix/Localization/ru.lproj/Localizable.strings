@@ -573,3 +573,12 @@
 "Staking term ended" = "Срок размещения закончился";
 "What’s new" = "Что нового";
 "Portfolio insights, a redesigned Operations Center, staking, widgets and Live Activities." = "Аналитика портфеля, новый Центр операций, стейкинг, виджеты и активности в реальном времени.";
+"Live Activities require iOS 16.1 or later." = "Для Live Activities нужна iOS 16.1 или новее.";
+"The VELTRIX extension is missing from this installation." = "В установленной версии отсутствует расширение VELTRIX.";
+"Live Activities are unavailable in iOS settings." = "Live Activities недоступны в настройках iOS.";
+"There is no saved operation to show." = "Пока нет сохранённых операций.";
+"Live Activity accepted by iOS." = "iOS приняла Live Activity.";
+"iOS declined the Live Activity (%@)." = "iOS отклонила Live Activity (%@).";
+"Show Live Activities" = "Показывать Live Activities";
+"Open iOS settings" = "Открыть настройки iOS";
+"Show last operation" = "Показать последнюю операцию";

@@ -47,6 +47,7 @@ jobs:
           set --
           case "$VELTRIX_TEST_SCOPE" in
             unit_tests) set -- -only-testing:VeltrixUnitTests ;;
+            live_activity) set -- -only-testing:VeltrixUITests/VeltrixUITests/testLiveActivityAcceptsSavedDepositInSeparatePortfolio ;;
             visual_smoke)
               set -- \
                 -only-testing:VeltrixUITests/VeltrixUITests/testOperationsCenterAndTokenizedMarket \

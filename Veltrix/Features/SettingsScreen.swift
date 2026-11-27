@@ -66,10 +66,28 @@ struct SettingsScreen: View {
             if matches("Portfolio controls", "Create portfolio", "Edit holdings") {
                 Section { portfolioControls.listRowBackground(theme.surface) }
             }
-            if matches("Notifications", "Price alerts", "Live Activities", "Widgets") {
-                Section("Notifications") {
-                    Toggle("Live Activities", isOn: $model.liveActivities)
+            if matches("Live Activities", "Dynamic Island") {
+                Section("Live Activities") {
+                    Toggle("Show Live Activities", isOn: $model.liveActivities)
                     Toggle("Hide Live Activity amounts", isOn: $model.liveActivityPrivacy)
+                    if model.liveActivities {
+                        if let reason = LiveOperation.unavailableReason {
+                            Text(verbatim: reason).font(.footnote).foregroundStyle(theme.muted)
+                            Button("Open iOS settings") {
+                                if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
+                            }
+                        } else {
+                            Button("Show last operation") { LiveOperation.showLastOperation(model) }
+                        }
+                        if let result = model.liveActivityResult {
+                            Text(verbatim: result).font(.footnote).foregroundStyle(theme.muted)
+                                .accessibilityIdentifier("liveActivity.result")
+                        }
+                    }
+                }
+            }
+            if matches("Notifications", "Price alerts", "Widgets") {
+                Section("Notifications") {
                     Toggle("Hide widget amounts", isOn: $model.widgetPrivacy)
                     Toggle("iOS notifications", isOn: Binding(get: { model.pushOperations }, set: updateNotifications))
                     Toggle("Hide amounts in notifications", isOn: $model.privateNotifications)

@@ -335,3 +335,12 @@
 "Staking term ended" = "Staking term ended";
 "What’s new" = "What’s new";
 "Portfolio insights, a redesigned Operations Center, staking, widgets and Live Activities." = "Portfolio insights, a redesigned Operations Center, staking, widgets and Live Activities.";
+"Live Activities require iOS 16.1 or later." = "Live Activities require iOS 16.1 or later.";
+"The VELTRIX extension is missing from this installation." = "The VELTRIX extension is missing from this installation.";
+"Live Activities are unavailable in iOS settings." = "Live Activities are unavailable in iOS settings.";
+"There is no saved operation to show." = "There is no saved operation to show.";
+"Live Activity accepted by iOS." = "Live Activity accepted by iOS.";
+"iOS declined the Live Activity (%@)." = "iOS declined the Live Activity (%@).";
+"Show Live Activities" = "Show Live Activities";
+"Open iOS settings" = "Open iOS settings";
+"Show last operation" = "Show last operation";

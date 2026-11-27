@@ -46,6 +46,43 @@ final class VeltrixUITests: XCTestCase {
         capture(app, name: "Activity")
     }
 
+    func testLiveActivityAcceptsSavedDepositInSeparatePortfolio() {
+        let app = launch(["--native-live-activity"])
+        app.buttons["home.profile"].tap()
+        app.buttons["profile.settings"].tap()
+        let search = app.textFields["settings.search"]
+        XCTAssertTrue(search.waitForExistence(timeout: 5))
+        search.tap()
+        search.typeText("Separate portfolio")
+        dismissKeyboard(in: app)
+        app.switches["Separate portfolio"].tap()
+        XCTAssertTrue(app.buttons["trade.deposit"].waitForExistence(timeout: 5))
+        app.buttons["trade.deposit"].tap()
+        enterAmount("100", in: app)
+        app.buttons["trade.review"].tap()
+        app.buttons["trade.confirm"].tap()
+        XCTAssertTrue(app.staticTexts["trade.saved"].waitForExistence(timeout: 5))
+        app.buttons["Done"].tap()
+        app.buttons["home.profile"].tap()
+        app.buttons["profile.settings"].tap()
+        XCTAssertTrue(search.waitForExistence(timeout: 5))
+        search.tap()
+        search.typeText("Live Activities")
+        dismissKeyboard(in: app)
+        let result = app.staticTexts["liveActivity.result"]
+        XCTAssertTrue(result.waitForExistence(timeout: 5), app.debugDescription)
+        XCTAssertEqual(result.label, "Live Activity accepted by iOS.")
+        let replay = app.buttons["Show last operation"]
+        XCTAssertTrue(replay.isHittable)
+        replay.tap()
+        XCTAssertEqual(result.label, "Live Activity accepted by iOS.")
+        XCUIDevice.shared.press(.home)
+        let screenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        screenshot.name = "Native Live Activity"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
     func testOperationsCenterAndTokenizedMarket() {
         let app = launch(tokenizedMarket: true)
         app.buttons["tab.operations"].tap()
